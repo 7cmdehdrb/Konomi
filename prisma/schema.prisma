@@ -1,0 +1,87 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Folder {
+  id        Int      @id @default(autoincrement())
+  name      String
+  path      String   @unique
+  createdAt DateTime @default(now())
+  images    Image[]
+}
+
+model PromptGroup {
+  id     Int           @id @default(autoincrement())
+  name   String
+  type   String        // "base" | "character"
+  order  Int
+  tokens PromptToken[]
+}
+
+model PromptToken {
+  id      Int         @id @default(autoincrement())
+  label   String
+  order   Int
+  groupId Int
+  group   PromptGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id        Int             @id @default(autoincrement())
+  name      String
+  isBuiltin Boolean         @default(false)
+  order     Int             @default(0)
+  images    ImageCategory[]
+}
+
+model ImageCategory {
+  imageId    Int
+  categoryId Int
+  image      Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([imageId, categoryId])
+}
+
+model NaiConfig {
+  id     Int    @id @default(1)
+  apiKey String @default("")
+}
+
+model Image {
+  id             Int      @id @default(autoincrement())
+  path           String   @unique
+  folderId       Int
+  prompt         String   @default("")
+  negativePrompt String   @default("")
+  model          String   @default("")
+  seed           Int      @default(0)
+  width          Int      @default(0)
+  height         Int      @default(0)
+  sampler        String   @default("")
+  steps          Int      @default(0)
+  cfgScale       Float    @default(0)
+  cfgRescale     Float    @default(0)
+  noiseSchedule  String   @default("")
+  varietyPlus    Boolean  @default(false)
+  characterPrompts String   @default("[]")
+  source         String   @default("unknown")
+  isFavorite     Boolean  @default(false)
+  pHash                 String   @default("")
+  promptTokens          String   @default("[]")
+  negativePromptTokens  String   @default("[]")
+  characterPromptTokens String   @default("[]")
+  fileSize       Int      @default(0)
+  fileModifiedAt DateTime
+  createdAt      DateTime @default(now())
+  folder         Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  categories     ImageCategory[]
+}

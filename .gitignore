@@ -1,0 +1,27 @@
+# v0 runtime files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+
+# Common ignores
+node_modules/
+.next/
+.env
+.env*.local
+.DS_Store
+out
+dist
+
+# Custom ignores
+.eslintcache
+.claude
+CLAUDE.md
+docs
+examples
+/src/generated/prisma
+prisma/dev.db
+prisma/dev.db-journal
+prisma/migrations
+debug.ts
+dev.db
+dev.db-journal
