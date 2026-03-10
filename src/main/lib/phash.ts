@@ -4,6 +4,7 @@ import { getDB } from "./db";
 import { withConcurrency } from "./scanner";
 
 const SIMILARITY_THRESHOLD = 10;
+const HASH_WRITE_BATCH_SIZE = 32;
 
 // 4비트 popcount 룩업 테이블
 const POPCOUNT4 = [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4];
@@ -77,6 +78,10 @@ class PHashPool {
 
 const pHashPool = new PHashPool(POOL_SIZE, WORKER_PATH);
 
+async function yieldToEventLoop(): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
 // ── Hamming 거리 ──────────────────────────────────────────────────────────────
 export function hammingDistance(a: string, b: string): number {
   let dist = 0;
@@ -107,6 +112,7 @@ export async function computeAllHashes(
   let done = 0;
   let lastProgressAt = 0;
   let success = false;
+  const updates: Array<{ id: number; hash: string }> = [];
   console.info(`[phash.computeAllHashes] start targets=${total}`);
   // Keep workers busy by running with higher queue concurrency.
   try {
@@ -114,7 +120,7 @@ export async function computeAllHashes(
       try {
         const hash = await pHashPool.run(img.path);
         if (hash) {
-          await db.image.update({ where: { id: img.id }, data: { pHash: hash } });
+          updates.push({ id: img.id, hash });
         }
       } catch {
         // Skip unreadable files.
@@ -125,7 +131,20 @@ export async function computeAllHashes(
         lastProgressAt = progressNow;
         onProgress?.(done, total);
       }
+      if (done % 32 === 0) {
+        await yieldToEventLoop();
+      }
     });
+
+    for (let i = 0; i < updates.length; i += HASH_WRITE_BATCH_SIZE) {
+      const chunk = updates.slice(i, i + HASH_WRITE_BATCH_SIZE);
+      await db.$transaction(
+        chunk.map(({ id, hash }) =>
+          db.image.update({ where: { id }, data: { pHash: hash } }),
+        ),
+      );
+      await yieldToEventLoop();
+    }
     success = true;
     return done;
   } finally {
@@ -184,6 +203,9 @@ export async function getSimilarGroups(
       const hb = images[j].pHash;
       if (!hb) continue;
       if (hammingDistance(ha, hb) <= threshold) union(i, j);
+    }
+    if (i % 32 === 0) {
+      await yieldToEventLoop();
     }
   }
 
