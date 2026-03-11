@@ -19,7 +19,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import type { PromptToken } from "@/lib/token";
-import { TokenChips } from "./token-chips";
+import { TokenContainer } from "./token-container";
 
 export interface ImageData {
   id: string;
@@ -246,7 +246,7 @@ export const ImageCard = memo(function ImageCard({
                   onClick={(e) => e.stopPropagation()}
                   className="max-h-36 overflow-y-auto rounded-md border border-white/15 bg-black/55 p-2 shadow-lg backdrop-blur-sm"
                 >
-                  <TokenChips tokens={image.tokens} isEditable={false} />
+                  <TokenContainer tokens={image.tokens} isEditable={false} />
                 </div>
               </div>
             </div>

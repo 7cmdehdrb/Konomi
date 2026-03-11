@@ -1,41 +1,22 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ClipboardEvent,
-  type KeyboardEvent,
-} from "react";
+import { useEffect, useRef, useState, type ClipboardEvent } from "react";
 import { Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PromptToken } from "@/lib/token";
 import { parseRawToken, tokenToRawString } from "@/lib/token";
+import { TokenChip } from "./token-chip";
 
-function weightClass(w: number): string {
-  if (w >= 1.3) return "bg-amber-500/20 text-amber-300";
-  if (w > 1.0) return "bg-orange-500/15 text-orange-200";
-  if (w < 0) return "bg-rose-500/20 text-rose-300";
-  if (w < 0.75) return "bg-blue-500/20 text-blue-300";
-  if (w < 1.0) return "bg-sky-500/15 text-sky-200";
-  return "bg-white/10 text-white/70";
-}
-
-function formatWeight(weight: number): string {
-  if (!Number.isFinite(weight)) return "1";
-  return weight.toFixed(2).replace(/\.?0+$/, "");
-}
-
-interface TokenChipsProps {
+interface TokenContainerProps {
   tokens: PromptToken[];
   isEditable?: boolean;
   onTokensChange?: (tokens: PromptToken[]) => void;
 }
 
-export function TokenChips({
+export function TokenContainer({
   tokens,
   isEditable = false,
   onTokensChange,
-}: TokenChipsProps) {
-  const chipsRef = useRef<HTMLDivElement | null>(null);
+}: TokenContainerProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [localTokens, setLocalTokens] = useState<PromptToken[]>(tokens);
   const isControlled = typeof onTokensChange === "function";
@@ -72,23 +53,13 @@ export function TokenChips({
     return !!selection && !selection.isCollapsed;
   };
 
-  const handleChipClick = (key: string, token: PromptToken) => {
+  const handleChipCopy = (key: string, token: PromptToken) => {
     if (hasSelection()) return;
     void handleCopy(key, token);
   };
 
-  const handleChipKeyDown = (
-    e: KeyboardEvent<HTMLDivElement>,
-    key: string,
-    token: PromptToken,
-  ) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    e.preventDefault();
-    void handleCopy(key, token);
-  };
-
   const handleCopySelectedRaw = (e: ClipboardEvent<HTMLDivElement>) => {
-    const root = chipsRef.current;
+    const root = containerRef.current;
     const selection = window.getSelection();
     if (!root || !selection || selection.isCollapsed || selection.rangeCount < 1)
       return;
@@ -180,38 +151,21 @@ export function TokenChips({
 
   return (
     <div
-      ref={chipsRef}
+      ref={containerRef}
       onCopy={handleCopySelectedRaw}
       className="flex flex-wrap gap-1"
     >
       {activeTokens.map((token, i) => {
         const key = `view-${i}`;
-        const weighted = Math.abs(token.weight - 1.0) > 0.001;
-        const copied = copiedKey === key;
         const raw = tokenToRawString(token);
-        const chipClass = cn(
-          "px-1.5 py-1 text-xs rounded transition-colors cursor-text hover:brightness-110",
-          weighted ? weightClass(token.weight) : "bg-white/10 text-white/70",
-          copied && "ring-1 ring-emerald-400/50 text-emerald-200",
-        );
-
         return (
-          <div
+          <TokenChip
             key={i}
-            role="button"
-            tabIndex={0}
-            data-token-chip="true"
-            data-token-raw={raw}
-            onClick={() => handleChipClick(key, token)}
-            onKeyDown={(e) => handleChipKeyDown(e, key, token)}
-            className={cn(chipClass, "inline-flex items-center gap-1")}
-          >
-            <span>{token.text}</span>
-            <span className="text-[10px] font-mono text-white/60">
-              {`x${formatWeight(token.weight)}`}
-            </span>
-            {copied ? <Copy className="h-3 w-3" /> : null}
-          </div>
+            token={token}
+            raw={raw}
+            copied={copiedKey === key}
+            onCopy={() => handleChipCopy(key, token)}
+          />
         );
       })}
     </div>

@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { parsePromptTokens } from "@/lib/token";
 import type { ImageData } from "./image-card";
-import { TokenChips } from "./token-chips";
+import { TokenContainer } from "./token-container";
 
 function SimilarThumb({
   img,
@@ -390,7 +390,7 @@ export function ImageDetail({
                     )}
                   </Button>
                 </div>
-                <TokenChips tokens={image.tokens} isEditable={false} />
+                <TokenContainer tokens={image.tokens} isEditable={false} />
               </div>
 
               {/* Negative Prompt */}
@@ -415,7 +415,7 @@ export function ImageDetail({
                       )}
                     </Button>
                   </div>
-                  <TokenChips
+                  <TokenContainer
                     tokens={image.negativeTokens}
                     isEditable={false}
                   />
@@ -446,7 +446,7 @@ export function ImageDetail({
                         )}
                       </Button>
                     </div>
-                    <TokenChips
+                    <TokenContainer
                       tokens={parsePromptTokens(cp)}
                       isEditable={false}
                     />
