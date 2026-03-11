@@ -157,6 +157,7 @@ export function ImageDetail({
         (similarPage + 1) * similarPageSize,
       )
     : [];
+  const hasSeed = Number.isFinite(image.seed);
 
   return (
     <div
@@ -466,11 +467,11 @@ export function ImageDetail({
                   <span className="text-white/30">Seed</span>
                   <span className="flex items-center gap-1.5">
                     <span className="text-white/70 font-mono">
-                      {image.seed || "—"}
+                      {hasSeed ? image.seed : "—"}
                     </span>
-                    {image.seed ? (
+                    {hasSeed ? (
                       <button
-                        className="text-white/20 hover:text-white/60 transition-colors"
+                        className="text-white/50 hover:text-white transition-colors"
                         onClick={() => handleCopy("seed", String(image.seed))}
                       >
                         {copiedKey === "seed" ? (
