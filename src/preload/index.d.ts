@@ -90,6 +90,11 @@ export type ImageListResult = {
   totalPages: number;
 };
 
+export type ImageSearchPresetStats = {
+  availableResolutions: Array<{ width: number; height: number }>;
+  availableModels: string[];
+};
+
 export type SimilarGroup = { id: string; name: string; imageIds: number[] };
 
 export type Category = {
@@ -158,6 +163,7 @@ declare global {
       readMetaFromBuffer: (data: Uint8Array) => Promise<NovelAIMeta | null>;
       readFile: (path: string) => Promise<Buffer>;
       list: () => Promise<ImageRow[]>;
+      getSearchPresetStats: () => Promise<ImageSearchPresetStats>;
       listPage: (query: ImageListQuery) => Promise<ImageListResult>;
       listByIds: (ids: number[]) => Promise<ImageRow[]>;
       scan: (options?: {
@@ -182,6 +188,9 @@ declare global {
         cb: (data: { done: number; total: number }) => void,
       ) => () => void;
       onScanProgress: (
+        cb: (data: { done: number; total: number }) => void,
+      ) => () => void;
+      onSearchStatsProgress: (
         cb: (data: { done: number; total: number }) => void,
       ) => () => void;
       cancelScan: () => Promise<void>;

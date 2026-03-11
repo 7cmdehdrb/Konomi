@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("image", {
     ipcRenderer.invoke("image:readMetaFromBuffer", data),
   readFile: (path: string) => ipcRenderer.invoke("image:readFile", path),
   list: () => ipcRenderer.invoke("image:list"),
+  getSearchPresetStats: () => ipcRenderer.invoke("image:getSearchPresetStats"),
   listPage: (query: {
     page?: number;
     pageSize?: number;
@@ -103,6 +104,17 @@ contextBridge.exposeInMainWorld("image", {
     ) => cb(data);
     ipcRenderer.on("image:scanProgress", handler);
     return () => ipcRenderer.removeListener("image:scanProgress", handler);
+  },
+  onSearchStatsProgress: (
+    cb: (data: { done: number; total: number }) => void,
+  ) => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      data: { done: number; total: number },
+    ) => cb(data);
+    ipcRenderer.on("image:searchStatsProgress", handler);
+    return () =>
+      ipcRenderer.removeListener("image:searchStatsProgress", handler);
   },
   cancelScan: () => ipcRenderer.invoke("image:cancelScan"),
   onScanFolder: (

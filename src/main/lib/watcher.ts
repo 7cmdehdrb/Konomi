@@ -8,6 +8,7 @@ import {
   findDuplicateGroupForIncomingPath,
   forgetIgnoredDuplicatePath,
   isIgnoredDuplicatePath,
+  scheduleImageSearchPresetStatsRebuild,
   type ImageRow,
 } from "./image";
 
@@ -100,6 +101,9 @@ class FolderWatcher {
       const existing = await db.image.findUnique({ where: { path: filePath } });
       if (existing && !this.sender.isDestroyed()) {
         await db.image.delete({ where: { path: filePath } });
+        scheduleImageSearchPresetStatsRebuild(300, (done, total) =>
+          this.sender.send("image:searchStatsProgress", { done, total }),
+        );
         this.sender.send("image:removed", [existing.id]);
       }
       return;
@@ -166,6 +170,9 @@ class FolderWatcher {
       });
 
       if (!this.sender.isDestroyed()) {
+        scheduleImageSearchPresetStatsRebuild(300, (done, total) =>
+          this.sender.send("image:searchStatsProgress", { done, total }),
+        );
         this.sender.send("image:batch", [image as ImageRow]);
       }
     } catch {

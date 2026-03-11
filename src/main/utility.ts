@@ -15,6 +15,7 @@ import {
   listImages,
   listImagesPage,
   listImagesByIds,
+  getImageSearchPresetStats,
   syncAllFolders,
   setImageFavorite,
   backfillPromptTokens,
@@ -22,6 +23,7 @@ import {
   resolveFolderDuplicates,
   listIgnoredDuplicatePaths,
   clearIgnoredDuplicatePaths,
+  scheduleImageSearchPresetStatsRebuild,
 } from "./lib/image";
 import {
   listGroups,
@@ -72,6 +74,9 @@ const utilitySender: EventSender = {
 };
 
 async function handleRequest(type: string, payload: unknown): Promise<unknown> {
+  const emitSearchStatsProgress = (done: number, total: number): void => {
+    utilitySender.send("image:searchStatsProgress", { done, total });
+  };
   switch (type) {
     case "folder:list":
       return getFolders();
@@ -95,7 +100,10 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
           keep: "existing" | "incoming" | "ignore";
         }>;
       };
-      const resolved = await resolveFolderDuplicates(resolutions);
+      const resolved = await resolveFolderDuplicates(
+        resolutions,
+        emitSearchStatsProgress,
+      );
       if (resolved.removedImageIds.length > 0) {
         utilitySender.send("image:removed", resolved.removedImageIds);
       }
@@ -109,6 +117,7 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
       const { id } = payload as { id: number };
       unwatchFolder(id);
       await deleteFolder(id);
+      scheduleImageSearchPresetStatsRebuild(0, emitSearchStatsProgress);
       return null;
     }
     case "folder:rename": {
@@ -118,6 +127,8 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
 
     case "image:list":
       return listImages();
+    case "image:getSearchPresetStats":
+      return getImageSearchPresetStats(emitSearchStatsProgress);
     case "image:listPage":
       return listImagesPage(
         (payload as {
@@ -163,6 +174,7 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
             ? (group) => utilitySender.send("image:watchDuplicate", group)
             : undefined,
           orderedFolderIds,
+          emitSearchStatsProgress,
         );
       } finally {
         scanCancelToken = null;

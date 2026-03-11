@@ -33,6 +33,7 @@ interface HeaderProps {
   isAnalyzing?: boolean;
   hashProgress?: { done: number; total: number } | null;
   scanProgress?: { done: number; total: number } | null;
+  searchStatsProgress?: { done: number; total: number } | null;
   scanningFolderNames?: Map<number, string>;
   onCancelScan?: () => void;
   advancedFilters: AdvancedFilter[];
@@ -50,6 +51,7 @@ export function Header({
   isAnalyzing,
   hashProgress,
   scanProgress,
+  searchStatsProgress,
   scanningFolderNames,
   onCancelScan,
   advancedFilters,
@@ -57,7 +59,14 @@ export function Header({
   availableResolutions,
   availableModels,
 }: HeaderProps) {
-  const activeProgress = scanProgress ?? hashProgress;
+  const hasSearchStatsProgress =
+    !!searchStatsProgress &&
+    searchStatsProgress.total > 0 &&
+    searchStatsProgress.done < searchStatsProgress.total;
+  const activeProgress =
+    scanProgress ??
+    hashProgress ??
+    (hasSearchStatsProgress ? searchStatsProgress : null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [inputValue, setInputValue] = useState(searchQuery);
 
@@ -98,7 +107,7 @@ export function Header({
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
               <Sparkles className="h-5 w-5 text-primary-foreground" />
             </div>
-            {(scanning || isAnalyzing) && (
+            {(scanning || isAnalyzing || hasSearchStatsProgress) && (
               <div className="absolute left-full ml-3 flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
                 <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
                 <span className="tabular-nums select-none">
@@ -111,12 +120,14 @@ export function Header({
                               )
                             : null;
                         return names
-                          ? `${names} 스캔 중 ${scanProgress.done}/${scanProgress.total}`
-                          : `스캔 중 ${scanProgress.done}/${scanProgress.total}`;
+                          ? `${names} 폴더 스캔 중 ${scanProgress.done}/${scanProgress.total}`
+                          : `이미지 스캔 작업 ${scanProgress.done}/${scanProgress.total}`;
                       })()
                     : hashProgress && hashProgress.total > 0
                       ? `해시 계산 중 ${hashProgress.done}/${hashProgress.total}`
-                      : "유사 그룹 계산 중"}
+                      : hasSearchStatsProgress && searchStatsProgress
+                        ? `검색 통계 집계 중 ${searchStatsProgress.done}/${searchStatsProgress.total}`
+                        : "작업 중..."}
                 </span>
                 {scanning && onCancelScan && (
                   <button

@@ -60,6 +60,9 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle("image:list", () => bridge.request("image:list"));
+  ipcMain.handle("image:getSearchPresetStats", () =>
+    bridge.request("image:getSearchPresetStats"),
+  );
   ipcMain.handle(
     "image:listPage",
     (

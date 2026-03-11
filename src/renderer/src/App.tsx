@@ -252,6 +252,10 @@ export default function App() {
     done: number;
     total: number;
   } | null>(null);
+  const [searchStatsProgress, setSearchStatsProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [similarGroups, setSimilarGroups] = useState<SimilarGroup[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
@@ -275,11 +279,21 @@ export default function App() {
     Map<number, string>
   >(new Map());
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilter[]>([]);
+  const [availableResolutions, setAvailableResolutions] = useState<
+    Array<{ width: number; height: number }>
+  >([]);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [pendingGeneratorImport, setPendingGeneratorImport] =
     useState<ImageData | null>(null);
   const [similarImages, setSimilarImages] = useState<ImageData[]>([]);
 
   const pageRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const searchStatsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const searchStatsClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const listRequestSeqRef = useRef(0);
@@ -415,6 +429,33 @@ export default function App() {
     void loadImagesPage();
   }, [loadImagesPage]);
 
+  const loadSearchPresetStats = useCallback(async () => {
+    try {
+      const stats = await window.image.getSearchPresetStats();
+      startTransition(() => {
+        setAvailableResolutions(stats.availableResolutions);
+        setAvailableModels(stats.availableModels);
+      });
+    } catch (e: unknown) {
+      log.warn("Failed to load search preset stats", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, []);
+
+  const scheduleSearchStatsRefresh = useCallback(
+    (delay = 220) => {
+      if (searchStatsRefreshTimerRef.current) {
+        clearTimeout(searchStatsRefreshTimerRef.current);
+      }
+      searchStatsRefreshTimerRef.current = setTimeout(() => {
+        searchStatsRefreshTimerRef.current = null;
+        void loadSearchPresetStats();
+      }, delay);
+    },
+    [loadSearchPresetStats],
+  );
+
   const scheduleAnalysis = useCallback((delay = 3000) => {
     if (analyzeTimerRef.current) clearTimeout(analyzeTimerRef.current);
     analyzeTimerRef.current = setTimeout(async () => {
@@ -482,6 +523,7 @@ export default function App() {
         .then(() => {
           log.info("Scan completed", { elapsedMs: Date.now() - startedAt });
           schedulePageRefresh(0);
+          void loadSearchPresetStats();
         })
         .catch((e: unknown) => {
           log.error("Scan failed", {
@@ -503,7 +545,7 @@ export default function App() {
       scanPromiseRef.current = scanPromise;
       return scanPromise;
     },
-    [schedulePageRefresh],
+    [loadSearchPresetStats, schedulePageRefresh],
   );
 
   // Auto-analyze when threshold changes (skip initial mount)
@@ -519,7 +561,10 @@ export default function App() {
     const offBatch = window.image.onBatch((rows) => {
       if (rows.length === 0) return;
       schedulePageRefresh(150);
-      if (!scanningRef.current) scheduleAnalysis();
+      if (!scanningRef.current) {
+        scheduleAnalysis();
+        scheduleSearchStatsRefresh(180);
+      }
     });
 
     const offHashProgress = window.image.onHashProgress((data) => {
@@ -527,6 +572,19 @@ export default function App() {
     });
     const offScanProgress = window.image.onScanProgress((data) => {
       if (scanningRef.current) startTransition(() => setScanProgress(data));
+    });
+    const offSearchStatsProgress = window.image.onSearchStatsProgress((data) => {
+      startTransition(() => setSearchStatsProgress(data));
+      if (searchStatsClearTimerRef.current) {
+        clearTimeout(searchStatsClearTimerRef.current);
+        searchStatsClearTimerRef.current = null;
+      }
+      if (data.total > 0 && data.done >= data.total) {
+        searchStatsClearTimerRef.current = setTimeout(() => {
+          setSearchStatsProgress(null);
+          searchStatsClearTimerRef.current = null;
+        }, 250);
+      }
     });
     const offScanFolder = window.image.onScanFolder(
       ({ folderId, folderName, active }) => {
@@ -549,6 +607,7 @@ export default function App() {
       if (ids.length === 0) return;
       schedulePageRefresh(60);
       scheduleAnalysis();
+      scheduleSearchStatsRefresh(120);
     });
 
     window.category
@@ -560,6 +619,7 @@ export default function App() {
         ),
       );
 
+    void loadSearchPresetStats();
     runScan({ detectDuplicates: true }).then(() => scheduleAnalysis(0));
     try {
       window.image.watch();
@@ -573,13 +633,28 @@ export default function App() {
         clearTimeout(pageRefreshTimerRef.current);
         pageRefreshTimerRef.current = null;
       }
+      if (searchStatsRefreshTimerRef.current) {
+        clearTimeout(searchStatsRefreshTimerRef.current);
+        searchStatsRefreshTimerRef.current = null;
+      }
+      if (searchStatsClearTimerRef.current) {
+        clearTimeout(searchStatsClearTimerRef.current);
+        searchStatsClearTimerRef.current = null;
+      }
       offBatch();
       offRemoved();
       offHashProgress();
       offScanProgress();
+      offSearchStatsProgress();
       offScanFolder();
     };
-  }, [runScan, scheduleAnalysis, schedulePageRefresh]);
+  }, [
+    loadSearchPresetStats,
+    runScan,
+    scheduleAnalysis,
+    schedulePageRefresh,
+    scheduleSearchStatsRefresh,
+  ]);
 
   useEffect(() => {
     if (selectedImage) {
@@ -587,35 +662,6 @@ export default function App() {
       if (updated) setSelectedImage(updated);
     }
   }, [images, selectedImage]);
-
-  const availableResolutions = useMemo(() => {
-    const freq = new Map<
-      string,
-      { width: number; height: number; count: number }
-    >();
-    for (const img of images) {
-      if (img.width && img.height) {
-        const key = `${img.width}x${img.height}`;
-        const entry = freq.get(key);
-        if (entry) entry.count++;
-        else freq.set(key, { width: img.width, height: img.height, count: 1 });
-      }
-    }
-    return Array.from(freq.values())
-      .sort((a, b) => b.count - a.count)
-      .map(({ width, height }) => ({ width, height }));
-  }, [images]);
-
-  const availableModels = useMemo(() => {
-    const freq = new Map<string, number>();
-    for (const img of images) {
-      if (img.model != null)
-        freq.set(img.model, (freq.get(img.model) ?? 0) + 1);
-    }
-    return Array.from(freq.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([m]) => m);
-  }, [images]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -955,6 +1001,7 @@ export default function App() {
         isAnalyzing={isAnalyzing}
         hashProgress={hashProgress}
         scanProgress={scanProgress}
+        searchStatsProgress={searchStatsProgress}
         scanningFolderNames={scanningFolderNames}
         onCancelScan={handleCancelScan}
         advancedFilters={advancedFilters}

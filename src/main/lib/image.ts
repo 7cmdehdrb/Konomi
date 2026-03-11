@@ -69,6 +69,11 @@ export type ImageListResult = {
   totalPages: number;
 };
 
+export type ImageSearchPresetStats = {
+  availableResolutions: Array<{ width: number; height: number }>;
+  availableModels: string[];
+};
+
 export type FolderDuplicateExistingEntry = {
   imageId: number;
   path: string;
@@ -415,6 +420,164 @@ export async function clearIgnoredDuplicatePaths(): Promise<number> {
   ignoredDuplicatePaths.clear();
   await getDB().$executeRawUnsafe("DELETE FROM IgnoredDuplicatePath");
   return count;
+}
+
+let imageSearchStatTableReady = false;
+let imageSearchStatRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function ensureImageSearchStatTable(): Promise<void> {
+  if (imageSearchStatTableReady) return;
+  const db = getDB();
+  await db.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS ImageSearchStat (
+      kind TEXT NOT NULL,
+      key TEXT NOT NULL,
+      width INTEGER,
+      height INTEGER,
+      model TEXT,
+      count INTEGER NOT NULL DEFAULT 0,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (kind, key)
+    )`,
+  );
+  await db.$executeRawUnsafe(
+    "CREATE INDEX IF NOT EXISTS ImageSearchStat_kind_count_key_idx ON ImageSearchStat(kind, count, key)",
+  );
+  imageSearchStatTableReady = true;
+}
+
+type SearchStatResolutionRow = {
+  width: number | null;
+  height: number | null;
+  count: number;
+};
+
+type SearchStatModelRow = {
+  model: string | null;
+  count: number;
+};
+
+type SearchStatsProgressCallback = (done: number, total: number) => void;
+
+async function readImageSearchPresetStatsFromTable(): Promise<ImageSearchPresetStats> {
+  const db = getDB();
+  const resolutionRows = (await db.$queryRawUnsafe(
+    `SELECT width, height, count
+     FROM ImageSearchStat
+     WHERE kind = 'resolution' AND width IS NOT NULL AND height IS NOT NULL
+     ORDER BY count DESC, width DESC, height DESC`,
+  )) as SearchStatResolutionRow[];
+  const modelRows = (await db.$queryRawUnsafe(
+    `SELECT model, count
+     FROM ImageSearchStat
+     WHERE kind = 'model'
+     ORDER BY count DESC, key ASC`,
+  )) as SearchStatModelRow[];
+  return {
+    availableResolutions: resolutionRows
+      .filter(
+        (row) =>
+          Number.isInteger(row.width) &&
+          Number.isInteger(row.height) &&
+          (row.width ?? 0) > 0 &&
+          (row.height ?? 0) > 0,
+      )
+      .map((row) => ({ width: row.width as number, height: row.height as number })),
+    availableModels: modelRows.map((row) => row.model ?? ""),
+  };
+}
+
+export async function rebuildImageSearchPresetStats(
+  onProgress?: SearchStatsProgressCallback,
+): Promise<void> {
+  await ensureImageSearchStatTable();
+  const db = getDB();
+  const resolutionRows = (await db.$queryRawUnsafe(
+    `SELECT width, height, COUNT(*) AS count
+     FROM Image
+     WHERE width > 0 AND height > 0
+     GROUP BY width, height`,
+  )) as SearchStatResolutionRow[];
+  const modelRows = (await db.$queryRawUnsafe(
+    `SELECT model, COUNT(*) AS count
+     FROM Image
+     GROUP BY model`,
+  )) as SearchStatModelRow[];
+
+  const total = 1 + resolutionRows.length + modelRows.length;
+  let done = 0;
+  let lastProgressAt = 0;
+  onProgress?.(done, total);
+
+  await db.$executeRawUnsafe("DELETE FROM ImageSearchStat");
+  done++;
+  onProgress?.(done, total);
+
+  for (const row of resolutionRows) {
+    if (!Number.isInteger(row.width) || !Number.isInteger(row.height)) continue;
+    await db.$executeRawUnsafe(
+      `INSERT INTO ImageSearchStat (kind, key, width, height, model, count, updatedAt)
+       VALUES (?, ?, ?, ?, NULL, ?, CURRENT_TIMESTAMP)`,
+      "resolution",
+      `${row.width}x${row.height}`,
+      row.width,
+      row.height,
+      row.count,
+    );
+    done++;
+    const now = Date.now();
+    if (done === total || now - lastProgressAt >= 100) {
+      lastProgressAt = now;
+      onProgress?.(done, total);
+    }
+  }
+  for (const row of modelRows) {
+    await db.$executeRawUnsafe(
+      `INSERT INTO ImageSearchStat (kind, key, width, height, model, count, updatedAt)
+       VALUES (?, ?, NULL, NULL, ?, ?, CURRENT_TIMESTAMP)`,
+      "model",
+      row.model ?? "",
+      row.model ?? "",
+      row.count,
+    );
+    done++;
+    const now = Date.now();
+    if (done === total || now - lastProgressAt >= 100) {
+      lastProgressAt = now;
+      onProgress?.(done, total);
+    }
+  }
+}
+
+export async function getImageSearchPresetStats(
+  onProgress?: SearchStatsProgressCallback,
+): Promise<ImageSearchPresetStats> {
+  await ensureImageSearchStatTable();
+  let stats = await readImageSearchPresetStatsFromTable();
+  if (
+    stats.availableResolutions.length === 0 &&
+    stats.availableModels.length === 0
+  ) {
+    await rebuildImageSearchPresetStats(onProgress);
+    stats = await readImageSearchPresetStatsFromTable();
+  }
+  return stats;
+}
+
+export function scheduleImageSearchPresetStatsRebuild(
+  delayMs = 300,
+  onProgress?: SearchStatsProgressCallback,
+): void {
+  if (imageSearchStatRefreshTimer) clearTimeout(imageSearchStatRefreshTimer);
+  imageSearchStatRefreshTimer = setTimeout(() => {
+    imageSearchStatRefreshTimer = null;
+    void rebuildImageSearchPresetStats(onProgress).catch((error) => {
+      console.warn(
+        "[image.scheduleImageSearchPresetStatsRebuild] failed",
+        error,
+      );
+    });
+  }, Math.max(0, delayMs));
 }
 
 // ── Public API ────────────────────────────────────────────────
@@ -795,6 +958,7 @@ export async function findDuplicateGroupForIncomingPath(
 
 export async function resolveFolderDuplicates(
   resolutions: FolderDuplicateGroupResolution[],
+  onSearchStatsProgress?: SearchStatsProgressCallback,
 ): Promise<{
   removedImageIds: number[];
   retainedIncomingPaths: string[];
@@ -875,6 +1039,7 @@ export async function resolveFolderDuplicates(
   }
 
   await registerIgnoredDuplicatePaths(Array.from(ignoredIncomingPaths));
+  scheduleImageSearchPresetStatsRebuild(50, onSearchStatsProgress);
 
   return {
     removedImageIds,
@@ -926,6 +1091,7 @@ export async function syncAllFolders(
   signal?: CancelToken,
   onDuplicateGroup?: (group: FolderDuplicateGroup) => void,
   orderedFolderIds?: number[],
+  onSearchStatsProgress?: SearchStatsProgressCallback,
 ): Promise<void> {
   const startedAt = Date.now();
   let done = 0;
@@ -1167,6 +1333,9 @@ export async function syncAllFolders(
         }
       }),
     );
+    if (!signal?.cancelled) {
+      await rebuildImageSearchPresetStats(onSearchStatsProgress);
+    }
     success = true;
   } finally {
     const elapsedMs = Date.now() - startedAt;

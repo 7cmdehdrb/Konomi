@@ -8,6 +8,7 @@ const NOISY_EVENTS = new Set([
   "image:scanProgress",
   "image:hashProgress",
   "image:scanFolder",
+  "image:searchStatsProgress",
 ]);
 
 type PendingRequest = {
