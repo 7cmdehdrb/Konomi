@@ -22,6 +22,7 @@ export type EventSender = {
 class FolderWatcher {
   private fsWatchers = new Map<number, fs.FSWatcher>();
   private debounceTimers = new Map<string, NodeJS.Timeout>();
+  private folderReconcileTimers = new Map<number, NodeJS.Timeout>();
   private pendingDuplicatePaths = new Map<string, number>();
   private sender: EventSender;
 
@@ -36,7 +37,10 @@ class FolderWatcher {
         folderPath,
         { recursive: true },
         (_, filename) => {
-          if (!filename) return;
+          if (!filename) {
+            this.scheduleFolderReconcile(folderId);
+            return;
+          }
           const fullPath = path.join(folderPath, filename);
           if (path.extname(fullPath).toLowerCase() !== ".png") return;
           this.scheduleProcess(folderId, fullPath);
@@ -52,6 +56,8 @@ class FolderWatcher {
   stopFolder(folderId: number): void {
     this.fsWatchers.get(folderId)?.close();
     this.fsWatchers.delete(folderId);
+    clearTimeout(this.folderReconcileTimers.get(folderId));
+    this.folderReconcileTimers.delete(folderId);
   }
 
   stopAll(): void {
@@ -59,6 +65,8 @@ class FolderWatcher {
     this.fsWatchers.clear();
     this.debounceTimers.forEach((t) => clearTimeout(t));
     this.debounceTimers.clear();
+    this.folderReconcileTimers.forEach((t) => clearTimeout(t));
+    this.folderReconcileTimers.clear();
     this.pendingDuplicatePaths.clear();
   }
 
@@ -87,6 +95,45 @@ class FolderWatcher {
     );
   }
 
+  private scheduleFolderReconcile(folderId: number): void {
+    clearTimeout(this.folderReconcileTimers.get(folderId));
+    this.folderReconcileTimers.set(
+      folderId,
+      setTimeout(() => {
+        this.folderReconcileTimers.delete(folderId);
+        void this.reconcileFolderMissingRows(folderId);
+      }, DEBOUNCE_MS),
+    );
+  }
+
+  private async reconcileFolderMissingRows(folderId: number): Promise<void> {
+    if (this.sender.isDestroyed()) return;
+    try {
+      const db = getDB();
+      const rows = await db.image.findMany({
+        where: { folderId },
+        select: { id: true, path: true },
+      });
+      const missingIds = rows
+        .filter((row) => !fs.existsSync(row.path))
+        .map((row) => row.id);
+      if (missingIds.length === 0 || this.sender.isDestroyed()) return;
+      for (let i = 0; i < missingIds.length; i += 400) {
+        await db.image.deleteMany({
+          where: { id: { in: missingIds.slice(i, i + 400) } },
+        });
+      }
+      if (!this.sender.isDestroyed()) {
+        scheduleImageSearchPresetStatsRebuild(300, (done, total) =>
+          this.sender.send("image:searchStatsProgress", { done, total }),
+        );
+        this.sender.send("image:removed", missingIds);
+      }
+    } catch {
+      // ignore reconciliation failures
+    }
+  }
+
   private async processChange(
     folderId: number,
     filePath: string,
@@ -105,6 +152,9 @@ class FolderWatcher {
           this.sender.send("image:searchStatsProgress", { done, total }),
         );
         this.sender.send("image:removed", [existing.id]);
+      } else {
+        // Fallback for fs.watch path mismatches/case changes.
+        await this.reconcileFolderMissingRows(folderId);
       }
       return;
     }

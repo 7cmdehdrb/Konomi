@@ -1203,11 +1203,23 @@ export async function syncAllFolders(
         try {
           const existing = await db.image.findMany({
             where: { folderId: folder.id },
-            select: { path: true, fileModifiedAt: true },
+            select: { id: true, path: true, fileModifiedAt: true },
           });
           const existingMap = new Map(
             existing.map((e) => [e.path, e.fileModifiedAt]),
           );
+          const currentPathSet = new Set(filePaths);
+          const staleImageIds = existing
+            .filter((row) => !currentPathSet.has(row.path))
+            .map((row) => row.id);
+          if (staleImageIds.length > 0) {
+            // SQLite bind parameter limits require chunked deletes for large sets.
+            for (let i = 0; i < staleImageIds.length; i += 400) {
+              await db.image.deleteMany({
+                where: { id: { in: staleImageIds.slice(i, i + 400) } },
+              });
+            }
+          }
 
           // 신규 파일 먼저, 기존 파일은 최근 mtime 순으로 처리 — 첫 배치에 최신 이미지가 포함되도록
           const sortedFilePaths = [
