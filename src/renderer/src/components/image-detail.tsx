@@ -374,7 +374,7 @@ export function ImageDetail({
               {/* Prompt */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+                  <p className="text-[10px] font-semibold text-white/40 uppercase tracking-widest select-none">
                     Prompt
                   </p>
                   <Button
@@ -390,14 +390,14 @@ export function ImageDetail({
                     )}
                   </Button>
                 </div>
-                <TokenChips tokens={image.tokens} />
+                <TokenChips tokens={image.tokens} isEditable={false} />
               </div>
 
               {/* Negative Prompt */}
               {image.negativePrompt && (
                 <div className="space-y-1 border-t border-white/10 pt-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+                    <p className="text-[10px] font-semibold text-white/40 uppercase tracking-widest select-none">
                       Negative
                     </p>
                     <Button
@@ -415,7 +415,10 @@ export function ImageDetail({
                       )}
                     </Button>
                   </div>
-                  <TokenChips tokens={image.negativeTokens} />
+                  <TokenChips
+                    tokens={image.negativeTokens}
+                    isEditable={false}
+                  />
                 </div>
               )}
 
@@ -427,7 +430,7 @@ export function ImageDetail({
                     className="space-y-1 border-t border-white/10 pt-3"
                   >
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">
+                      <p className="text-[10px] font-semibold text-white/40 uppercase tracking-widest select-none">
                         Char {i + 1}
                       </p>
                       <Button
@@ -443,7 +446,10 @@ export function ImageDetail({
                         )}
                       </Button>
                     </div>
-                    <TokenChips tokens={parsePromptTokens(cp)} />
+                    <TokenChips
+                      tokens={parsePromptTokens(cp)}
+                      isEditable={false}
+                    />
                   </div>
                 ))}
 

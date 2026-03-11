@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
-import { Copy } from "lucide-react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type KeyboardEvent,
+} from "react";
+import { Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PromptToken } from "@/lib/token";
 import { parseRawToken, tokenToRawString } from "@/lib/token";
@@ -19,6 +19,11 @@ function weightClass(w: number): string {
   return "bg-white/10 text-white/70";
 }
 
+function formatWeight(weight: number): string {
+  if (!Number.isFinite(weight)) return "1";
+  return weight.toFixed(2).replace(/\.?0+$/, "");
+}
+
 interface TokenChipsProps {
   tokens: PromptToken[];
   isEditable?: boolean;
@@ -30,6 +35,7 @@ export function TokenChips({
   isEditable = false,
   onTokensChange,
 }: TokenChipsProps) {
+  const chipsRef = useRef<HTMLDivElement | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [localTokens, setLocalTokens] = useState<PromptToken[]>(tokens);
   const isControlled = typeof onTokensChange === "function";
@@ -59,6 +65,54 @@ export function TokenChips({
     } catch {
       setCopiedKey(null);
     }
+  };
+
+  const hasSelection = () => {
+    const selection = window.getSelection();
+    return !!selection && !selection.isCollapsed;
+  };
+
+  const handleChipClick = (key: string, token: PromptToken) => {
+    if (hasSelection()) return;
+    void handleCopy(key, token);
+  };
+
+  const handleChipKeyDown = (
+    e: KeyboardEvent<HTMLDivElement>,
+    key: string,
+    token: PromptToken,
+  ) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    void handleCopy(key, token);
+  };
+
+  const handleCopySelectedRaw = (e: ClipboardEvent<HTMLDivElement>) => {
+    const root = chipsRef.current;
+    const selection = window.getSelection();
+    if (!root || !selection || selection.isCollapsed || selection.rangeCount < 1)
+      return;
+
+    const chipNodes = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-token-chip='true']"),
+    );
+    const selectedRaw = chipNodes
+      .filter((chip) => {
+        for (let i = 0; i < selection.rangeCount; i += 1) {
+          const range = selection.getRangeAt(i);
+          if (range.intersectsNode(chip)) return true;
+        }
+        return false;
+      })
+      .map((chip) => chip.dataset.tokenRaw)
+      .filter((raw): raw is string => Boolean(raw && raw.trim()));
+
+    if (selectedRaw.length === 0) return;
+
+    e.preventDefault();
+    const text = selectedRaw.join(", ");
+    e.clipboardData.setData("text/plain", text);
+    e.clipboardData.setData("text", text);
   };
 
   if (isEditable) {
@@ -125,51 +179,41 @@ export function TokenChips({
   }
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="flex flex-wrap gap-1">
-        {activeTokens.map((token, i) => {
-          const key = `view-${i}`;
-          const weighted = Math.abs(token.weight - 1.0) > 0.001;
-          const copied = copiedKey === key;
-          const chipClass = cn(
-            "px-1.5 py-1 text-xs rounded transition-colors cursor-pointer hover:brightness-110",
-            weighted ? weightClass(token.weight) : "bg-white/10 text-white/70",
-            copied && "ring-1 ring-emerald-400/50 text-emerald-200",
-          );
+    <div
+      ref={chipsRef}
+      onCopy={handleCopySelectedRaw}
+      className="flex flex-wrap gap-1"
+    >
+      {activeTokens.map((token, i) => {
+        const key = `view-${i}`;
+        const weighted = Math.abs(token.weight - 1.0) > 0.001;
+        const copied = copiedKey === key;
+        const raw = tokenToRawString(token);
+        const chipClass = cn(
+          "px-1.5 py-1 text-xs rounded transition-colors cursor-text hover:brightness-110",
+          weighted ? weightClass(token.weight) : "bg-white/10 text-white/70",
+          copied && "ring-1 ring-emerald-400/50 text-emerald-200",
+        );
 
-          if (weighted) {
-            return (
-              <Tooltip key={i}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(key, token)}
-                    className={cn(chipClass, "inline-flex items-center gap-1")}
-                  >
-                    {token.text}
-                    {copied ? <Copy className="h-3 w-3" /> : null}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  {`${token.weight.toFixed(2)}x`}
-                </TooltipContent>
-              </Tooltip>
-            );
-          }
-
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => handleCopy(key, token)}
-              className={cn(chipClass, "inline-flex items-center gap-1")}
-            >
-              {token.text}
-              {copied ? <Copy className="h-3 w-3" /> : null}
-            </button>
-          );
-        })}
-      </div>
-    </TooltipProvider>
+        return (
+          <div
+            key={i}
+            role="button"
+            tabIndex={0}
+            data-token-chip="true"
+            data-token-raw={raw}
+            onClick={() => handleChipClick(key, token)}
+            onKeyDown={(e) => handleChipKeyDown(e, key, token)}
+            className={cn(chipClass, "inline-flex items-center gap-1")}
+          >
+            <span>{token.text}</span>
+            <span className="text-[10px] font-mono text-white/60">
+              {`x${formatWeight(token.weight)}`}
+            </span>
+            {copied ? <Copy className="h-3 w-3" /> : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }

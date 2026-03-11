@@ -19,6 +19,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import type { PromptToken } from "@/lib/token";
+import { TokenChips } from "./token-chips";
 
 export interface ImageData {
   id: string;
@@ -239,11 +240,14 @@ export const ImageCard = memo(function ImageCard({
             </div>
 
             {/* Hover Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <div className="absolute bottom-0 left-0 right-0 p-4">
-                <p className="text-sm text-foreground line-clamp-3 font-mono leading-relaxed">
-                  {image.prompt}
-                </p>
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="max-h-36 overflow-y-auto rounded-md border border-white/15 bg-black/55 p-2 shadow-lg backdrop-blur-sm"
+                >
+                  <TokenChips tokens={image.tokens} isEditable={false} />
+                </div>
               </div>
             </div>
 

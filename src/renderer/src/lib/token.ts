@@ -1,4 +1,11 @@
-export type PromptToken = { text: string; weight: number; raw?: string };
+export type TokenWeightExpression = "keyword" | "numerical";
+
+export type PromptToken = {
+  text: string;
+  weight: number;
+  raw?: string;
+  weightExpression?: TokenWeightExpression;
+};
 
 const MULT = 1.05;
 
