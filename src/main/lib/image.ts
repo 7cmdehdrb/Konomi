@@ -1807,7 +1807,6 @@ export async function syncAllFolders(
   onDuplicateGroup?: (group: FolderDuplicateGroup) => void,
   orderedFolderIds?: number[],
   onSearchStatsProgress?: SearchStatsProgressCallback,
-  onSimilarityProgress?: (done: number, total: number) => void,
 ): Promise<void> {
   const startedAt = Date.now();
   let done = 0;
@@ -1817,7 +1816,6 @@ export async function syncAllFolders(
   let lastProgressAt = 0;
   const detectDuplicates = Boolean(onDuplicateGroup);
   const deletedSimilarityIds = new Set<number>();
-  const upsertedSimilarityIds = new Set<number>();
   console.info(
     `[image.syncAllFolders] start detectDuplicates=${detectDuplicates}`,
   );
@@ -2015,9 +2013,6 @@ export async function syncAllFolders(
               }),
             ),
           );
-          for (const image of images) {
-            upsertedSimilarityIds.add(image.id);
-          }
           await applyImageSearchStatsMutations(
             batch.map((row) => ({
               before: beforeMap.get(row.path) ?? null,
@@ -2102,9 +2097,6 @@ export async function syncAllFolders(
 
     if (deletedSimilarityIds.size > 0) {
       await deleteSimilarityCacheForImageIds([...deletedSimilarityIds]);
-    }
-    if (upsertedSimilarityIds.size > 0) {
-      await refreshSimilarityCacheForImageIds([...upsertedSimilarityIds], onSimilarityProgress);
     }
     success = true;
   } finally {

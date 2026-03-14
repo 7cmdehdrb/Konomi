@@ -196,8 +196,6 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
             : undefined,
           orderedFolderIds,
           emitSearchStatsProgress,
-          (done, total) =>
-            utilitySender.send("image:similarityProgress", { done, total }),
         );
       } finally {
         scanCancelToken = null;
