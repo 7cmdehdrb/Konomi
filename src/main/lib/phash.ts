@@ -139,6 +139,7 @@ export type SimilarityReason = "visual" | "prompt" | "both";
 export type SimilarityReasonItem = {
   imageId: number;
   reason: SimilarityReason;
+  score: number;
 };
 
 export type SimilarGroup = {
@@ -848,16 +849,21 @@ export async function getSimilarityReasons(
   );
 
   const config = resolveThresholdConfig(threshold, jaccardThreshold);
-  const reasonMap = new Map<number, SimilarityReason>();
+  const resultMap = new Map<number, { reason: SimilarityReason; score: number }>();
   for (const row of rows) {
     const otherId = row.imageAId === imageId ? row.imageBId : row.imageAId;
     const reason = classifyReasonAtThreshold(row, threshold, config);
     if (!reason) continue;
-    reasonMap.set(otherId, reason);
+    const score =
+      row.phashDistance !== null
+        ? computeHybridScore(row.phashDistance, row.textScore)
+        : row.textScore;
+    resultMap.set(otherId, { reason, score });
   }
 
   return candidates.map((id) => ({
     imageId: id,
-    reason: reasonMap.get(id) ?? "both",
+    reason: resultMap.get(id)?.reason ?? "both",
+    score: resultMap.get(id)?.score ?? 0,
   }));
 }

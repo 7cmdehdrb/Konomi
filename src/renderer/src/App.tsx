@@ -841,7 +841,16 @@ export default function App() {
     ])
       .then(([rows, reasons]) => {
         if (cancelled) return;
-        setSimilarImages(rows.map(rowToImageData));
+        const scoreMap = new Map(
+          reasons.map((item) => [item.imageId, item.score]),
+        );
+        const imageDataList = rows.map(rowToImageData);
+        imageDataList.sort(
+          (a, b) =>
+            (scoreMap.get(parseInt(b.id)) ?? 0) -
+            (scoreMap.get(parseInt(a.id)) ?? 0),
+        );
+        setSimilarImages(imageDataList);
         setSimilarReasons(
           Object.fromEntries(
             reasons.map((item) => [String(item.imageId), item.reason]),

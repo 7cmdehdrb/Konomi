@@ -111,6 +111,7 @@ export type SimilarityReason = "visual" | "prompt" | "both";
 export type SimilarityReasonItem = {
   imageId: number;
   reason: SimilarityReason;
+  score: number;
 };
 
 export type Category = {
