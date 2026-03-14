@@ -381,7 +381,7 @@ export function Header({
                     : hashProgress && hashProgress.total > 0
                       ? `해시 계산 ${hashProgress.done}/${hashProgress.total}`
                       : hasSimilarityProgress && similarityProgress
-                        ? `유사도 계산 ${similarityProgress.done}/${similarityProgress.total}`
+                        ? "유사도 계산 중..."
                         : hasSearchStatsProgress && searchStatsProgress
                           ? `검색 통계 ${searchStatsProgress.done}/${searchStatsProgress.total}`
                           : "작업 중..."}

@@ -17,7 +17,7 @@ type PendingRequest = {
   reject: (reason: unknown) => void;
   type: string;
   startedAt: number;
-  timeout: ReturnType<typeof setTimeout>;
+  timeout: ReturnType<typeof setTimeout> | null;
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 120000;
@@ -94,7 +94,7 @@ class UtilityBridge {
           return;
         }
         this.pending.delete(id);
-        clearTimeout(pending.timeout);
+        if (pending.timeout) clearTimeout(pending.timeout);
         const elapsedMs = Date.now() - pending.startedAt;
         if (m.error !== undefined) {
           this.log.error("Utility request failed", {
@@ -135,7 +135,7 @@ class UtilityBridge {
     const pendingEntries = Array.from(this.pending.values());
     this.pending.clear();
     for (const pending of pendingEntries) {
-      clearTimeout(pending.timeout);
+      if (pending.timeout) clearTimeout(pending.timeout);
       pending.reject(error);
     }
   }
@@ -155,7 +155,7 @@ class UtilityBridge {
     this.log.info("Bound renderer webContents");
   }
 
-  request<T>(type: string, payload?: unknown): Promise<T> {
+  request<T>(type: string, payload?: unknown, timeoutMs?: number): Promise<T> {
     return new Promise((resolve, reject) => {
       const child = this.child;
       if (!child) {
@@ -167,21 +167,25 @@ class UtilityBridge {
         return;
       }
       const id = this.seq++;
-      const timeout = setTimeout(() => {
-        const pending = this.pending.get(id);
-        if (!pending) return;
-        this.pending.delete(id);
-        this.log.error("Utility request timed out", {
-          id,
-          type: pending.type,
-          timeoutMs: this.requestTimeoutMs,
-        });
-        pending.reject(
-          new Error(
-            `Utility request timed out after ${this.requestTimeoutMs}ms: ${pending.type}`,
-          ),
-        );
-      }, this.requestTimeoutMs);
+      const effectiveTimeout = timeoutMs ?? this.requestTimeoutMs;
+      const timeout =
+        effectiveTimeout > 0
+          ? setTimeout(() => {
+              const pending = this.pending.get(id);
+              if (!pending) return;
+              this.pending.delete(id);
+              this.log.error("Utility request timed out", {
+                id,
+                type: pending.type,
+                timeoutMs: effectiveTimeout,
+              });
+              pending.reject(
+                new Error(
+                  `Utility request timed out after ${effectiveTimeout}ms: ${pending.type}`,
+                ),
+              );
+            }, effectiveTimeout)
+          : null;
       this.pending.set(id, {
         resolve: resolve as (v: unknown) => void,
         reject,
@@ -193,7 +197,7 @@ class UtilityBridge {
       try {
         child.postMessage({ id, type, payload });
       } catch (error) {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         this.pending.delete(id);
         this.log.errorWithStack("Failed to post utility request", error, {
           id,

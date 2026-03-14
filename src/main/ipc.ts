@@ -120,7 +120,7 @@ export function registerIpcHandlers(): void {
     bridge.request("image:listByIds", { ids }),
   );
   ipcMain.handle("image:scan", (_, options?: { detectDuplicates?: boolean }) =>
-    bridge.request("image:scan", options ?? {}),
+    bridge.request("image:scan", options ?? {}, 0),
   );
   ipcMain.handle("image:cancelScan", () => bridge.request("image:cancelScan"));
   ipcMain.handle("image:setFavorite", (_, id: number, isFavorite: boolean) =>
@@ -163,12 +163,12 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle("image:computeHashes", () =>
-    bridge.request("image:computeHashes"),
+    bridge.request("image:computeHashes", undefined, 0),
   );
   ipcMain.handle(
     "image:similarGroups",
     (_, threshold: number, jaccardThreshold?: number) =>
-      bridge.request("image:similarGroups", { threshold, jaccardThreshold }),
+      bridge.request("image:similarGroups", { threshold, jaccardThreshold }, 0),
   );
   ipcMain.handle(
     "image:similarReasons",

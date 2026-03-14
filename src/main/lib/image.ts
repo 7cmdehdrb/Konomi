@@ -1807,6 +1807,7 @@ export async function syncAllFolders(
   onDuplicateGroup?: (group: FolderDuplicateGroup) => void,
   orderedFolderIds?: number[],
   onSearchStatsProgress?: SearchStatsProgressCallback,
+  onSimilarityProgress?: (done: number, total: number) => void,
 ): Promise<void> {
   const startedAt = Date.now();
   let done = 0;
@@ -2103,7 +2104,7 @@ export async function syncAllFolders(
       await deleteSimilarityCacheForImageIds([...deletedSimilarityIds]);
     }
     if (upsertedSimilarityIds.size > 0) {
-      await refreshSimilarityCacheForImageIds([...upsertedSimilarityIds]);
+      await refreshSimilarityCacheForImageIds([...upsertedSimilarityIds], onSimilarityProgress);
     }
     success = true;
   } finally {

@@ -26,17 +26,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { useSettings, type Settings } from "@/hooks/useSettings";
 import { useNaiGenSettings } from "@/hooks/useNaiGenSettings";
+import { useGalleryImages } from "@/hooks/useGalleryImages";
+import { useScanning } from "@/hooks/useScanning";
+import { useImageAnalysis } from "@/hooks/useImageAnalysis";
 import type { ImageData } from "@/components/image-card";
-import type { PromptToken } from "@/lib/token";
 import type {
-  ImageRow,
   Category,
-  SimilarGroup,
   SimilarityReason,
   ImageListQuery,
 } from "@preload/index.d";
 import type { AdvancedFilter } from "@/lib/advanced-filter";
 import { createLogger } from "@/lib/logger";
+import { rowToImageData } from "@/lib/image-utils";
 import { dispatchSearchInputAppendTag } from "@/lib/search-input-event";
 
 const log = createLogger("renderer/App");
@@ -57,55 +58,6 @@ function isSimilaritySettingsPatch(patch: Partial<Settings>): boolean {
 function includesSimilaritySettingsReset(keys?: (keyof Settings)[]): boolean {
   if (!keys || keys.length === 0) return true;
   return keys.some((key) => SIMILARITY_SETTING_KEYS.has(key));
-}
-
-function parseTokens(json: string | undefined): PromptToken[] {
-  try {
-    const parsed = JSON.parse(json ?? "[]");
-    if (!Array.isArray(parsed) || parsed.length === 0) return [];
-    if (typeof parsed[0] === "string")
-      return (parsed as string[]).map((text) => ({ text, weight: 1 }));
-    return parsed as PromptToken[];
-  } catch {
-    return [];
-  }
-}
-
-function rowToImageData(row: ImageRow): ImageData {
-  return {
-    id: String(row.id),
-    path: row.path,
-    src: `konomi://local/${encodeURIComponent(row.path.replace(/\\/g, "/"))}`,
-    prompt: row.prompt,
-    negativePrompt: row.negativePrompt,
-    characterPrompts: (() => {
-      try {
-        return JSON.parse(row.characterPrompts) as string[];
-      } catch {
-        return [];
-      }
-    })(),
-    tokens: parseTokens(row.promptTokens),
-    negativeTokens: parseTokens(row.negativePromptTokens),
-    characterTokens: parseTokens(row.characterPromptTokens),
-    category: "",
-    tags: [],
-    fileModifiedAt: new Date(row.fileModifiedAt).toISOString(),
-    isFavorite: row.isFavorite,
-    pHash: row.pHash,
-    source: row.source,
-    folderId: row.folderId,
-    model: row.model,
-    seed: row.seed,
-    width: row.width,
-    height: row.height,
-    cfgScale: row.cfgScale,
-    cfgRescale: row.cfgRescale,
-    noiseSchedule: row.noiseSchedule,
-    varietyPlus: row.varietyPlus,
-    sampler: row.sampler,
-    steps: row.steps,
-  };
 }
 
 function readCategoryOrder(): number[] {
@@ -180,10 +132,6 @@ export default function App() {
   const [sortBy, setSortBy] = useState<
     "recent" | "oldest" | "favorites" | "name"
   >("recent");
-  const [images, setImages] = useState<ImageData[]>([]);
-  const [totalImageCount, setTotalImageCount] = useState(0);
-  const [galleryPage, setGalleryPage] = useState(1);
-  const [galleryTotalPages, setGalleryTotalPages] = useState(1);
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<
@@ -255,31 +203,7 @@ export default function App() {
       window.removeEventListener("beforeunload", onUnload);
     };
   }, []);
-  const [scanning, setScanning] = useState(false);
-  const [activeScanFolderIds, setActiveScanFolderIds] = useState<Set<number>>(
-    new Set(),
-  );
-  const [rollbackFolderIds, setRollbackFolderIds] = useState<Set<number>>(
-    new Set(),
-  );
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [hashProgress, setHashProgress] = useState<{
-    done: number;
-    total: number;
-  } | null>(null);
-  const [scanProgress, setScanProgress] = useState<{
-    done: number;
-    total: number;
-  } | null>(null);
-  const [searchStatsProgress, setSearchStatsProgress] = useState<{
-    done: number;
-    total: number;
-  } | null>(null);
-  const [similarityProgress, setSimilarityProgress] = useState<{
-    done: number;
-    total: number;
-  } | null>(null);
-  const [similarGroups, setSimilarGroups] = useState<SimilarGroup[]>([]);
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
     null,
@@ -293,14 +217,6 @@ export default function App() {
     ImageData[] | null
   >(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [scanCancelConfirmOpen, setScanCancelConfirmOpen] = useState(false);
-  const [folderRollbackRequest, setFolderRollbackRequest] = useState<{
-    id: number;
-    folderIds: number[];
-  } | null>(null);
-  const [scanningFolderNames, setScanningFolderNames] = useState<
-    Map<number, string>
-  >(new Map());
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilter[]>([]);
   const [availableResolutions, setAvailableResolutions] = useState<
     Array<{ width: number; height: number }>
@@ -317,85 +233,19 @@ export default function App() {
     id: number;
     tag: string;
   } | null>(null);
+  const [searchStatsProgress, setSearchStatsProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
 
-  const pageRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
   const searchStatsRefreshTimerRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
   const searchStatsClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const listRequestSeqRef = useRef(0);
-  const loadImagesPageRef = useRef<() => Promise<void>>(async () => {});
-  const analyzeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scanPromiseRef = useRef<Promise<boolean> | null>(null);
-  const scanningRef = useRef(false);
-  const analyzingRef = useRef(false);
-  const rollbackRequestSeqRef = useRef(0);
   const appendPromptTagRequestSeqRef = useRef(0);
-  const visualThresholdRef = useRef(settings.similarityThreshold);
-  const promptThresholdRef = useRef<number | undefined>(undefined);
-  const pendingSimilarityRecalcRef = useRef(false);
-  const analysisPromiseRef = useRef<Promise<boolean> | null>(null);
-  const suspendAutoAnalysisRef = useRef(false);
 
-  useEffect(() => {
-    visualThresholdRef.current = settings.useAdvancedSimilarityThresholds
-      ? settings.visualSimilarityThreshold
-      : settings.similarityThreshold;
-    promptThresholdRef.current = settings.useAdvancedSimilarityThresholds
-      ? settings.promptSimilarityThreshold
-      : undefined;
-  }, [
-    settings.similarityThreshold,
-    settings.useAdvancedSimilarityThresholds,
-    settings.visualSimilarityThreshold,
-    settings.promptSimilarityThreshold,
-  ]);
-
-  const handleSettingsUpdate = useCallback(
-    (patch: Partial<Settings>) => {
-      updateSettings(patch);
-      if (isSimilaritySettingsPatch(patch)) {
-        pendingSimilarityRecalcRef.current = true;
-      }
-    },
-    [updateSettings],
-  );
-
-  const handleSettingsReset = useCallback(
-    (keys?: (keyof Settings)[]) => {
-      resetSettings(keys);
-      if (includesSimilaritySettingsReset(keys)) {
-        pendingSimilarityRecalcRef.current = true;
-      }
-    },
-    [resetSettings],
-  );
-
-  useEffect(() => {
-    const theme = settings.theme ?? "dark";
-    const applyTheme = (isDark: boolean) => {
-      document.documentElement.dataset.theme = isDark ? "dark" : "white";
-      document.documentElement.classList.toggle("dark", isDark);
-    };
-    if (theme === "auto") {
-      const mq = window.matchMedia("(prefers-color-scheme: dark)");
-      applyTheme(mq.matches);
-      const handler = (e: MediaQueryListEvent) => applyTheme(e.matches);
-      mq.addEventListener("change", handler);
-      return () => mq.removeEventListener("change", handler);
-    }
-    applyTheme(theme === "dark");
-    return undefined;
-  }, [settings.theme]);
-
-  const selectedFolderIdList = useMemo(
-    () => [...selectedFolderIds].sort((a, b) => a - b),
-    [selectedFolderIds],
-  );
   const selectedCategory = useMemo(
     () => categories.find((cat) => cat.id === selectedCategoryId),
     [categories, selectedCategoryId],
@@ -423,7 +273,7 @@ export default function App() {
   const listBaseQuery = useMemo<Omit<ImageListQuery, "page">>(
     () => ({
       pageSize: settings.pageSize,
-      folderIds: selectedFolderIdList,
+      folderIds: [...selectedFolderIds].sort((a, b) => a - b),
       searchQuery,
       sortBy,
       onlyRecent: activeView === "recent",
@@ -439,7 +289,7 @@ export default function App() {
     }),
     [
       settings.pageSize,
-      selectedFolderIdList,
+      selectedFolderIds,
       searchQuery,
       sortBy,
       activeView,
@@ -451,48 +301,15 @@ export default function App() {
     ],
   );
 
-  useEffect(() => {
-    setGalleryPage(1);
-  }, [listBaseQuery]);
-
-  const loadImagesPage = useCallback(async () => {
-    const requestId = ++listRequestSeqRef.current;
-    try {
-      const result = await window.image.listPage({
-        ...listBaseQuery,
-        page: galleryPage,
-      });
-      if (requestId !== listRequestSeqRef.current) return;
-      startTransition(() => {
-        setImages(result.rows.map(rowToImageData));
-        setTotalImageCount(result.totalCount);
-        setGalleryTotalPages(result.totalPages);
-      });
-      if (galleryPage > result.totalPages) {
-        setGalleryPage(result.totalPages);
-      }
-    } catch (e: unknown) {
-      if (requestId !== listRequestSeqRef.current) return;
-      toast.error(
-        `이미지 목록 로드 실패: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-  }, [galleryPage, listBaseQuery]);
-
-  const schedulePageRefresh = useCallback((delay = 120) => {
-    if (pageRefreshTimerRef.current) clearTimeout(pageRefreshTimerRef.current);
-    pageRefreshTimerRef.current = setTimeout(() => {
-      void loadImagesPageRef.current();
-    }, delay);
-  }, []);
-
-  useEffect(() => {
-    loadImagesPageRef.current = loadImagesPage;
-  }, [loadImagesPage]);
-
-  useEffect(() => {
-    void loadImagesPage();
-  }, [loadImagesPage]);
+  const {
+    images,
+    setImages,
+    totalImageCount,
+    galleryPage,
+    setGalleryPage,
+    galleryTotalPages,
+    schedulePageRefresh,
+  } = useGalleryImages(listBaseQuery);
 
   const loadSearchPresetStats = useCallback(async () => {
     try {
@@ -521,69 +338,72 @@ export default function App() {
     [loadSearchPresetStats],
   );
 
-  const runAnalysisNow = useCallback((): Promise<boolean> => {
-    if (analysisPromiseRef.current) return analysisPromiseRef.current;
+  const {
+    scanning,
+    activeScanFolderIds,
+    setActiveScanFolderIds,
+    setRollbackFolderIds,
+    scanProgress,
+    scanCancelConfirmOpen,
+    setScanCancelConfirmOpen,
+    scanningFolderNames,
+    folderRollbackRequest,
+    scanningRef,
+    runScan,
+    handleCancelScan,
+    confirmCancelScan,
+  } = useScanning({ schedulePageRefresh, loadSearchPresetStats });
 
-    const run = (async (): Promise<boolean> => {
-      if (scanningRef.current) return false;
+  const {
+    isAnalyzing,
+    hashProgress,
+    similarityProgress,
+    similarGroups,
+    analyzeTimerRef,
+    pendingSimilarityRecalcRef,
+    visualThresholdRef,
+    promptThresholdRef,
+    suspendAutoAnalysisRef,
+    runAnalysisNow,
+    scheduleAnalysis,
+  } = useImageAnalysis({ scanningRef, settings });
 
-      const startedAt = Date.now();
-      log.info("Analysis started");
-      analyzingRef.current = true;
-      setIsAnalyzing(true);
-      setHashProgress(null);
-      setSimilarityProgress(null);
-      try {
-        await window.image.computeHashes();
-        const groups = await window.image.similarGroups(
-          visualThresholdRef.current,
-          promptThresholdRef.current,
-        );
-        setSimilarGroups(groups);
-        pendingSimilarityRecalcRef.current = false;
-        log.info("Analysis completed", {
-          elapsedMs: Date.now() - startedAt,
-          groups: groups.length,
-        });
-        return true;
-      } catch (e: unknown) {
-        log.error("Analysis failed", {
-          elapsedMs: Date.now() - startedAt,
-          error: e instanceof Error ? e.message : String(e),
-        });
-        toast.error(
-          `이미지 분석 실패: ${e instanceof Error ? e.message : String(e)}`,
-        );
-        return false;
-      } finally {
-        analyzingRef.current = false;
-        setHashProgress(null);
-        setSimilarityProgress(null);
-        setIsAnalyzing(false);
-        analysisPromiseRef.current = null;
+  const handleSettingsUpdate = useCallback(
+    (patch: Partial<Settings>) => {
+      updateSettings(patch);
+      if (isSimilaritySettingsPatch(patch)) {
+        pendingSimilarityRecalcRef.current = true;
       }
-    })();
-
-    analysisPromiseRef.current = run;
-    return run;
-  }, []);
-
-  const scheduleAnalysis = useCallback(
-    (delay = 3000) => {
-      if (suspendAutoAnalysisRef.current) return;
-      if (analyzeTimerRef.current) clearTimeout(analyzeTimerRef.current);
-      analyzeTimerRef.current = setTimeout(async () => {
-        if (suspendAutoAnalysisRef.current) return;
-        if (scanningRef.current) {
-          log.debug("Analysis delayed because scan is running");
-          scheduleAnalysis(1000);
-          return;
-        }
-        await runAnalysisNow();
-      }, delay);
     },
-    [runAnalysisNow],
+    [updateSettings, pendingSimilarityRecalcRef],
   );
+
+  const handleSettingsReset = useCallback(
+    (keys?: (keyof Settings)[]) => {
+      resetSettings(keys);
+      if (includesSimilaritySettingsReset(keys)) {
+        pendingSimilarityRecalcRef.current = true;
+      }
+    },
+    [resetSettings, pendingSimilarityRecalcRef],
+  );
+
+  useEffect(() => {
+    const theme = settings.theme ?? "dark";
+    const applyTheme = (isDark: boolean) => {
+      document.documentElement.dataset.theme = isDark ? "dark" : "white";
+      document.documentElement.classList.toggle("dark", isDark);
+    };
+    if (theme === "auto") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      applyTheme(mq.matches);
+      const handler = (e: MediaQueryListEvent) => applyTheme(e.matches);
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+    applyTheme(theme === "dark");
+    return undefined;
+  }, [settings.theme]);
 
   const handlePanelChange = useCallback(
     async (nextPanel: "gallery" | "generator" | "settings") => {
@@ -611,62 +431,7 @@ export default function App() {
       setActivePanel(nextPanel);
       void runAnalysisNow();
     },
-    [activePanel, runAnalysisNow],
-  );
-
-  const runScan = useCallback(
-    (options?: { detectDuplicates?: boolean }): Promise<boolean> => {
-      if (scanPromiseRef.current) {
-        log.debug("Scan request deduped");
-        return scanPromiseRef.current;
-      }
-      const startedAt = Date.now();
-      log.info("Scan started", { options });
-      scanningRef.current = true;
-      setScanning(true);
-      setScanProgress(null);
-      const orderedFolderIds = (() => {
-        try {
-          const raw = localStorage.getItem("konomi-folder-order");
-          if (!raw) return undefined;
-          const parsed = JSON.parse(raw) as unknown;
-          if (!Array.isArray(parsed)) return undefined;
-          const ids = parsed.filter((id): id is number => Number.isInteger(id));
-          return ids.length > 0 ? ids : undefined;
-        } catch {
-          return undefined;
-        }
-      })();
-      const scanPromise = window.image
-        .scan({ ...options, orderedFolderIds })
-        .then(() => {
-          log.info("Scan completed", { elapsedMs: Date.now() - startedAt });
-          schedulePageRefresh(0);
-          void loadSearchPresetStats();
-          return true;
-        })
-        .catch((e: unknown) => {
-          log.error("Scan failed", {
-            elapsedMs: Date.now() - startedAt,
-            error: e instanceof Error ? e.message : String(e),
-          });
-          toast.error(
-            `스캔 실패: ${e instanceof Error ? e.message : String(e)}`,
-          );
-          return false;
-        })
-        .finally(() => {
-          scanningRef.current = false;
-          setScanning(false);
-          setScanProgress(null);
-          setActiveScanFolderIds(new Set());
-          setScanningFolderNames(new Map());
-          scanPromiseRef.current = null;
-        });
-      scanPromiseRef.current = scanPromise;
-      return scanPromise;
-    },
-    [loadSearchPresetStats, schedulePageRefresh],
+    [activePanel, runAnalysisNow, scanningRef, analyzeTimerRef, pendingSimilarityRecalcRef],
   );
 
   useEffect(() => {
@@ -674,24 +439,20 @@ export default function App() {
 
     const offBatch = window.image.onBatch((rows) => {
       if (rows.length === 0) return;
-      schedulePageRefresh(150);
+      schedulePageRefresh(scanningRef.current ? 1500 : 150);
       if (!scanningRef.current) {
         scheduleAnalysis();
         scheduleSearchStatsRefresh(180);
       }
     });
 
-    const offHashProgress = window.image.onHashProgress((data) => {
-      if (analyzingRef.current) startTransition(() => setHashProgress(data));
+    const offRemoved = window.image.onRemoved((ids) => {
+      if (ids.length === 0) return;
+      schedulePageRefresh(60);
+      scheduleAnalysis();
+      scheduleSearchStatsRefresh(120);
     });
-    const offSimilarityProgress = window.image.onSimilarityProgress((data) => {
-      if (analyzingRef.current) {
-        startTransition(() => setSimilarityProgress(data));
-      }
-    });
-    const offScanProgress = window.image.onScanProgress((data) => {
-      if (scanningRef.current) startTransition(() => setScanProgress(data));
-    });
+
     const offSearchStatsProgress = window.image.onSearchStatsProgress(
       (data) => {
         startTransition(() => setSearchStatsProgress(data));
@@ -707,29 +468,6 @@ export default function App() {
         }
       },
     );
-    const offScanFolder = window.image.onScanFolder(
-      ({ folderId, folderName, active }) => {
-        setActiveScanFolderIds((prev) => {
-          const next = new Set(prev);
-          if (active) next.add(folderId);
-          else next.delete(folderId);
-          return next;
-        });
-        setScanningFolderNames((prev) => {
-          const next = new Map(prev);
-          if (active && folderName) next.set(folderId, folderName);
-          else next.delete(folderId);
-          return next;
-        });
-      },
-    );
-
-    const offRemoved = window.image.onRemoved((ids) => {
-      if (ids.length === 0) return;
-      schedulePageRefresh(60);
-      scheduleAnalysis();
-      scheduleSearchStatsRefresh(120);
-    });
 
     window.category
       .list()
@@ -770,10 +508,6 @@ export default function App() {
         clearTimeout(watchRetryTimer);
         watchRetryTimer = null;
       }
-      if (pageRefreshTimerRef.current) {
-        clearTimeout(pageRefreshTimerRef.current);
-        pageRefreshTimerRef.current = null;
-      }
       if (searchStatsRefreshTimerRef.current) {
         clearTimeout(searchStatsRefreshTimerRef.current);
         searchStatsRefreshTimerRef.current = null;
@@ -784,15 +518,12 @@ export default function App() {
       }
       offBatch();
       offRemoved();
-      offHashProgress();
-      offSimilarityProgress();
-      offScanProgress();
       offSearchStatsProgress();
-      offScanFolder();
     };
   }, [
     loadSearchPresetStats,
     runScan,
+    scanningRef,
     scheduleAnalysis,
     schedulePageRefresh,
     scheduleSearchStatsRefresh,
@@ -838,7 +569,7 @@ export default function App() {
         scheduleAnalysis(0);
       });
     },
-    [runScan, scheduleAnalysis, schedulePageRefresh],
+    [runScan, scheduleAnalysis, schedulePageRefresh, setActiveScanFolderIds, setRollbackFolderIds],
   );
 
   const handleFolderCancelled = useCallback(
@@ -862,7 +593,7 @@ export default function App() {
       schedulePageRefresh(0);
       scheduleAnalysis(500);
     },
-    [scheduleAnalysis, schedulePageRefresh],
+    [scheduleAnalysis, schedulePageRefresh, setActiveScanFolderIds, setRollbackFolderIds],
   );
 
   const handleFolderRemoved = useCallback(
@@ -887,7 +618,7 @@ export default function App() {
       scheduleAnalysis(500);
       runScan();
     },
-    [runScan, scheduleAnalysis, schedulePageRefresh],
+    [runScan, scheduleAnalysis, schedulePageRefresh, setActiveScanFolderIds, setRollbackFolderIds],
   );
 
   const handleCategorySelect = useCallback((id: number | null) => {
@@ -988,7 +719,7 @@ export default function App() {
         prev?.id === id ? { ...prev, isFavorite: !prev.isFavorite } : prev,
       );
     },
-    [schedulePageRefresh],
+    [schedulePageRefresh, setImages],
   );
 
   const handleCopyPrompt = useCallback((prompt: string) => {
@@ -1047,39 +778,6 @@ export default function App() {
     }
     setDeleteConfirmId(null);
   }, [deleteConfirmId, images, schedulePageRefresh, selectedImage?.id]);
-
-  const handleCancelScan = useCallback(() => {
-    setScanCancelConfirmOpen(true);
-  }, []);
-
-  const waitForScanToStop = useCallback(async (timeoutMs = 15000) => {
-    const start = Date.now();
-    while (scanningRef.current && Date.now() - start < timeoutMs) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-  }, []);
-
-  const confirmCancelScan = useCallback(async () => {
-    log.warn("Scan cancel requested");
-    setScanCancelConfirmOpen(false);
-    const rollbackTargetFolderIds = Array.from(rollbackFolderIds);
-    await window.image.cancelScan().catch(() => {});
-    await waitForScanToStop();
-    schedulePageRefresh(0);
-
-    if (rollbackTargetFolderIds.length > 0) {
-      rollbackRequestSeqRef.current += 1;
-      setFolderRollbackRequest({
-        id: rollbackRequestSeqRef.current,
-        folderIds: rollbackTargetFolderIds,
-      });
-      setRollbackFolderIds((prev) => {
-        const next = new Set(prev);
-        rollbackTargetFolderIds.forEach((folderId) => next.delete(folderId));
-        return next;
-      });
-    }
-  }, [rollbackFolderIds, schedulePageRefresh, waitForScanToStop]);
 
   const handleSendToGenerator = useCallback(
     (image: ImageData) => {
@@ -1159,7 +857,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedImage, similarGroups]);
+  }, [selectedImage, similarGroups, visualThresholdRef, promptThresholdRef]);
 
   const selectedIndex = useMemo(
     () =>
