@@ -7,6 +7,7 @@ import {
   startTransition,
 } from "react";
 import { Toaster, toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
 import { ImageGallery } from "@/components/image-gallery";
@@ -307,6 +308,7 @@ export default function App() {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [pendingGeneratorImport, setPendingGeneratorImport] =
     useState<ImageData | null>(null);
+  const [generatorTransitioning, setGeneratorTransitioning] = useState(false);
   const [similarImages, setSimilarImages] = useState<ImageData[]>([]);
   const [similarReasons, setSimilarReasons] = useState<
     Record<string, SimilarityReason>
@@ -1081,8 +1083,14 @@ export default function App() {
 
   const handleSendToGenerator = useCallback(
     (image: ImageData) => {
-      setPendingGeneratorImport(image);
-      void handlePanelChange("generator");
+      setGeneratorTransitioning(true);
+      requestAnimationFrame(() => {
+        setPendingGeneratorImport(image);
+        void handlePanelChange("generator");
+        requestAnimationFrame(() => {
+          setGeneratorTransitioning(false);
+        });
+      });
     },
     [handlePanelChange],
   );
@@ -1197,14 +1205,11 @@ export default function App() {
         availableModels={availableModels}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         {/* GenerationView - 항상 마운트하고 CSS로만 표시 전환 */}
         <div
-          className={
-            activePanel === "generator"
-              ? "flex flex-1 overflow-hidden"
-              : "hidden"
-          }
+          className={`absolute inset-0 flex overflow-hidden${activePanel !== "generator" ? " opacity-0 pointer-events-none" : ""}`}
+          inert={activePanel !== "generator" ? true : undefined}
         >
           <GenerationView
             pendingImport={pendingGeneratorImport}
@@ -1215,13 +1220,16 @@ export default function App() {
           />
         </div>
 
+        {generatorTransitioning && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
         {/* 갤러리 영역 - 항상 마운트하고 CSS로만 표시 전환 */}
         <div
-          className={
-            activePanel !== "generator"
-              ? "flex flex-1 overflow-hidden"
-              : "hidden"
-          }
+          className={`absolute inset-0 flex overflow-hidden${activePanel === "generator" ? " opacity-0 pointer-events-none" : ""}`}
+          inert={activePanel === "generator" ? true : undefined}
         >
           <div
             className="relative flex-none h-full"
