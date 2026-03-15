@@ -224,6 +224,8 @@ export default function App() {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [pendingGeneratorImport, setPendingGeneratorImport] =
     useState<ImageData | null>(null);
+  const [pendingGeneratorSource, setPendingGeneratorSource] =
+    useState<ImageData | null>(null);
   const [generatorTransitioning, setGeneratorTransitioning] = useState(false);
   const [similarImages, setSimilarImages] = useState<ImageData[]>([]);
   const [similarReasons, setSimilarReasons] = useState<
@@ -804,6 +806,14 @@ export default function App() {
     [handlePanelChange],
   );
 
+  const handleSendToSource = useCallback(
+    (image: ImageData) => {
+      setPendingGeneratorSource(image);
+      void handlePanelChange("generator");
+    },
+    [handlePanelChange],
+  );
+
   const handleChangeCategory = useCallback((image: ImageData) => {
     setBulkCategoryDialogImages(null);
     setCategoryDialogImage(image);
@@ -937,6 +947,8 @@ export default function App() {
           <GenerationView
             pendingImport={pendingGeneratorImport}
             onClearPendingImport={() => setPendingGeneratorImport(null)}
+            pendingSourceImport={pendingGeneratorSource}
+            onClearPendingSourceImport={() => setPendingGeneratorSource(null)}
             outputFolder={outputFolder}
             onOutputFolderChange={setOutputFolder}
             appendPromptTagRequest={appendPromptTagRequest}
@@ -1040,6 +1052,7 @@ export default function App() {
               onChangeCategory={handleChangeCategory}
               onBulkChangeCategory={handleBulkChangeCategory}
               onSendToGenerator={handleSendToGenerator}
+              onSendToSource={handleSendToSource}
               onAddTagToSearch={handleAddTagToSearch}
               onAddTagToGenerator={handleAddTagToGenerator}
               totalCount={totalImageCount}

@@ -61,7 +61,7 @@ import {
   getCommonCategoryIdsForImages,
   seedBuiltinCategories,
 } from "./lib/category";
-import { getNaiConfig, updateNaiConfig, generateImage } from "./lib/nai-gen";
+import { getNaiConfig, updateNaiConfig, generateImage, validateApiKey } from "./lib/nai-gen";
 import type { NaiConfigPatch, GenerateParams } from "./lib/nai-gen";
 import type { CancelToken } from "./lib/scanner";
 import { createLogger } from "./lib/logger";
@@ -352,12 +352,16 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
       return getCommonCategoryIdsForImages(imageIds);
     }
 
+    case "nai:validateApiKey":
+      return validateApiKey(payload as string);
     case "nai:getConfig":
       return getNaiConfig();
     case "nai:updateConfig":
       return updateNaiConfig(payload as NaiConfigPatch);
     case "nai:generate":
-      return generateImage(payload as GenerateParams);
+      return generateImage(payload as GenerateParams, (dataUrl) => {
+        utilitySender.send("nai:generatePreview", dataUrl);
+      });
 
     default:
       throw new Error(`Unknown request type: ${type}`);

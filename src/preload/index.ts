@@ -209,10 +209,17 @@ contextBridge.exposeInMainWorld("category", {
     ipcRenderer.invoke("category:commonForImages", imageIds),
 });
 contextBridge.exposeInMainWorld("nai", {
+  validateApiKey: (apiKey: string) =>
+    ipcRenderer.invoke("nai:validateApiKey", apiKey),
   getConfig: () => ipcRenderer.invoke("nai:getConfig"),
   updateConfig: (patch: object) =>
     ipcRenderer.invoke("nai:updateConfig", patch),
   generate: (params: object) => ipcRenderer.invoke("nai:generate", params),
+  onGeneratePreview: (cb: (dataUrl: string) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, dataUrl: string) => cb(dataUrl);
+    ipcRenderer.on("nai:generatePreview", handler);
+    return () => ipcRenderer.off("nai:generatePreview", handler);
+  },
 });
 contextBridge.exposeInMainWorld("folder", {
   list: () => ipcRenderer.invoke("folder:list"),

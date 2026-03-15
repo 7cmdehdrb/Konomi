@@ -8,7 +8,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { Copy, ImagePlus, Search } from "lucide-react";
+import { Copy, ImagePlus, Search, Trash2 } from "lucide-react";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -102,6 +102,7 @@ interface TokenChipProps {
   onAddTagToSearch?: (tag: string) => void;
   onAddTagToGeneration?: (tag: string) => void;
   onChange?: (token: PromptToken) => void;
+  onDelete?: () => void;
   onEditorOpenChange?: (open: boolean) => void;
   onInlineEditOpenChange?: (open: boolean, reason?: "cancel") => void;
   onApplyAdvance?: () => void;
@@ -130,6 +131,7 @@ function TokenChipCore({
   onAddTagToSearch,
   onAddTagToGeneration,
   onChange,
+  onDelete,
   onEditorOpenChange,
   onInlineEditOpenChange,
   onApplyAdvance,
@@ -301,6 +303,11 @@ function TokenChipCore({
   };
 
   const handleInlineKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && e.currentTarget.value === "") {
+      e.preventDefault();
+      applyInlineEdit(false);
+      return;
+    }
     if (e.ctrlKey && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
       e.preventDefault();
       stepWeight(e.key === "ArrowUp" ? 0.1 : -0.1);
@@ -690,21 +697,33 @@ function TokenChipCore({
               />
             </div>
 
-            <div className="mt-3 flex items-center justify-end gap-1.5">
-              <button
-                type="button"
-                className="h-7 rounded border border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                onClick={cancelEditing}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="h-7 rounded border border-primary/50 bg-primary/10 px-2 text-[11px] text-primary hover:bg-primary/20"
-                onClick={() => applyEditing(false)}
-              >
-                Apply
-              </button>
+            <div className="mt-3 flex items-center justify-between gap-1.5">
+              {onDelete ? (
+                <button
+                  type="button"
+                  className="h-7 w-7 rounded border border-destructive/40 text-destructive/70 hover:bg-destructive/10 hover:text-destructive flex items-center justify-center transition-colors"
+                  onClick={() => { setEditorOpenState(false); onDelete(); }}
+                  title="삭제"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              ) : <span />}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  className="h-7 rounded border border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                  onClick={cancelEditing}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="h-7 rounded border border-primary/50 bg-primary/10 px-2 text-[11px] text-primary hover:bg-primary/20"
+                  onClick={() => applyEditing(false)}
+                >
+                  Apply
+                </button>
+              </div>
             </div>
           </div>,
           document.body,

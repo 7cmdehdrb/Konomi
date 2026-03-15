@@ -35,6 +35,7 @@ interface ImageGalleryProps {
   onChangeCategory: (image: ImageData) => void;
   onBulkChangeCategory: (images: ImageData[]) => void;
   onSendToGenerator?: (image: ImageData) => void;
+  onSendToSource?: (image: ImageData) => void;
   onAddTagToSearch?: (tag: string) => void;
   onAddTagToGenerator?: (tag: string) => void;
   totalCount: number;
@@ -58,6 +59,7 @@ export const ImageGallery = memo(function ImageGallery({
   onChangeCategory,
   onBulkChangeCategory,
   onSendToGenerator,
+  onSendToSource,
   onAddTagToSearch,
   onAddTagToGenerator,
   totalCount,
@@ -325,6 +327,7 @@ export const ImageGallery = memo(function ImageGallery({
                   onDelete={onDelete}
                   onChangeCategory={onChangeCategory}
                   onSendToGenerator={onSendToGenerator}
+                  onSendToSource={onSendToSource}
                   onAddTagToSearch={onAddTagToSearch}
                   onAddTagToGenerator={onAddTagToGenerator}
                   selectionMode={selectionMode}

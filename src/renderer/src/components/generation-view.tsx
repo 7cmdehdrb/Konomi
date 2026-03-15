@@ -5,9 +5,10 @@ import {
   Save,
   Wand2,
   ChevronDown,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Shuffle,
-  Settings2,
+  Settings,
   X,
   ImagePlus,
   Sparkles,
@@ -15,7 +16,9 @@ import {
   Plus,
   Trash2,
   FolderOpen,
-  Layers,
+  Check,
+  LayoutList,
+  Image as ImageIcon,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -25,6 +28,7 @@ import type { NovelAIMeta } from "@/types/nai";
 import type { ImageData } from "@/components/image-card";
 import { PromptInput } from "@/components/prompt-input";
 import { GroupManagerModal } from "@/components/group-manager-modal";
+import { PromptSourcePanel } from "@/components/prompt-source-panel";
 
 type DropItem =
   | { kind: "file"; file: File; name: string }
@@ -39,10 +43,69 @@ type RefImage = {
 
 type CharacterPromptMode = "prompt" | "negativePrompt";
 type PromptEditorMode = "simple" | "advanced";
+
+type CharacterPosition = "global" | "A1" | "A2" | "A3" | "A4" | "A5" | "B1" | "B2" | "B3" | "B4" | "B5" | "C1" | "C2" | "C3" | "C4" | "C5" | "D1" | "D2" | "D3" | "D4" | "D5" | "E1" | "E2" | "E3" | "E4" | "E5";
+
+const POSITION_COLS = ["A", "B", "C", "D", "E"] as const;
+const POSITION_ROWS = [1, 2, 3, 4, 5] as const;
+
+function PositionPicker({
+  value,
+  onChange,
+}: {
+  value: CharacterPosition;
+  onChange: (v: CharacterPosition) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onChange("global")}
+        className={cn(
+          "text-[10px] px-1.5 py-0.5 rounded border transition-colors shrink-0",
+          value === "global"
+            ? "bg-primary text-primary-foreground border-primary"
+            : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
+        )}
+      >
+        Global
+      </button>
+      <div
+        className="grid gap-0.5"
+        style={{ gridTemplateColumns: "repeat(5, 1fr)" }}
+      >
+        {POSITION_ROWS.map((row) =>
+          POSITION_COLS.map((col) => {
+            const key = `${col}${row}` as CharacterPosition;
+            return (
+              <button
+                key={key}
+                type="button"
+                title={key}
+                onClick={() => onChange(key)}
+                className={cn(
+                  "w-4 h-4 rounded-sm transition-colors",
+                  value === key
+                    ? "bg-primary"
+                    : "bg-secondary/60 hover:bg-secondary",
+                )}
+              />
+            );
+          }),
+        )}
+      </div>
+      {value !== "global" && (
+        <span className="text-[10px] font-mono text-muted-foreground/60">{value}</span>
+      )}
+    </div>
+  );
+}
+
 type CharacterPromptInput = {
   prompt: string;
   negativePrompt: string;
   inputMode: CharacterPromptMode;
+  position: CharacterPosition;
 };
 type AppendPromptTagRequest = {
   id: number;
@@ -64,6 +127,7 @@ const createCharacterPromptInput = (prompt = ""): CharacterPromptInput => ({
   prompt,
   negativePrompt: "",
   inputMode: "prompt",
+  position: "global",
 });
 
 const MODELS = [
@@ -283,6 +347,8 @@ function RefCard({
 interface GenerationViewProps {
   pendingImport?: ImageData | null;
   onClearPendingImport?: () => void;
+  pendingSourceImport?: ImageData | null;
+  onClearPendingSourceImport?: () => void;
   outputFolder: string;
   onOutputFolderChange: (folder: string) => void;
   appendPromptTagRequest?: AppendPromptTagRequest | null;
@@ -310,17 +376,60 @@ function loadNaiGenSettings() {
   }
 }
 
+function RecentThumb({
+  src,
+  isCurrent,
+  onClick,
+}: {
+  src: string;
+  isCurrent: boolean;
+  onClick: () => void;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <button
+      className={cn(
+        "relative w-full aspect-square rounded-md overflow-hidden ring-2 transition-all block",
+        isCurrent
+          ? "ring-primary cursor-default"
+          : "ring-transparent hover:ring-primary/50 cursor-pointer",
+      )}
+      onClick={onClick}
+    >
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-secondary/40">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
+        </div>
+      )}
+      <img
+        src={src}
+        alt=""
+        className="w-full h-full object-cover"
+        onLoad={() => setLoaded(true)}
+      />
+    </button>
+  );
+}
+
 export function GenerationView({
   pendingImport,
   onClearPendingImport,
+  pendingSourceImport,
+  onClearPendingSourceImport,
   outputFolder,
   onOutputFolderChange,
   appendPromptTagRequest,
 }: GenerationViewProps) {
   const [config, setConfig] = useState<NaiConfig | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [apiKeyValidated, setApiKeyValidated] = useState(false);
+  const [validateResult, setValidateResult] = useState<{
+    valid: boolean;
+    tier?: string;
+    error?: string;
+  } | null>(null);
   const [groupManagerOpen, setGroupManagerOpen] = useState(false);
   const [groups, setGroups] = useState<PromptGroup[]>([]);
 
@@ -359,7 +468,70 @@ export function GenerationView({
 
   const [generating, setGenerating] = useState(false);
   const [resultSrc, setResultSrc] = useState<string | null>(null);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [recentImages, setRecentImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Right side panel
+  const [sourceImage, setSourceImage] = useState<ImageData | null>(null);
+  const [rightPanelVisible, setRightPanelVisible] = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState<"prompt-group" | "settings" | "reference">("prompt-group");
+  const [rightPanelWidth, setRightPanelWidth] = useState(() => {
+    try {
+      return Number(localStorage.getItem("konomi-right-panel-width")) || 260;
+    } catch {
+      return 260;
+    }
+  });
+  const rightResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const rightPanelWidthRef = useRef(rightPanelWidth);
+
+  useEffect(() => {
+    if (!pendingSourceImport) return;
+    setSourceImage(pendingSourceImport);
+    setRightPanelTab("reference");
+    setRightPanelVisible(true);
+    onClearPendingSourceImport?.();
+  }, [pendingSourceImport, onClearPendingSourceImport]);
+
+  const handleRightResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      rightResizeRef.current = { startX: e.clientX, startWidth: rightPanelWidth };
+      const onMove = (ev: MouseEvent) => {
+        if (!rightResizeRef.current) return;
+        const delta = ev.clientX - rightResizeRef.current.startX;
+        const next = Math.max(200, Math.min(480, rightResizeRef.current.startWidth + delta));
+        setRightPanelWidth(next);
+        rightPanelWidthRef.current = next;
+      };
+      const onUp = () => {
+        try {
+          localStorage.setItem("konomi-right-panel-width", String(rightPanelWidthRef.current));
+        } catch { /* ignore */ }
+        rightResizeRef.current = null;
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [rightPanelWidth],
+  );
+
+  useEffect(() => {
+    const onUnload = () => {
+      try {
+        localStorage.setItem("konomi-right-panel-width", String(rightPanelWidthRef.current));
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, []);
+
+  useEffect(() => {
+    return window.nai.onGeneratePreview((dataUrl) => setPreviewSrc(dataUrl));
+  }, []);
 
   // Resizable panel
   const [panelWidth, setPanelWidth] = useState(() => {
@@ -465,13 +637,18 @@ export function GenerationView({
       .then((cfg) => {
         setConfig(cfg);
         setApiKeyInput(cfg.apiKey);
-        if (!cfg.apiKey || !outputFolder) setSettingsOpen(true);
+        if (cfg.apiKey) setApiKeyValidated(true);
+        if (!cfg.apiKey || !outputFolder) {
+          setRightPanelTab("settings");
+          setRightPanelVisible(true);
+        }
       })
       .catch((e: unknown) => {
         toast.error(
           `설정 로드 실패: ${e instanceof Error ? e.message : String(e)}`,
         );
-        setSettingsOpen(true);
+        setRightPanelTab("settings");
+        setRightPanelVisible(true);
       });
     reloadGroups();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -560,13 +737,36 @@ export function GenerationView({
     return () => window.removeEventListener("beforeunload", onUnload);
   }, []);
 
+  const handleValidateApiKey = async () => {
+    if (!apiKeyInput.trim()) return;
+    setValidating(true);
+    try {
+      const result = await window.nai.validateApiKey(apiKeyInput.trim());
+      if (result.valid) {
+        const updated = await window.nai.updateConfig({
+          apiKey: apiKeyInput.trim(),
+        });
+        setConfig(updated);
+        setApiKeyValidated(true);
+      } else {
+        setValidateResult({ valid: false });
+      }
+    } catch (e: unknown) {
+      setValidateResult({
+        valid: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setValidating(false);
+    }
+  };
+
   const handleSaveConfig = async () => {
     setConfigSaving(true);
     try {
       const updated = await window.nai.updateConfig({ apiKey: apiKeyInput });
       setConfig(updated);
       toast.success("저장되었습니다");
-      if (updated.apiKey && outputFolder) setSettingsOpen(false);
     } catch (e: unknown) {
       toast.error(
         `설정 저장 실패: ${e instanceof Error ? e.message : String(e)}`,
@@ -588,6 +788,7 @@ export function GenerationView({
     setGenerating(true);
     setError(null);
     setResultSrc(null);
+    setPreviewSrc(null);
     try {
       const seed = seedInput.trim() ? parseInt(seedInput, 10) : undefined;
       const validCharacterPrompts = characterPrompts.filter((c) =>
@@ -603,6 +804,7 @@ export function GenerationView({
           characterNegativePrompts: validCharacterPrompts.map((c) =>
             expandGroupRefs(c.negativePrompt.trim()),
           ),
+          characterPositions: validCharacterPrompts.map((c) => c.position),
         }),
         outputFolder,
         model,
@@ -635,13 +837,14 @@ export function GenerationView({
         }),
       };
       const filePath = await window.nai.generate(params);
-      setResultSrc(
-        `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`,
-      );
+      const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
+      setResultSrc(src);
+      setRecentImages((prev) => [src, ...prev]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setGenerating(false);
+      setPreviewSrc(null);
     }
   };
 
@@ -752,13 +955,19 @@ export function GenerationView({
         setNegativePrompt(meta.negativePrompt);
       if (importChecks.characters && meta.characterPrompts.length > 0) {
         setCharacterPrompts(
-          meta.characterPrompts.map((cp) => createCharacterPromptInput(cp)),
+          meta.characterPrompts.map((cp, i) => ({
+            ...createCharacterPromptInput(cp),
+            negativePrompt: meta.characterNegativePrompts?.[i] ?? "",
+          })),
         );
       }
       if (importChecks.charactersAppend && meta.characterPrompts.length > 0) {
         setCharacterPrompts((prev) => [
           ...prev,
-          ...meta.characterPrompts.map((cp) => createCharacterPromptInput(cp)),
+          ...meta.characterPrompts.map((cp, i) => ({
+            ...createCharacterPromptInput(cp),
+            negativePrompt: meta.characterNegativePrompts?.[i] ?? "",
+          })),
         ]);
       }
       if (importChecks.settings) {
@@ -827,107 +1036,19 @@ export function GenerationView({
           maxWidth: panelWidth,
         }}
       >
-        {/* 설정 토글 */}
-        <button
-          onClick={() => setSettingsOpen((v) => !v)}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors border-b",
-            settingsOpen
-              ? "border-border bg-secondary/30 text-foreground"
-              : "border-border",
-          )}
-        >
-          <Settings2 className="h-3.5 w-3.5" />
-          <span>설정</span>
-          <div className="flex-1" />
-          {(!config?.apiKey || !outputFolder) && (
-            <span className="text-[10px] text-destructive font-medium">
-              미설정
-            </span>
-          )}
-          {settingsOpen ? (
-            <ChevronUp className="h-3 w-3" />
-          ) : (
-            <ChevronDown className="h-3 w-3" />
-          )}
-        </button>
-
-        {settingsOpen && (
-          <div className="border-b border-border bg-secondary/20 divide-y divide-border/40">
-            {/* API 키 */}
-            <div className="px-4 py-3 space-y-1.5">
-              <span className="text-xs text-muted-foreground">API 키</span>
-              <div className="flex gap-1.5">
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="API Key"
-                  className={cn(INPUT_CLS, "flex-1 min-w-0")}
-                />
-                <button
-                  onClick={handleSaveConfig}
-                  disabled={configSaving}
-                  className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors disabled:opacity-40"
-                  title="저장"
-                >
-                  {configSaving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* 다운로드 폴더 */}
-            <div className="px-4 py-3 space-y-1.5">
-              <span className="text-xs text-muted-foreground">다운로드 폴더</span>
-              <div className="flex gap-1.5">
-                <input
-                  value={outputFolder}
-                  onChange={(e) => onOutputFolderChange(e.target.value)}
-                  placeholder="저장 경로 선택..."
-                  className={cn(INPUT_CLS, "flex-1 min-w-0")}
-                  readOnly
-                />
-                <button
-                  onClick={async () => {
-                    const dir = await window.dialog.selectDirectory();
-                    if (dir) onOutputFolderChange(dir);
-                  }}
-                  className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
-                >
-                  <FolderOpen className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Prompt 모드 */}
-            {/* <div className="px-4 py-3 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Prompt 모드</span>
-              <div className="flex items-center gap-2">
-                <span>Simple</span>
-                <Switch aria-label="Prompt editor mode" />
-                <span>Advanced</span>
-              </div>
-            </div> */}
-
-            {/* 그룹 관리 */}
-            <div className="px-4 py-3 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">그룹 관리</span>
-              <button
-                onClick={() => setGroupManagerOpen(true)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {groups.length > 0 && (
-                  <span className="text-[10px] text-muted-foreground/50">{groups.length}개</span>
-                )}
-                <Layers className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
+        {/* 그룹 관리 (주석처리) */}
+        {/* <div className="px-4 py-3 flex items-center justify-between border-b border-border/40">
+          <span className="text-xs text-muted-foreground">그룹 관리</span>
+          <button
+            onClick={() => setGroupManagerOpen(true)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {groups.length > 0 && (
+              <span className="text-[10px] text-muted-foreground/50">{groups.length}개</span>
+            )}
+            <Layers className="h-3.5 w-3.5" />
+          </button>
+        </div> */}
 
         {/* 파라미터 영역 */}
         <ScrollArea className="flex-1 min-h-0">
@@ -991,6 +1112,7 @@ export function GenerationView({
                 minHeight={180}
                 maxHeight={460}
                 groups={groups}
+                allowExternalDrop
               />
             </div>
 
@@ -1100,6 +1222,16 @@ export function GenerationView({
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
+                      <PositionPicker
+                        value={character.position}
+                        onChange={(pos) =>
+                          setCharacterPrompts((prev) =>
+                            prev.map((item, idx) =>
+                              idx === i ? { ...item, position: pos } : item,
+                            ),
+                          )
+                        }
+                      />
                       <PromptInput
                         value={
                           character.inputMode === "prompt"
@@ -1126,6 +1258,7 @@ export function GenerationView({
                         maxHeight={300}
                         className="min-w-0"
                         groups={groups}
+                        allowExternalDrop
                       />
                     </div>
                   ))}
@@ -1413,7 +1546,7 @@ export function GenerationView({
             )}
             {generating ? "생성 중..." : "생성하기"}
           </button>
-          {(!config?.apiKey || !outputFolder) && !settingsOpen && (
+          {(!config?.apiKey || !outputFolder) && (
             <p className="text-[10px] text-muted-foreground/50 text-center mt-1.5">
               API 설정을 먼저 완료해 주세요
             </p>
@@ -1421,13 +1554,203 @@ export function GenerationView({
         </div>
       </div>
 
+      {/* Right side panel (adjacent to left panel) */}
+      {rightPanelVisible ? (
+        <>
+          <div
+            onMouseDown={handleResizeStart}
+            className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors"
+          />
+          <div
+            className="shrink-0 flex flex-col h-full bg-sidebar border-r border-border/40 overflow-hidden"
+            style={{ width: rightPanelWidth }}
+          >
+            {/* Tab header */}
+            <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border/40 shrink-0">
+              <button
+                onClick={() => setRightPanelVisible(false)}
+                title="패널 접기"
+                className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <div className="flex-1" />
+              {(
+                [
+                  { id: "settings", icon: Settings, title: "설정" },
+                  {
+                    id: "prompt-group",
+                    icon: LayoutList,
+                    title: "프롬프트 그룹",
+                  },
+                  { id: "reference", icon: ImageIcon, title: "참고 이미지" },
+                ] as const
+              ).map(({ id, icon: Icon, title }) => (
+                <button
+                  key={id}
+                  onClick={() => setRightPanelTab(id)}
+                  title={title}
+                  className={cn(
+                    "h-7 w-7 rounded flex items-center justify-center transition-colors",
+                    rightPanelTab === id
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              ))}
+              {rightPanelTab === "reference" && sourceImage && (
+                <button
+                  onClick={() => setSourceImage(null)}
+                  title="참고 이미지 제거"
+                  className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0 ml-0.5"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {/* Body */}
+            {rightPanelTab === "prompt-group" && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 select-none">
+                <div className="h-12 w-12 rounded-xl bg-secondary/50 border border-border/30 flex items-center justify-center">
+                  <LayoutList className="h-5 w-5 text-muted-foreground/30" />
+                </div>
+                <p className="text-xs text-muted-foreground/40">프롬프트 그룹</p>
+              </div>
+            )}
+            {rightPanelTab === "settings" && (
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="divide-y divide-border/40 flex-1 overflow-y-auto">
+                  {/* API 키 */}
+                  <div className="px-4 py-3 space-y-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      API 키
+                    </span>
+                    {apiKeyValidated ? (
+                      <div className="flex gap-1.5">
+                        <input
+                          type="password"
+                          value={apiKeyInput}
+                          readOnly
+                          className={cn(INPUT_CLS, "flex-1 min-w-0")}
+                        />
+                        <button
+                          onClick={() => {
+                            setApiKeyInput("");
+                            setApiKeyValidated(false);
+                          }}
+                          className="shrink-0 h-8 px-2.5 rounded-lg border border-border/60 bg-secondary/60 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                        >
+                          교체
+                        </button>
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={apiKeyInput}
+                        onChange={(e) => setApiKeyInput(e.target.value)}
+                        placeholder="API Key"
+                        className={cn(INPUT_CLS, "w-full")}
+                      />
+                    )}
+                    <button
+                      onClick={handleValidateApiKey}
+                      disabled={
+                        validating || !apiKeyInput.trim() || apiKeyValidated
+                      }
+                      className={cn(
+                        "mt-1.5 w-full h-8 flex items-center justify-center gap-1.5 rounded-lg border text-xs transition-colors disabled:opacity-40",
+                        apiKeyValidated
+                          ? "border-green-500/40 bg-green-500/10 text-green-600 dark:text-green-400"
+                          : "border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border",
+                      )}
+                    >
+                      {validating ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : apiKeyValidated ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : null}
+                      {apiKeyValidated ? "검증 성공" : "API 키 검증"}
+                    </button>
+                  </div>
+
+                  {/* 다운로드 폴더 */}
+                  <div className="px-4 py-3 space-y-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      다운로드 폴더
+                    </span>
+                    <div className="flex gap-1.5">
+                      <input
+                        value={outputFolder}
+                        placeholder="저장 경로 선택..."
+                        className={cn(INPUT_CLS, "flex-1 min-w-0")}
+                        readOnly
+                      />
+                      <button
+                        onClick={async () => {
+                          const dir = await window.dialog.selectDirectory();
+                          if (dir) onOutputFolderChange(dir);
+                        }}
+                        className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 저장 버튼 */}
+                <div className="px-4 py-3 border-t border-border/40 shrink-0">
+                  <button
+                    onClick={handleSaveConfig}
+                    disabled={configSaving}
+                    className="w-full h-9 flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40"
+                  >
+                    {configSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    저장
+                  </button>
+                </div>
+              </div>
+            )}
+            {rightPanelTab === "reference" &&
+              (sourceImage ? (
+                <PromptSourcePanel image={sourceImage} />
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 select-none">
+                  <div className="h-12 w-12 rounded-xl bg-secondary/50 border border-border/30 flex items-center justify-center">
+                    <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
+                  </div>
+                  <p className="text-xs text-muted-foreground/40 text-center px-4">
+                    갤러리에서 이미지를 우클릭해
+                    <br />
+                    참고 이미지로 보내세요
+                  </p>
+                </div>
+              ))}
+          </div>
+        </>
+      ) : (
+        <button
+          onClick={() => setRightPanelVisible(true)}
+          title="패널 열기"
+          className="shrink-0 w-5 h-full flex items-center justify-center border-r border-border/40 bg-sidebar text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      )}
+
       {/* Resize handle */}
       <div
-        onMouseDown={handleResizeStart}
+        onMouseDown={handleRightResizeStart}
         className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors"
       />
 
-      {/* Right panel */}
+      {/* Result area */}
       <div
         className="flex-1 flex flex-col items-center justify-center overflow-hidden relative"
         onDragOver={handleDragOver}
@@ -1460,17 +1783,33 @@ export function GenerationView({
         {/* Main content */}
         <div className="relative z-10 flex flex-col items-center justify-center w-full h-full">
           {generating ? (
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-16 w-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Loader2 className="h-7 w-7 text-primary animate-spin" />
+            previewSrc ? (
+              <div className="relative w-full h-full flex items-center justify-center">
+                <img
+                  src={previewSrc}
+                  alt="생성 중 프리뷰"
+                  className="w-full h-full object-contain rounded-sm"
+                />
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/70 backdrop-blur-sm border border-border/40">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  <span className="text-xs text-muted-foreground">
+                    생성 중...
+                  </span>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-sm font-medium text-foreground">생성 중</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  잠시 기다려 주세요...
-                </p>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-16 w-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                  <Loader2 className="h-7 w-7 text-primary animate-spin" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-foreground">생성 중</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    잠시 기다려 주세요...
+                  </p>
+                </div>
               </div>
-            </div>
+            )
           ) : error ? (
             <div className="max-w-sm w-full mx-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-center">
               <p className="text-sm font-medium text-destructive mb-1.5">
@@ -1498,6 +1837,80 @@ export function GenerationView({
           )}
         </div>
       </div>
+
+      {/* Recent images panel */}
+      <div className="w-24 shrink-0 border-l border-border/60 bg-card/70 flex flex-col">
+        <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest text-center pt-3 pb-1 shrink-0">
+          최근 생성
+        </p>
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {recentImages.length > 0 ? (
+            <div className="p-2 space-y-1.5">
+              {recentImages.map((src, i) => (
+                <RecentThumb
+                  key={src + i}
+                  src={src}
+                  isCurrent={src === resultSrc}
+                  onClick={() => setResultSrc(src)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted-foreground/40 text-center px-2 pt-4">
+              없음
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* API 검증 결과 Modal */}
+      {validateResult && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+          <div className="w-80 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center gap-3">
+              <div
+                className={cn(
+                  "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                  validateResult.valid
+                    ? "bg-green-500/15 text-green-500"
+                    : "bg-destructive/15 text-destructive",
+                )}
+              >
+                {validateResult.valid ? (
+                  <Save className="h-4 w-4" />
+                ) : (
+                  <X className="h-4 w-4" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {validateResult.valid
+                    ? "유효한 API 키"
+                    : "유효하지 않은 API 키"}
+                </p>
+                {validateResult.valid && validateResult.tier && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    구독 플랜: {validateResult.tier}
+                  </p>
+                )}
+                {!validateResult.valid && validateResult.error && (
+                  <p className="text-xs text-muted-foreground mt-0.5 break-all">
+                    {validateResult.error}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="px-5 py-3 flex justify-end">
+              <button
+                onClick={() => setValidateResult(null)}
+                className="px-4 h-8 rounded-lg bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Drop modal */}
       {dropItem && (

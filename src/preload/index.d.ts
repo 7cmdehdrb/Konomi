@@ -145,6 +145,7 @@ export type GenerateParams = {
   negativePrompt?: string;
   characterPrompts?: string[];
   characterNegativePrompts?: string[];
+  characterPositions?: string[];
   outputFolder?: string;
   model?: string;
   width?: number;
@@ -262,9 +263,11 @@ declare global {
       rename: (id: number, name: string) => Promise<Folder>;
     };
     nai: {
+      validateApiKey: (apiKey: string) => Promise<{ valid: boolean; tier?: string }>;
       getConfig: () => Promise<NaiConfig>;
       updateConfig: (patch: { apiKey?: string }) => Promise<NaiConfig>;
       generate: (params: GenerateParams) => Promise<string>;
+      onGeneratePreview: (cb: (dataUrl: string) => void) => () => void;
     };
     category: {
       list: () => Promise<Category[]>;

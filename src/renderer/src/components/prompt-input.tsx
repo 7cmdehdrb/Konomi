@@ -37,6 +37,8 @@ const INPUT_WRAP_SPACE_THRESHOLD_PX = 120;
 const INPUT_WRAP_CARET_BUFFER_PX = 18;
 const INPUT_WRAP_TOKEN_GAP_PX = 6;
 
+const DRAG_TOKEN_MIME = "application/x-konomi-token";
+
 interface PromptInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -47,6 +49,7 @@ interface PromptInputProps {
   minHeight?: number;
   maxHeight?: number;
   groups?: PromptGroup[];
+  allowExternalDrop?: boolean;
 }
 
 function createTokenId(): string {
@@ -85,6 +88,7 @@ export function PromptInput({
   minHeight = 112,
   maxHeight = 420,
   groups: groupsProp,
+  allowExternalDrop = false,
 }: PromptInputProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const measureCanvasContextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -96,6 +100,7 @@ export function PromptInput({
   const undoStackRef = useRef<{ tokens: EditableToken[]; draft: string }[]>([]);
   const isUndoingRef = useRef(false);
 
+  const [externalDragOver, setExternalDragOver] = useState(false);
   const [tokens, setTokens] = useState<EditableToken[]>(() =>
     toEditableTokens(parsePromptTokens(value)),
   );
@@ -574,7 +579,8 @@ export function PromptInput({
   return (
     <div
       className={cn(
-        "w-full min-w-0 rounded-lg border border-border/60 bg-secondary/60 px-2 py-2 overflow-y-auto overflow-x-hidden",
+        "w-full min-w-0 rounded-lg border bg-secondary/60 px-2 py-2 overflow-y-auto overflow-x-hidden",
+        externalDragOver ? "border-primary/60" : "border-border/60",
         resizable && "resize-y",
         className,
       )}
@@ -587,6 +593,31 @@ export function PromptInput({
           }
         }
       }}
+      onDragOver={allowExternalDrop ? (e) => {
+        if (e.dataTransfer.types.includes(DRAG_TOKEN_MIME)) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+          setExternalDragOver(true);
+        }
+      } : undefined}
+      onDragLeave={allowExternalDrop ? () => setExternalDragOver(false) : undefined}
+      onDrop={allowExternalDrop ? (e) => {
+        setExternalDragOver(false);
+        const data = e.dataTransfer.getData(DRAG_TOKEN_MIME);
+        if (!data) return;
+        e.preventDefault();
+        try {
+          const token = JSON.parse(data) as { text: string; weight: number; raw?: string };
+          const nextTokens = [
+            ...tokens,
+            { text: token.text, weight: token.weight, raw: token.raw, id: createTokenId() },
+          ];
+          emit(nextTokens, draft);
+          requestAnimationFrame(() => inputRef.current?.focus());
+        } catch {
+          // ignore invalid data
+        }
+      } : undefined}
     >
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext
@@ -640,6 +671,11 @@ export function PromptInput({
                     onChange={(nextToken) =>
                       handleTokenChange(token.id, nextToken)
                     }
+                    onDelete={() => {
+                      const nextTokens = tokens.filter((t) => t.id !== token.id);
+                      emit(nextTokens, draft);
+                      requestAnimationFrame(() => focusInput("end"));
+                    }}
                     onApplyAdvance={() => {
                       if (index < tokens.length - 1) {
                         focusTokenAtIndex(index + 1);

@@ -80,6 +80,7 @@ function parseParameters(
     prompt,
     negativePrompt,
     characterPrompts: [],
+    characterNegativePrompts: [],
     seed,
     model,
     sampler,

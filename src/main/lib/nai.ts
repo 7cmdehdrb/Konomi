@@ -178,6 +178,11 @@ function parseNaiComment(raw: Record<string, unknown>): NovelAIMeta | null {
       ?.map((c) => c.char_caption)
       .filter(Boolean) ?? [];
 
+  const v4NegativeCaption = comment["v4_negative_prompt"] as V4Caption | undefined;
+  const characterNegativePrompts: string[] =
+    v4NegativeCaption?.caption?.char_captions
+      ?.map((c) => c.char_caption) ?? [];
+
   const source = typeof raw["Source"] === "string" ? raw["Source"] : "";
   const model = SOURCE_TO_MODEL[source] ?? "";
 
@@ -186,6 +191,7 @@ function parseNaiComment(raw: Record<string, unknown>): NovelAIMeta | null {
     prompt,
     negativePrompt,
     characterPrompts,
+    characterNegativePrompts,
     seed: Number(comment["seed"] ?? 0),
     model,
     sampler: String(comment["sampler"] ?? ""),

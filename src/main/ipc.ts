@@ -235,6 +235,9 @@ export function registerIpcHandlers(): void {
     bridge.request("category:commonForImages", { imageIds }),
   );
 
+  ipcMain.handle("nai:validateApiKey", (_, apiKey: string) =>
+    bridge.request("nai:validateApiKey", apiKey),
+  );
   ipcMain.handle("nai:getConfig", () => bridge.request("nai:getConfig"));
   ipcMain.handle("nai:updateConfig", (_, patch) =>
     bridge.request("nai:updateConfig", patch),

@@ -60,6 +60,7 @@ interface ImageCardProps {
   onDelete: (id: string) => void;
   onChangeCategory: (image: ImageData) => void;
   onSendToGenerator?: (image: ImageData) => void;
+  onSendToSource?: (image: ImageData) => void;
   onAddTagToSearch?: (tag: string) => void;
   onAddTagToGenerator?: (tag: string) => void;
   selectionMode?: boolean;
@@ -77,6 +78,7 @@ export const ImageCard = memo(function ImageCard({
   onDelete,
   onChangeCategory,
   onSendToGenerator,
+  onSendToSource,
   selectionMode = false,
   selected = false,
   onSelectChange,
@@ -129,6 +131,12 @@ export const ImageCard = memo(function ImageCard({
         <ContextMenuItem onSelect={() => onSendToGenerator(image)}>
           <ImagePlus className="h-4 w-4" />
           생성 모드로 보내기
+        </ContextMenuItem>
+      )}
+      {onSendToSource && (
+        <ContextMenuItem onSelect={() => onSendToSource(image)}>
+          <ImagePlus className="h-4 w-4" />
+          생성 모드로 보내기 (선택)
         </ContextMenuItem>
       )}
       <ContextMenuSeparator />
