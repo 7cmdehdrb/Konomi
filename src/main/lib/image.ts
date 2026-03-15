@@ -1054,7 +1054,8 @@ export async function suggestImageSearchTags(
   await ensureImageSearchStatTable();
   const prefix = String(query?.prefix ?? "")
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/_/g, " ");
   if (!prefix) return [];
   const containsEnabled = prefix.length >= MIN_TAG_CONTAINS_QUERY_LENGTH;
 
@@ -1075,7 +1076,7 @@ export async function suggestImageSearchTags(
   const excluded = normalizeExcludedTagKeys(query?.exclude);
   const excludedSet = new Set(excluded);
   const normalizedKeySql =
-    "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(key, '[', ''), ']', ''), '{', ''), '}', ''))";
+    "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(key, '_', ' '), '[', ''), ']', ''), '{', ''), '}', ''))";
   const excludedClause =
     excluded.length > 0
       ? ` AND ${normalizedKeySql} NOT IN (${excluded.map(() => "?").join(", ")})`
@@ -1103,7 +1104,7 @@ export async function suggestImageSearchTags(
   for (const row of rows) {
     const count = Math.max(0, Math.floor(row.count ?? 0));
     for (const tag of normalizeTagSuggestionCandidates(row.model ?? row.key)) {
-      const key = tag.toLowerCase();
+      const key = tag.toLowerCase().replace(/_/g, " ");
       if (containsEnabled) {
         if (!key.includes(prefix)) continue;
       } else if (!key.startsWith(prefix)) {
@@ -1261,10 +1262,16 @@ function normalizeSearchGroups(rawQuery: string): string[][] {
       const term = rawTerm.trim();
       if (!term) continue;
 
-      const dedupeKey = term.toLowerCase();
-      if (seenTerms.has(dedupeKey)) continue;
-      seenTerms.add(dedupeKey);
-      groupTerms.push(term);
+      const variants = [
+        ...new Set([term, term.replace(/_/g, " "), term.replace(/ /g, "_")]),
+      ];
+      for (const variant of variants) {
+        if (totalTerms + groupTerms.length >= MAX_SEARCH_TERMS) break;
+        const dedupeKey = variant.toLowerCase();
+        if (seenTerms.has(dedupeKey)) continue;
+        seenTerms.add(dedupeKey);
+        groupTerms.push(variant);
+      }
     }
 
     if (groupTerms.length === 0) continue;

@@ -1060,6 +1060,8 @@ export default function App() {
               page={galleryPage}
               totalPages={galleryTotalPages}
               onPageChange={setGalleryPage}
+              searchQuery={searchQuery || undefined}
+              onClearSearch={() => setSearchQuery("")}
             />
           </div>
         </div>

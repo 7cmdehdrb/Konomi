@@ -264,10 +264,7 @@ export function Header({
         })
         .then((items) => {
           if (requestId !== suggestRequestSeqRef.current) return;
-          const termLower = activeSearchToken.term.toLowerCase();
-          const next = items.filter(
-            (item) => item.tag.trim() && item.tag.toLowerCase() !== termLower,
-          );
+          const next = items.filter((item) => item.tag.trim());
           setTagSuggestions(next);
           setTagSuggestionOpen(next.length > 0);
           setTagSuggestionIndex(next.length > 0 ? 0 : -1);

@@ -43,6 +43,8 @@ interface ImageGalleryProps {
   page?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
+  searchQuery?: string;
+  onClearSearch?: () => void;
 }
 
 export const ImageGallery = memo(function ImageGallery({
@@ -67,6 +69,8 @@ export const ImageGallery = memo(function ImageGallery({
   page,
   totalPages,
   onPageChange,
+  searchQuery,
+  onClearSearch,
 }: ImageGalleryProps) {
   const [internalPage, setInternalPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -183,6 +187,14 @@ export const ImageGallery = memo(function ImageGallery({
               <span className="text-foreground font-medium">{totalCount}</span>{" "}
               개의 이미지
             </span>
+            {searchQuery && (
+              <button
+                onClick={onClearSearch}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+              >
+                초기화
+              </button>
+            )}
             {selectionMode && (
               <span className="text-sm text-muted-foreground select-none">
                 선택{" "}
