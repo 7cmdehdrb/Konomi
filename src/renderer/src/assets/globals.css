@@ -3,6 +3,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes chip-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 @font-face {
   font-family: 'Pretendard';
   src: url('./fonts/Pretendard-Light.woff2') format('woff2');

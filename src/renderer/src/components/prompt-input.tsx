@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -92,6 +93,8 @@ export function PromptInput({
   const inlineEditTokenIdRef = useRef<string | null>(null);
   const previousModeRef = useRef<PromptInputEditorMode>(mode);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const undoStackRef = useRef<{ tokens: EditableToken[]; draft: string }[]>([]);
+  const isUndoingRef = useRef(false);
 
   const [tokens, setTokens] = useState<EditableToken[]>(() =>
     toEditableTokens(parsePromptTokens(value)),
@@ -99,6 +102,7 @@ export function PromptInput({
   const [draft, setDraft] = useState("");
   const [inlineEditTokenId, setInlineEditTokenId] = useState<string | null>(null);
   const [popoverTokenId, setPopoverTokenId] = useState<string | null>(null);
+  const [chipCursorIndex, setChipCursorIndex] = useState<number | null>(null);
   const [shouldWrapInput, setShouldWrapInput] = useState(false);
   const [tokenRowWidth, setTokenRowWidth] = useState(0);
 
@@ -264,9 +268,36 @@ export function PromptInput({
   }, [draft, mode, tokens]);
 
   const emit = (nextTokens: EditableToken[], nextDraft: string) => {
+    if (!isUndoingRef.current) {
+      const tokensChanged =
+        nextTokens.length !== tokens.length ||
+        nextTokens.some(
+          (t, i) =>
+            t.id !== tokens[i]?.id ||
+            tokenToRawString(t) !== tokenToRawString(tokens[i]!),
+        );
+      if (tokensChanged) {
+        undoStackRef.current = [
+          ...undoStackRef.current.slice(-49),
+          { tokens, draft },
+        ];
+      }
+    }
     setTokens(nextTokens);
     setDraft(nextDraft);
     onChange(serializePrompt(nextTokens, nextDraft));
+  };
+
+  const handleUndo = () => {
+    const stack = undoStackRef.current;
+    if (stack.length === 0) return;
+    const prev = stack[stack.length - 1];
+    undoStackRef.current = stack.slice(0, -1);
+    isUndoingRef.current = true;
+    setTokens(prev.tokens);
+    setDraft(prev.draft);
+    onChange(serializePrompt(prev.tokens, prev.draft));
+    isUndoingRef.current = false;
   };
 
   const insertGroupToken = (groupName: string) => {
@@ -352,6 +383,7 @@ export function PromptInput({
 
   const focusInput = (cursor: "start" | "end" = "end") => {
     setInlineEditTokenId(null);
+    setChipCursorIndex(null);
     const input = inputRef.current;
     if (!input) return;
     input.focus();
@@ -362,6 +394,7 @@ export function PromptInput({
   const focusTokenAtIndex = (index: number) => {
     const token = tokens[index];
     if (!token) return;
+    setChipCursorIndex(null);
     setInlineEditTokenId(token.id);
   };
 
@@ -428,13 +461,69 @@ export function PromptInput({
     emit(nextTokens, "");
   };
 
+  const navigateVertical = (direction: "up" | "down", fromIndex: number) => {
+    const currentToken = tokens[fromIndex];
+    if (!currentToken) return;
+    const currentNode = tokenRefs.current.get(currentToken.id);
+    if (!currentNode) return;
+
+    const currentRect = currentNode.getBoundingClientRect();
+    const cursorX = currentRect.right;
+    const currentCenterY = (currentRect.top + currentRect.bottom) / 2;
+    const lineThreshold = Math.max(currentRect.height / 2, 8);
+
+    const chipData = tokens
+      .map((token, i) => {
+        if (isGroupRef(token)) return null;
+        const node = tokenRefs.current.get(token.id);
+        if (!node) return null;
+        const rect = node.getBoundingClientRect();
+        return { index: i, rect, centerY: (rect.top + rect.bottom) / 2 };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    const candidates = chipData.filter(({ centerY }) =>
+      direction === "up"
+        ? centerY < currentCenterY - lineThreshold
+        : centerY > currentCenterY + lineThreshold,
+    );
+
+    if (candidates.length === 0) {
+      if (direction === "down") focusInput("end");
+      return;
+    }
+
+    const targetCenterY =
+      direction === "up"
+        ? Math.max(...candidates.map((c) => c.centerY))
+        : Math.min(...candidates.map((c) => c.centerY));
+
+    const lineChips = candidates.filter(
+      ({ centerY }) => Math.abs(centerY - targetCenterY) <= lineThreshold,
+    );
+
+    const best = lineChips.reduce((prev, curr) =>
+      Math.abs(curr.rect.right - cursorX) < Math.abs(prev.rect.right - cursorX)
+        ? curr
+        : prev,
+    );
+
+    focusTokenAtIndex(best.index);
+  };
+
   const handleTokenKeyDown = (
     e: ReactKeyboardEvent<HTMLDivElement>,
     index: number,
   ) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      navigateVertical(e.key === "ArrowUp" ? "up" : "down", index);
+      return;
+    }
     if (e.key === "ArrowLeft") {
       e.preventDefault();
-      if (index > 0) focusTokenAtIndex(index - 1);
+      if (chipCursorIndex === index) focusTokenAtIndex(index);
+      else if (index > 0) focusTokenAtIndex(index - 1);
       else focusInput("start");
       return;
     }
@@ -490,6 +579,14 @@ export function PromptInput({
         className,
       )}
       style={{ minHeight, maxHeight }}
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+          if ((e.target as HTMLElement).tagName !== "INPUT") {
+            e.preventDefault();
+            handleUndo();
+          }
+        }
+      }}
     >
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext
@@ -514,69 +611,86 @@ export function PromptInput({
                   sortableId={token.id}
                 />
               ) : (
-                <TokenChip
-                  key={token.id}
-                  token={token}
-                  raw={tokenToRawString(token)}
-                  isEditable={true}
-                  constrainToContainer={true}
-                  maxWidthPx={Math.max(
-                    0,
-                    tokenRowWidth - INPUT_WRAP_TOKEN_GAP_PX,
-                  )}
-                  inlineEditOpen={inlineEditTokenId === token.id}
-                  onInlineEditOpenChange={(open) =>
-                    setInlineEditTokenId((prev) => {
-                      if (open) return token.id;
-                      if (prev !== token.id) return prev;
-                      requestAnimationFrame(() => {
-                        if (inlineEditTokenIdRef.current === null)
-                          focusInput("end");
-                      });
-                      return null;
-                    })
-                  }
-                  editorOpen={popoverTokenId === token.id}
-                  onChange={(nextToken) =>
-                    handleTokenChange(token.id, nextToken)
-                  }
-                  onApplyAdvance={() => {
-                    if (index < tokens.length - 1) {
-                      focusTokenAtIndex(index + 1);
-                      return;
-                    }
-                    focusInput("end");
-                  }}
-                  onEditorOpenChange={(open) => {
-                    if (open) {
-                      setInlineEditTokenId(null);
-                      setPopoverTokenId(token.id);
-                    } else {
-                      setPopoverTokenId((prev) => {
+                <Fragment key={token.id}>
+                  <TokenChip
+                    key={token.id}
+                    token={token}
+                    raw={tokenToRawString(token)}
+                    isEditable={true}
+                    constrainToContainer={true}
+                    maxWidthPx={Math.max(
+                      0,
+                      tokenRowWidth - INPUT_WRAP_TOKEN_GAP_PX,
+                    )}
+                    inlineEditOpen={inlineEditTokenId === token.id}
+                    onInlineEditOpenChange={(open, reason) =>
+                      setInlineEditTokenId((prev) => {
+                        if (open) return token.id;
                         if (prev !== token.id) return prev;
-                        requestAnimationFrame(() => {
-                          tokenRefs.current.get(token.id)?.focus();
-                        });
+                        if (reason !== "cancel") {
+                          requestAnimationFrame(() => {
+                            if (inlineEditTokenIdRef.current === null)
+                              focusInput("end");
+                          });
+                        }
                         return null;
-                      });
+                      })
                     }
-                  }}
-                  openOnFocus={false}
-                  focusEditorOnOpen={true}
-                  onRequestAdjacentEdit={(direction) => {
-                    if (direction === "prev") {
-                      if (index > 0) focusTokenAtIndex(index - 1);
+                    editorOpen={popoverTokenId === token.id}
+                    onChange={(nextToken) =>
+                      handleTokenChange(token.id, nextToken)
+                    }
+                    onApplyAdvance={() => {
+                      if (index < tokens.length - 1) {
+                        focusTokenAtIndex(index + 1);
+                        return;
+                      }
+                      focusInput("end");
+                    }}
+                    onTokenFocus={() => setChipCursorIndex(index)}
+                    onEditorOpenChange={(open) => {
+                      if (open) {
+                        setInlineEditTokenId(null);
+                        setChipCursorIndex(null);
+                        setPopoverTokenId(token.id);
+                      } else {
+                        setPopoverTokenId((prev) => {
+                          if (prev !== token.id) return prev;
+                          requestAnimationFrame(() => {
+                            tokenRefs.current.get(token.id)?.focus();
+                          });
+                          return null;
+                        });
+                      }
+                    }}
+                    openOnFocus={false}
+                    focusEditorOnOpen={true}
+                    onRequestAdjacentEdit={(direction) => {
+                      if (direction === "prev") {
+                        if (index > 0) focusTokenAtIndex(index - 1);
+                        else focusInput("start");
+                        return;
+                      }
+                      if (index < tokens.length - 1) focusTokenAtIndex(index + 1);
                       else focusInput("start");
-                      return;
+                    }}
+                    onRequestVerticalNavigation={(direction) =>
+                      navigateVertical(direction, index)
                     }
-                    if (index < tokens.length - 1) focusTokenAtIndex(index + 1);
-                    else focusInput("start");
-                  }}
-                  onTokenKeyDown={(e) => handleTokenKeyDown(e, index)}
-                  isSortable={true}
-                  sortableId={token.id}
-                  chipRef={(node) => setTokenRef(token.id, node)}
-                />
+                    onTokenKeyDown={(e) => handleTokenKeyDown(e, index)}
+                    isSortable={true}
+                    sortableId={token.id}
+                    chipRef={(node) => setTokenRef(token.id, node)}
+                  />
+                  {(chipCursorIndex === index || inlineEditTokenId === token.id) && (
+                    <span
+                      className="inline-block w-0.5 h-4 self-center rounded-full bg-primary/80"
+                      style={{
+                        animation: "chip-cursor-blink 0.7s step-end infinite",
+                      }}
+                    />
+                  )}
+                </Fragment>
               ),
             )}
 
@@ -594,6 +708,7 @@ export function PromptInput({
                 onPaste={handleInputPaste}
                 onFocus={() => {
                   setInlineEditTokenId(null);
+                  setChipCursorIndex(null);
                 }}
                 onBlur={() => {
                   setTimeout(() => setGroupDropdownOpen(false), 150);

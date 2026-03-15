@@ -103,10 +103,11 @@ interface TokenChipProps {
   onAddTagToGeneration?: (tag: string) => void;
   onChange?: (token: PromptToken) => void;
   onEditorOpenChange?: (open: boolean) => void;
-  onInlineEditOpenChange?: (open: boolean) => void;
+  onInlineEditOpenChange?: (open: boolean, reason?: "cancel") => void;
   onApplyAdvance?: () => void;
   chipRef?: (node: HTMLDivElement | null) => void;
   onRequestAdjacentEdit?: (direction: "prev" | "next") => void;
+  onRequestVerticalNavigation?: (direction: "up" | "down") => void;
   openOnFocus?: boolean;
   focusEditorOnOpen?: boolean;
   onTokenFocus?: () => void;
@@ -134,6 +135,7 @@ function TokenChipCore({
   onApplyAdvance,
   chipRef,
   onRequestAdjacentEdit,
+  onRequestVerticalNavigation,
   openOnFocus = false,
   focusEditorOnOpen = true,
   onTokenFocus,
@@ -291,7 +293,7 @@ function TokenChipCore({
   const cancelInlineEdit = () => {
     inlineHandlingRef.current = "cancel";
     resetDraft();
-    onInlineEditOpenChange?.(false);
+    onInlineEditOpenChange?.(false, "cancel");
     window.requestAnimationFrame(() => {
       inlineHandlingRef.current = null;
       triggerRef.current?.focus();
@@ -304,7 +306,13 @@ function TokenChipCore({
       stepWeight(e.key === "ArrowUp" ? 0.1 : -0.1);
       return;
     }
-    if (handleExpressionShortcut(e)) return;
+    if (!e.ctrlKey && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      e.preventDefault();
+      applyInlineEdit(false);
+      onRequestVerticalNavigation?.(e.key === "ArrowUp" ? "up" : "down");
+      return;
+    }
+    // if (handleExpressionShortcut(e)) return;
     if (e.key === "Enter") {
       e.preventDefault();
       applyInlineEdit(true);
@@ -397,15 +405,15 @@ function TokenChipCore({
     });
   };
 
-  const handleExpressionShortcut = (
-    e: ReactKeyboardEvent<HTMLElement>,
-  ): boolean => {
-    if (!e.altKey || e.ctrlKey) return false;
-    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return false;
-    e.preventDefault();
-    setDraftExpression(e.key === "ArrowUp" ? "keyword" : "numerical");
-    return true;
-  };
+  // const handleExpressionShortcut = (
+  //   e: ReactKeyboardEvent<HTMLElement>,
+  // ): boolean => {
+  //   if (!e.altKey || e.ctrlKey) return false;
+  //   if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return false;
+  //   e.preventDefault();
+  //   setDraftExpression(e.key === "ArrowUp" ? "keyword" : "numerical");
+  //   return true;
+  // };
 
   const handleTrigger = () => {
     if (isEditable) return;
@@ -473,7 +481,7 @@ function TokenChipCore({
       stepWeight(e.key === "ArrowUp" ? 0.1 : -0.1);
       return;
     }
-    handleExpressionShortcut(e);
+    // handleExpressionShortcut(e);
   };
 
   const handlePopoverKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
@@ -487,7 +495,7 @@ function TokenChipCore({
       cancelEditing();
       return;
     }
-    handleExpressionShortcut(e);
+    // handleExpressionShortcut(e);
   };
 
   const setCombinedRef = (node: HTMLDivElement | null) => {
@@ -563,6 +571,7 @@ function TokenChipCore({
           data-token-chip="true"
           data-token-raw={raw}
           onClick={handleTrigger}
+          onDoubleClick={() => { if (isEditable) onInlineEditOpenChange?.(true); }}
           onContextMenu={handleContextMenu}
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
