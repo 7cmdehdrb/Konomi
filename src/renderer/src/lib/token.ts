@@ -13,10 +13,20 @@ export type GroupRefToken = {
   overrideTags?: string[]; // if set, overrides the DB group's tokens (one-time local edit)
 };
 
-export type AnyToken = PromptToken | GroupRefToken;
+export type WildcardToken = {
+  kind: "wildcard";
+  options: string[]; // raw token strings, e.g. ["red hair", "1.2::blue hair::"]
+  resolved?: string; // last resolved value (set by resolveWildcardsInString callers for display)
+};
+
+export type AnyToken = PromptToken | GroupRefToken | WildcardToken;
 
 export function isGroupRef(token: AnyToken): token is GroupRefToken {
   return (token as GroupRefToken).kind === "group";
+}
+
+export function isWildcard(token: AnyToken): token is WildcardToken {
+  return (token as WildcardToken).kind === "wildcard";
 }
 
 const MULT = 1.05;
@@ -55,9 +65,54 @@ export function tokenToRawString(token: AnyToken): string {
     }
     return `@{${token.groupName}}`;
   }
+  if (isWildcard(token)) {
+    return `%{${token.options.join("|")}}`;
+  }
   if (token.raw && token.raw.trim()) return token.raw.trim();
   if (Math.abs(token.weight - 1.0) <= 0.001) return token.text;
   return `${token.weight.toFixed(2)}::${token.text}::`;
+}
+
+// Split s at '|' characters that are at brace depth 0 (not inside any {...} pair)
+function splitOptionsByPipe(s: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+  for (const ch of s) {
+    if (ch === "{") {
+      depth++;
+      current += ch;
+    } else if (ch === "}") {
+      depth--;
+      current += ch;
+    } else if (ch === "|" && depth === 0) {
+      const opt = current.trim();
+      if (opt) parts.push(opt);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  const opt = current.trim();
+  if (opt) parts.push(opt);
+  return parts;
+}
+
+function parseWildcardToken(raw: string): WildcardToken | null {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("%{") || !trimmed.endsWith("}")) return null;
+  const inner = trimmed.slice(2, -1);
+  // Validate balanced braces in the inner content
+  let depth = 0;
+  for (const ch of inner) {
+    if (ch === "{") depth++;
+    else if (ch === "}") depth--;
+    if (depth < 0) return null;
+  }
+  if (depth !== 0) return null;
+  const options = splitOptionsByPipe(inner);
+  if (options.length === 0) return null;
+  return { kind: "wildcard", options };
 }
 
 function parseGroupToken(raw: string): GroupRefToken | null {
@@ -77,10 +132,13 @@ function parseGroupToken(raw: string): GroupRefToken | null {
 
 export function parseRawToken(raw: string): AnyToken {
   const trimmed = raw.trim();
+  const wildcard = parseWildcardToken(trimmed);
+  if (wildcard) return wildcard;
   const group = parseGroupToken(trimmed);
   if (group) return group;
   const parsed = parsePromptTokens(trimmed).at(0);
-  if (parsed && !isGroupRef(parsed)) return { ...parsed, raw: trimmed };
+  if (parsed && !isGroupRef(parsed) && !isWildcard(parsed))
+    return { ...parsed, raw: trimmed };
   return { text: trimmed, weight: 1, raw: trimmed };
 }
 
@@ -107,6 +165,11 @@ export function parsePromptTokens(prompt: string): AnyToken[] {
   for (const seg of segments) {
     for (const part of seg.text.split(",")) {
       const trimmedPart = part.trim();
+      const wildcard = parseWildcardToken(trimmedPart);
+      if (wildcard) {
+        result.push(wildcard);
+        continue;
+      }
       const group = parseGroupToken(trimmedPart);
       if (group) {
         result.push(group);
@@ -125,5 +188,35 @@ export function parsePromptTokens(prompt: string): AnyToken[] {
     }
   }
 
+  return result;
+}
+
+// Resolves all %{opt1|opt2} wildcards in a prompt string by picking a random option each.
+// Handles nested @{...} group refs inside options (e.g. %{red hair|@{someGroup}|blue hair}).
+export function resolveWildcardsInString(prompt: string): string {
+  let result = "";
+  let i = 0;
+  while (i < prompt.length) {
+    if (prompt[i] === "%" && prompt[i + 1] === "{") {
+      // Find the matching closing } using brace depth tracking
+      let depth = 1;
+      let j = i + 2;
+      while (j < prompt.length && depth > 0) {
+        if (prompt[j] === "{") depth++;
+        else if (prompt[j] === "}") depth--;
+        j++;
+      }
+      if (depth === 0) {
+        const inner = prompt.slice(i + 2, j - 1);
+        const opts = splitOptionsByPipe(inner);
+        result += opts[Math.floor(Math.random() * opts.length)] ?? "";
+        i = j;
+      } else {
+        result += prompt[i++];
+      }
+    } else {
+      result += prompt[i++];
+    }
+  }
   return result;
 }

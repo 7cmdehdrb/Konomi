@@ -20,16 +20,18 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
-import type { AnyToken, PromptToken } from "@/lib/token";
+import type { AnyToken, PromptToken, WildcardToken } from "@/lib/token";
 import {
   parsePromptTokens,
   parseRawToken,
   tokenToRawString,
   isGroupRef,
+  isWildcard,
 } from "@/lib/token";
 import type { PromptGroup } from "@preload/index.d";
 import { TokenChip } from "./token-chip";
 import { GroupChip } from "./group-chip";
+import { WildcardChip } from "./wildcard-chip";
 
 type EditableToken = AnyToken & { id: string };
 type PromptInputEditorMode = "simple" | "advanced";
@@ -64,13 +66,19 @@ function createTokenId(): string {
 
 function toEditableTokens(tokens: AnyToken[]): EditableToken[] {
   return tokens
-    .filter((token) => isGroupRef(token) || token.text.trim().length > 0)
+    .filter(
+      (token) =>
+        isGroupRef(token) || isWildcard(token) || token.text.trim().length > 0,
+    )
     .map((token) => ({ ...token, id: createTokenId() }));
 }
 
 function serializePrompt(tokens: EditableToken[], draft: string): string {
   const tokenText = tokens
-    .filter((token) => isGroupRef(token) || token.text.trim().length > 0)
+    .filter(
+      (token) =>
+        isGroupRef(token) || isWildcard(token) || token.text.trim().length > 0,
+    )
     .map((token) => tokenToRawString(token))
     .join(", ");
   const cleanDraft = draft.trim();
@@ -108,6 +116,9 @@ export function PromptInput({
   const [draft, setDraft] = useState("");
   const [inlineEditTokenId, setInlineEditTokenId] = useState<string | null>(null);
   const [popoverTokenId, setPopoverTokenId] = useState<string | null>(null);
+  // When set, new tokens from the draft are inserted at this index (instead of appended).
+  // Also controls where the input element is rendered in the chip list.
+  const [insertIndex, setInsertIndex] = useState<number | null>(null);
   const [chipCursorIndex, setChipCursorIndex] = useState<number | null>(null);
   const [shouldWrapInput, setShouldWrapInput] = useState(false);
   const [tokenRowWidth, setTokenRowWidth] = useState(0);
@@ -211,8 +222,15 @@ export function PromptInput({
     };
   }, [mode, tokens.length]);
 
+  // Auto-focus input when it moves to cursor-insert position
   useEffect(() => {
-    if (mode !== "simple" || tokens.length === 0) {
+    if (insertIndex === null) return;
+    const raf = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(raf);
+  }, [insertIndex]);
+
+  useEffect(() => {
+    if (mode !== "simple" || tokens.length === 0 || insertIndex !== null) {
       setShouldWrapInput(false);
       return;
     }
@@ -275,7 +293,7 @@ export function PromptInput({
       observer.disconnect();
       window.removeEventListener("resize", updateInputWrap);
     };
-  }, [draft, mode, tokens]);
+  }, [draft, insertIndex, mode, tokens]);
 
   const emit = (nextTokens: EditableToken[], nextDraft: string) => {
     if (!isUndoingRef.current) {
@@ -316,7 +334,16 @@ export function PromptInput({
       groupName,
       id: createTokenId(),
     };
-    emit([...tokens, groupToken], "");
+    const nextTokens =
+      insertIndex !== null
+        ? [
+            ...tokens.slice(0, insertIndex),
+            groupToken,
+            ...tokens.slice(insertIndex),
+          ]
+        : [...tokens, groupToken];
+    if (insertIndex !== null) setInsertIndex(insertIndex + 1);
+    emit(nextTokens, "");
     setGroupDropdownOpen(false);
     setGroupSearch("");
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -357,20 +384,37 @@ export function PromptInput({
       return;
     }
 
-    const nextTokens = [
-      ...tokens,
-      ...finalized.map((chunk) => ({
-        ...parseRawToken(chunk),
-        id: createTokenId(),
-      })),
-    ];
+    const newTokens = finalized.map((chunk) => {
+      const raw =
+        chunk.includes("|") && !chunk.startsWith("%{") ? `%{${chunk}}` : chunk;
+      return { ...parseRawToken(raw), id: createTokenId() };
+    });
+    const nextTokens =
+      insertIndex !== null
+        ? [
+            ...tokens.slice(0, insertIndex),
+            ...newTokens,
+            ...tokens.slice(insertIndex),
+          ]
+        : [...tokens, ...newTokens];
+    if (insertIndex !== null) setInsertIndex(insertIndex + newTokens.length);
     emit(nextTokens, nextDraft);
   };
 
   const handleTokenChange = (id: string, nextToken: PromptToken) => {
     const nextTokens = tokens
       .map((token) => (token.id === id ? { ...nextToken, id } : token))
-      .filter((token) => isGroupRef(token) || token.text.trim().length > 0);
+      .filter(
+        (token) =>
+          isGroupRef(token) || isWildcard(token) || token.text.trim().length > 0,
+      );
+    emit(nextTokens, draft);
+  };
+
+  const handleWildcardChange = (id: string, nextToken: WildcardToken) => {
+    const nextTokens = tokens.map((token) =>
+      token.id === id ? { ...nextToken, id } : token,
+    );
     emit(nextTokens, draft);
   };
 
@@ -394,17 +438,21 @@ export function PromptInput({
   const focusInput = (cursor: "start" | "end" = "end") => {
     setInlineEditTokenId(null);
     setChipCursorIndex(null);
-    const input = inputRef.current;
-    if (!input) return;
-    input.focus();
-    const pos = cursor === "start" ? 0 : input.value.length;
-    input.setSelectionRange(pos, pos);
+    setInsertIndex(null);
+    // RAF so the input re-mounts at end position before we focus it
+    requestAnimationFrame(() => {
+      const input = inputRef.current;
+      if (!input) return;
+      input.focus();
+      const pos = cursor === "start" ? 0 : input.value.length;
+      input.setSelectionRange(pos, pos);
+    });
   };
 
   const focusTokenAtIndex = (index: number) => {
     const token = tokens[index];
     if (!token) return;
-    if (isGroupRef(token)) {
+    if (isGroupRef(token) || isWildcard(token)) {
       setInlineEditTokenId(null);
       setChipCursorIndex(index);
       tokenRefs.current.get(token.id)?.focus();
@@ -447,14 +495,26 @@ export function PromptInput({
         (e.currentTarget.selectionEnd ?? 0) === 0;
       if (atStart && tokens.length > 0) {
         e.preventDefault();
-        focusTokenAtIndex(tokens.length - 1);
+        const targetIndex =
+          insertIndex !== null ? insertIndex - 1 : tokens.length - 1;
+        if (targetIndex >= 0) {
+          setInsertIndex(null);
+          focusTokenAtIndex(targetIndex);
+        }
       }
       return;
     }
 
     if (e.key === "Backspace" && draft.length === 0 && tokens.length > 0) {
       e.preventDefault();
-      const nextTokens = tokens.slice(0, -1);
+      const deleteAt =
+        insertIndex !== null ? insertIndex - 1 : tokens.length - 1;
+      if (deleteAt < 0) return;
+      const nextTokens = tokens.filter((_, i) => i !== deleteAt);
+      if (insertIndex !== null) {
+        // If no tokens remain, exit insert mode (input returns to trailing position)
+        setInsertIndex(nextTokens.length === 0 ? null : Math.max(0, insertIndex - 1));
+      }
       emit(nextTokens, "");
     }
   };
@@ -465,15 +525,19 @@ export function PromptInput({
     const pastedTokens = toEditableTokens(parsePromptTokens(pasted));
     if (pastedTokens.length === 0) return;
     e.preventDefault();
-    const nextTokens = [...tokens];
-    const normalizedDraft = draft.trim();
-    if (normalizedDraft) {
-      nextTokens.push({
-        ...parseRawToken(normalizedDraft),
-        id: createTokenId(),
-      });
-    }
-    nextTokens.push(...pastedTokens);
+    const draftToken = draft.trim()
+      ? [{ ...parseRawToken(draft.trim()), id: createTokenId() }]
+      : [];
+    const toInsert = [...draftToken, ...pastedTokens];
+    const nextTokens =
+      insertIndex !== null
+        ? [
+            ...tokens.slice(0, insertIndex),
+            ...toInsert,
+            ...tokens.slice(insertIndex),
+          ]
+        : [...tokens, ...toInsert];
+    if (insertIndex !== null) setInsertIndex(insertIndex + toInsert.length);
     emit(nextTokens, "");
   };
 
@@ -530,6 +594,21 @@ export function PromptInput({
     e: ReactKeyboardEvent<HTMLDivElement>,
     index: number,
   ) => {
+    // Printable key while chip cursor is active → start typing at this position
+    if (
+      chipCursorIndex === index &&
+      e.key.length === 1 &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey
+    ) {
+      e.preventDefault();
+      setInsertIndex(index + 1);
+      setChipCursorIndex(null);
+      setDraft(e.key);
+      onChange(serializePrompt(tokens, e.key));
+      return;
+    }
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
       navigateVertical(e.key === "ArrowUp" ? "up" : "down", index);
@@ -575,6 +654,54 @@ export function PromptInput({
       });
     }
   };
+
+  // Shared input + autocomplete content, rendered either at insertIndex position or at the end
+  const inputInner = (
+    <>
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => handleDraftChange(e.target.value)}
+        onKeyDown={handleInputKeyDown}
+        onPaste={handleInputPaste}
+        onFocus={() => {
+          setInlineEditTokenId(null);
+          setChipCursorIndex(null);
+        }}
+        onBlur={() => {
+          setTimeout(() => setGroupDropdownOpen(false), 150);
+        }}
+        placeholder={tokens.length > 0 ? "" : placeholder}
+        className="h-7 w-full bg-transparent px-1 text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
+      />
+      {groupDropdownOpen && filteredGroups.length > 0 && (
+        <div
+          ref={dropdownRef}
+          className="absolute top-full left-0 mt-1 w-44 rounded-lg border border-border bg-popover shadow-lg z-50 overflow-hidden"
+        >
+          {filteredGroups.map((g, i) => (
+            <button
+              key={g.id}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                insertGroupToken(g.name);
+              }}
+              className={cn(
+                "w-full text-left px-3 py-1.5 text-xs transition-colors",
+                i === groupDropdownIndex
+                  ? "bg-primary/15 text-primary"
+                  : "text-foreground/80 hover:bg-secondary",
+              )}
+            >
+              <span className="text-violet-500 font-semibold">@</span>
+              {`{${g.name}}`}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
 
   if (mode === "advanced") {
     return (
@@ -674,6 +801,11 @@ export function PromptInput({
             ref={tokenRowRef}
             className="flex w-full min-w-0 flex-wrap items-center gap-1.5"
           >
+            {insertIndex === 0 && (
+              <div className="relative min-w-[3ch] basis-0 flex-1">
+                {inputInner}
+              </div>
+            )}
             {tokens.map((token, index) =>
               isGroupRef(token) ? (
                 <Fragment key={token.id}>
@@ -718,20 +850,55 @@ export function PromptInput({
                     isSortable={true}
                     sortableId={token.id}
                   />
-                  {chipCursorIndex === index && (
+                  {insertIndex === index + 1 ? (
+                    <div className="relative min-w-[3ch] basis-0 flex-1">
+                      {inputInner}
+                    </div>
+                  ) : chipCursorIndex === index ? (
                     <span
                       className="inline-block w-0.5 h-4 self-center rounded-full bg-primary/80"
                       style={{
                         animation: "chip-cursor-blink 0.7s step-end infinite",
                       }}
                     />
-                  )}
+                  ) : null}
+                </Fragment>
+              ) : isWildcard(token) ? (
+                <Fragment key={token.id}>
+                  <WildcardChip
+                    token={token}
+                    onChange={(nextToken) =>
+                      handleWildcardChange(token.id, nextToken)
+                    }
+                    onDelete={() => {
+                      const nextTokens = tokens.filter((t) => t.id !== token.id);
+                      emit(nextTokens, draft);
+                      requestAnimationFrame(() => focusInput("end"));
+                    }}
+                    onTokenFocus={() => setChipCursorIndex(index)}
+                    onTokenKeyDown={(e) => handleTokenKeyDown(e, index)}
+                    isSortable={true}
+                    sortableId={token.id}
+                    chipRef={(node) => setTokenRef(token.id, node)}
+                  />
+                  {insertIndex === index + 1 ? (
+                    <div className="relative min-w-[3ch] basis-0 flex-1">
+                      {inputInner}
+                    </div>
+                  ) : chipCursorIndex === index ? (
+                    <span
+                      className="inline-block w-0.5 h-4 self-center rounded-full bg-primary/80"
+                      style={{
+                        animation: "chip-cursor-blink 0.7s step-end infinite",
+                      }}
+                    />
+                  ) : null}
                 </Fragment>
               ) : (
                 <Fragment key={token.id}>
                   <TokenChip
                     key={token.id}
-                    token={token}
+                    token={token as PromptToken & { id: string }}
                     raw={tokenToRawString(token)}
                     isEditable={true}
                     constrainToContainer={true}
@@ -807,69 +974,32 @@ export function PromptInput({
                     sortableId={token.id}
                     chipRef={(node) => setTokenRef(token.id, node)}
                   />
-                  {(chipCursorIndex === index || inlineEditTokenId === token.id) && (
+                  {insertIndex === index + 1 ? (
+                    <div className="relative min-w-[3ch] basis-0 flex-1">
+                      {inputInner}
+                    </div>
+                  ) : (chipCursorIndex === index || inlineEditTokenId === token.id) ? (
                     <span
                       className="inline-block w-0.5 h-4 self-center rounded-full bg-primary/80"
                       style={{
                         animation: "chip-cursor-blink 0.7s step-end infinite",
                       }}
                     />
-                  )}
+                  ) : null}
                 </Fragment>
               ),
             )}
 
-            <div
-              className={cn(
-                "relative min-w-[3ch]",
-                shouldWrapInput ? "basis-full" : "basis-0 flex-1",
-              )}
-            >
-              <input
-                ref={inputRef}
-                value={draft}
-                onChange={(e) => handleDraftChange(e.target.value)}
-                onKeyDown={handleInputKeyDown}
-                onPaste={handleInputPaste}
-                onFocus={() => {
-                  setInlineEditTokenId(null);
-                  setChipCursorIndex(null);
-                }}
-                onBlur={() => {
-                  setTimeout(() => setGroupDropdownOpen(false), 150);
-                }}
-                placeholder={tokens.length > 0 ? "" : placeholder}
-                className="h-7 w-full bg-transparent px-1 text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
-              />
-
-              {/* Group autocomplete dropdown */}
-              {groupDropdownOpen && filteredGroups.length > 0 && (
-                <div
-                  ref={dropdownRef}
-                  className="absolute top-full left-0 mt-1 w-44 rounded-lg border border-border bg-popover shadow-lg z-50 overflow-hidden"
-                >
-                  {filteredGroups.map((g, i) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        insertGroupToken(g.name);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-1.5 text-xs transition-colors",
-                        i === groupDropdownIndex
-                          ? "bg-primary/15 text-primary"
-                          : "text-foreground/80 hover:bg-secondary",
-                      )}
-                    >
-                      <span className="text-violet-500 font-semibold">@</span>
-                      {`{${g.name}}`}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {insertIndex === null && (
+              <div
+                className={cn(
+                  "relative min-w-[3ch]",
+                  shouldWrapInput ? "basis-full" : "basis-0 flex-1",
+                )}
+              >
+                {inputInner}
+              </div>
+            )}
           </div>
         </SortableContext>
       </DndContext>
