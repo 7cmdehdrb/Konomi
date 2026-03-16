@@ -445,6 +445,24 @@ interface GenerationViewProps {
   appendPromptTagRequest?: AppendPromptTagRequest | null;
 }
 
+const LAST_GEN_PARAMS_KEY = "konomi-last-gen-params";
+
+function loadLastGenParams() {
+  try {
+    const stored = localStorage.getItem(LAST_GEN_PARAMS_KEY);
+    if (!stored) return null;
+    return JSON.parse(stored) as {
+      prompt: string;
+      negativePrompt: string;
+      characterPrompts: CharacterPromptInput[];
+      aiChoice: boolean;
+      seedInput: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
 const NAI_GEN_KEY = "konomi-nai-gen-settings";
 const NAI_GEN_DEFAULTS = {
   model: "nai-diffusion-4-5-full",
@@ -849,17 +867,17 @@ export function GenerationView({
   } | null>(null);
   const [categories, setCategories] = useState<PromptCategory[]>([]);
 
-  const [prompt, setPrompt] = useState("");
-  const [negativePrompt, setNegativePrompt] = useState("");
+  const [prompt, setPrompt] = useState(() => loadLastGenParams()?.prompt ?? "");
+  const [negativePrompt, setNegativePrompt] = useState(() => loadLastGenParams()?.negativePrompt ?? "");
   const [promptInputMode, setPromptInputMode] = useState<
     "prompt" | "negativePrompt"
   >("prompt");
   const promptEditorMode: PromptEditorMode = "simple";
-  const [characterPrompts, setCharacterPrompts] = useState<
-    CharacterPromptInput[]
-  >([]);
+  const [characterPrompts, setCharacterPrompts] = useState<CharacterPromptInput[]>(
+    () => loadLastGenParams()?.characterPrompts ?? [],
+  );
   const [characterAddOpen, setCharacterAddOpen] = useState(false);
-  const [aiChoice, setAiChoice] = useState(true);
+  const [aiChoice, setAiChoice] = useState(() => loadLastGenParams()?.aiChoice ?? true);
   const duplicatePositions = !aiChoice
     ? new Set(
         Object.entries(
@@ -887,7 +905,7 @@ export function GenerationView({
   const [noiseSchedule, setNoiseSchedule] = useState(
     () => loadNaiGenSettings().noiseSchedule,
   );
-  const [seedInput, setSeedInput] = useState("");
+  const [seedInput, setSeedInput] = useState(() => loadLastGenParams()?.seedInput ?? "");
 
   // Reference states
   const [i2iRef, setI2iRef] = useState<
@@ -1246,6 +1264,15 @@ export function GenerationView({
       },
     );
 
+  const saveLastGenParams = () => {
+    try {
+      localStorage.setItem(
+        LAST_GEN_PARAMS_KEY,
+        JSON.stringify({ prompt, negativePrompt, characterPrompts, aiChoice, seedInput }),
+      );
+    } catch { /* ignore */ }
+  };
+
   const handleGenerate = async (force = false) => {
     if (!prompt.trim()) return;
     const seed = seedInput.trim() ? parseInt(seedInput, 10) : undefined;
@@ -1335,6 +1362,7 @@ export function GenerationView({
       const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
       setResultSrc(src);
       setRecentImages((prev) => [src, ...prev]);
+      saveLastGenParams();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1417,6 +1445,7 @@ export function GenerationView({
         const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
         setResultSrc(src);
         setRecentImages((prev) => [src, ...prev]);
+        saveLastGenParams();
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));
         break;
