@@ -136,7 +136,7 @@ export const ImageCard = memo(function ImageCard({
       {onSendToSource && (
         <ContextMenuItem onSelect={() => onSendToSource(image)}>
           <ImagePlus className="h-4 w-4" />
-          생성 모드로 보내기 (선택)
+          참고 이미지로 보내기
         </ContextMenuItem>
       )}
       <ContextMenuSeparator />

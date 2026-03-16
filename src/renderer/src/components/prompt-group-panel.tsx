@@ -615,19 +615,19 @@ export function PromptGroupPanel({
       {/* Header */}
       <div className="shrink-0 px-3 pt-2.5 pb-1.5 flex items-center justify-between border-b border-border/30">
         <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-          프롬프트 그룹
+          그룹 프롬프트
         </p>
         {confirmReset ? (
           <div className="flex items-center gap-1">
             <span className="text-[10px] text-muted-foreground/60">
-              초기화?
+              모든 설정을 초기화합니다.
             </span>
             <button
               type="button"
               onClick={() => void handleResetCategories()}
               className="h-5 px-1.5 text-[10px] rounded bg-destructive/15 border border-destructive/30 text-destructive hover:bg-destructive/25 transition-colors"
             >
-              초기화
+              확인
             </button>
             <button
               type="button"

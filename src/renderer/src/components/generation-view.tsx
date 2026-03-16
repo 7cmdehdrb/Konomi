@@ -544,7 +544,7 @@ function AdvancedParamsSection({
 }) {
   const [open, setOpen] = useState(false);
 
-  const seedDisplay = seedInput.trim() ? seedInput.trim() : "N/A";
+  const seedDisplay = seedInput.trim() ? seedInput.trim() : "-";
 
   return (
     <div className="border border-border/40 rounded-lg overflow-hidden">
@@ -782,9 +782,9 @@ export function GenerationView({
   const [rightPanelTab, setRightPanelTab] = useState<"settings" | "prompt-group" | "reference">("settings");
   const [rightPanelWidth, setRightPanelWidth] = useState(() => {
     try {
-      return Number(localStorage.getItem("konomi-right-panel-width")) || 260;
+      return Number(localStorage.getItem("konomi-right-panel-width")) || 290;
     } catch {
-      return 260;
+      return 290;
     }
   });
   const rightResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -840,9 +840,9 @@ export function GenerationView({
   // Resizable panel
   const [panelWidth, setPanelWidth] = useState(() => {
     try {
-      return Number(localStorage.getItem("konomi-gen-panel-width")) || 340;
+      return Number(localStorage.getItem("konomi-gen-panel-width")) || 390;
     } catch {
-      return 340;
+      return 390;
     }
   });
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -1959,7 +1959,7 @@ export function GenerationView({
                   {
                     id: "prompt-group",
                     icon: LayoutList,
-                    title: "프롬프트 그룹",
+                    title: "그룹 프롬프트",
                   },
                   { id: "reference", icon: ImageIcon, title: "참고 이미지" },
                 ] as const
