@@ -1,4 +1,6 @@
 import { app, ipcMain, dialog, shell } from "electron";
+import fs from "fs";
+import path from "path";
 import { unlink, readFile } from "fs/promises";
 import { readImageMeta, readNaiMetaFromBuffer } from "./lib/nai";
 import { readWebuiMetaFromBuffer } from "./lib/webui";
@@ -20,6 +22,15 @@ export function registerIpcHandlers(): void {
     platform: process.platform,
     arch: process.arch,
   }));
+  ipcMain.handle("app:getDbFileSize", () => {
+    const dbPath = path.join(app.getPath("userData"), "konomi.db");
+    try {
+      const stat = fs.statSync(dbPath);
+      return stat.isFile() ? stat.size : null;
+    } catch {
+      return null;
+    }
+  });
 
   // ── File/system handlers (must stay in main process) ───────────────────────
   ipcMain.handle("readNaiMeta", async (_, filePath: string) => {

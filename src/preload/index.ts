@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("appInfo", {
   get: () => ipcRenderer.invoke("app:getInfo"),
+  getDbFileSize: () => ipcRenderer.invoke("app:getDbFileSize"),
 });
 
 contextBridge.exposeInMainWorld("image", {

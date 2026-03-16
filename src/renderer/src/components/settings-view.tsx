@@ -112,6 +112,16 @@ const TEXT_LINK_THRESHOLD_LOOSE = 0.54;
 const JACCARD_MIN = 0.5;
 const JACCARD_MAX = 0.7;
 
+function formatBytes(bytes: number | null): string {
+  if (bytes === null) return "알 수 없음";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 function derivePromptThreshold(similarityThreshold: number): number {
   const looseness = Math.min(
     1,
@@ -136,6 +146,7 @@ export function SettingsView({
   const [ignoredLoading, setIgnoredLoading] = useState(false);
   const [ignoredClearing, setIgnoredClearing] = useState(false);
   const [ignoredError, setIgnoredError] = useState<string | null>(null);
+  const [dbFileSize, setDbFileSize] = useState<number | null>(null);
   const visualSliderValue = Number(
     (
       SIMILARITY_MAX -
@@ -230,6 +241,13 @@ export function SettingsView({
 
   useEffect(() => {
     void loadIgnoredDuplicates();
+  }, []);
+
+  useEffect(() => {
+    window.appInfo
+      .getDbFileSize()
+      .then((size) => setDbFileSize(size))
+      .catch(() => setDbFileSize(null));
   }, []);
 
   return (
@@ -602,6 +620,17 @@ export function SettingsView({
               )}
             </div>
           </div>
+        </div>
+
+        <Separator className="bg-border" />
+
+        <div className="flex items-center justify-between rounded-md border border-border/60 bg-secondary/10 px-3 py-2">
+          <span className="text-xs text-muted-foreground select-none">
+            DB 파일 용량
+          </span>
+          <span className="text-xs font-mono text-foreground">
+            {formatBytes(dbFileSize)}
+          </span>
         </div>
       </div>
     </div>

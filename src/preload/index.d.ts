@@ -188,6 +188,7 @@ declare global {
   interface Window {
     appInfo: {
       get: () => Promise<AppInfo>;
+      getDbFileSize: () => Promise<number | null>;
     };
     promptBuilder: {
       listCategories: () => Promise<PromptCategory[]>;
