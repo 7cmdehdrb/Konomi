@@ -21,6 +21,7 @@ import {
   LayoutList,
   Image as ImageIcon,
   TriangleAlert,
+  ChevronUp,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -331,12 +332,14 @@ function Slider({
   step = 1,
   value,
   onChange,
+  disabled,
 }: {
   min: number;
   max: number;
   step?: number;
   value: number;
   onChange: (v: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <input
@@ -345,8 +348,9 @@ function Slider({
       max={max}
       step={step}
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-primary bg-secondary"
+      className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-primary bg-secondary disabled:opacity-30 disabled:cursor-not-allowed"
     />
   );
 }
@@ -555,9 +559,9 @@ function AdvancedParamsSection({
         className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-secondary/40 transition-colors"
       >
         <div className="flex flex-col gap-1.5 min-w-0">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          {/* <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
             파라미터
-          </span>
+          </span> */}
           <div className="flex items-center gap-3 flex-wrap">
             <span className="flex flex-col gap-0.5">
               <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
@@ -590,13 +594,13 @@ function AdvancedParamsSection({
               <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
                 Sampler
               </span>
-              <span className="text-xs font-medium leading-none truncate">
+              <span className="text-sm font-semibold leading-none truncate">
                 {sampler}
               </span>
             </span>
           </div>
         </div>
-        <ChevronDown
+        <ChevronUp
           className={cn(
             "h-4 w-4 shrink-0 text-muted-foreground transition-transform ml-2",
             open && "rotate-180",
@@ -691,6 +695,133 @@ function AdvancedParamsSection({
           >
             파라미터 초기화
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AutoGenSection({
+  count,
+  setCount,
+  delay,
+  setDelay,
+  seedMode,
+  setSeedMode,
+  infinite,
+  setInfinite,
+}: {
+  count: number;
+  setCount: (v: number) => void;
+  delay: number;
+  setDelay: (v: number) => void;
+  seedMode: "random" | "fixed";
+  setSeedMode: (v: "random" | "fixed") => void;
+  infinite: boolean;
+  setInfinite: (v: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-secondary/40 transition-colors"
+      >
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+              Count
+            </span>
+            <span className="text-sm font-semibold tabular-nums leading-none">
+              {infinite ? "∞" : count}
+            </span>
+          </span>
+          <span className="w-px h-6 bg-border/50 shrink-0" />
+          <span className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+              Delay
+            </span>
+            <span className="text-sm font-semibold tabular-nums leading-none">
+              {delay.toFixed(1)}s
+            </span>
+          </span>
+          <span className="w-px h-6 bg-border/50 shrink-0" />
+          <span className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+              Seed
+            </span>
+            <span className="text-sm font-semibold leading-none">
+              {seedMode === "random" ? "Random" : "Fixed"}
+            </span>
+          </span>
+        </div>
+        {open ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+        ) : (
+          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+        )}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-4">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-muted-foreground">생성 횟수</span>
+              <div className="flex items-center gap-2">
+                {!infinite && (
+                  <span className="text-xs font-mono text-foreground/80 bg-secondary px-1.5 py-0.5 rounded">
+                    {count}장
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setInfinite(!infinite)}
+                  className={cn(
+                    "flex items-center gap-1 text-xs px-2 py-0.5 rounded border transition-colors",
+                    infinite
+                      ? "bg-primary/15 border-primary/40 text-primary"
+                      : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
+                  )}
+                >
+                  {infinite && <Check className="h-2.5 w-2.5" />}
+                  ∞ 무한
+                </button>
+              </div>
+            </div>
+            <Slider
+              min={1}
+              max={50}
+              value={count}
+              onChange={setCount}
+              disabled={infinite}
+            />
+          </div>
+          <div>
+            <FieldLabel label="딜레이" value={`${delay.toFixed(1)}s`} />
+            <Slider min={3} max={60} step={0.5} value={delay} onChange={setDelay} />
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground block mb-2">
+              Seed 모드
+            </span>
+            <div className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1">
+              {(["random", "fixed"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSeedMode(mode)}
+                  className={cn(
+                    "px-2.5 py-1 text-xs rounded-md transition-colors",
+                    seedMode === mode
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
+                  )}
+                >
+                  {mode === "random" ? "매번 랜덤" : "고정"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -885,6 +1016,12 @@ export function GenerationView({
   const lastParamsKeyRef = useRef<string | null>(null);
   const [dupAlert, setDupAlert] = useState(false);
   const lastAppendPromptTagRequestIdRef = useRef<number | null>(null);
+  const [autoGenCount, setAutoGenCount] = useState(5);
+  const [autoGenDelay, setAutoGenDelay] = useState(3);
+  const [autoGenSeedMode, setAutoGenSeedMode] = useState<"random" | "fixed">("random");
+  const [autoGenInfinite, setAutoGenInfinite] = useState(false);
+  const [autoGenProgress, setAutoGenProgress] = useState<{ current: number; total: number | null } | null>(null);
+  const autoCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
   const appendTagToPrompt = useCallback((tag: string) => {
     const normalizedTag = tag.trim();
@@ -1205,6 +1342,98 @@ export function GenerationView({
     }
   };
 
+  const handleAutoGenerate = async () => {
+    if (!prompt.trim() || !config?.apiKey || !outputFolder) return;
+    const cancelToken = { cancelled: false };
+    autoCancelRef.current = cancelToken;
+
+    for (let i = 0; autoGenInfinite || i < autoGenCount; i++) {
+      if (cancelToken.cancelled) break;
+
+      const overrideSeed =
+        autoGenSeedMode === "random"
+          ? Math.floor(Math.random() * 4294967295)
+          : seedInput.trim()
+            ? parseInt(seedInput, 10)
+            : undefined;
+
+      const validCharacterPrompts = characterPrompts.filter((c) =>
+        c.prompt.trim(),
+      );
+
+      setAutoGenProgress({ current: i + 1, total: autoGenInfinite ? null : autoGenCount });
+      setGenerating(true);
+      setError(null);
+      setResultSrc(null);
+      setPreviewSrc(null);
+
+      try {
+        const params: GenerateParams = {
+          prompt: expandGroupRefs(prompt),
+          negativePrompt: expandGroupRefs(negativePrompt),
+          ...(validCharacterPrompts.length > 0 && {
+            characterPrompts: validCharacterPrompts.map((c) =>
+              expandGroupRefs(c.prompt.trim()),
+            ),
+            characterNegativePrompts: validCharacterPrompts.map((c) =>
+              expandGroupRefs(c.negativePrompt.trim()),
+            ),
+            characterPositions: validCharacterPrompts.map((c) => c.position),
+          }),
+          outputFolder,
+          model,
+          width,
+          height,
+          steps,
+          scale,
+          cfgRescale,
+          varietyPlus,
+          sampler,
+          noiseSchedule,
+          seed: overrideSeed,
+          ...(i2iRef && {
+            i2i: {
+              imageData: i2iRef.data,
+              strength: i2iRef.strength,
+              noise: i2iRef.noise,
+            },
+          }),
+          ...(vibes.length > 0 && {
+            vibes: vibes.map((v) => ({
+              imageData: v.data,
+              infoExtracted: v.infoExtracted,
+              strength: v.strength,
+            })),
+          }),
+          ...(preciseRef && {
+            preciseRef: {
+              imageData: preciseRef.data,
+              fidelity: preciseRef.fidelity,
+            },
+          }),
+        };
+        const filePath = await window.nai.generate(params);
+        const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
+        setResultSrc(src);
+        setRecentImages((prev) => [src, ...prev]);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+        break;
+      } finally {
+        setGenerating(false);
+        setPreviewSrc(null);
+      }
+
+      if ((autoGenInfinite || i < autoGenCount - 1) && !cancelToken.cancelled) {
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, autoGenDelay * 1000),
+        );
+      }
+    }
+
+    setAutoGenProgress(null);
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
@@ -1392,7 +1621,7 @@ export function GenerationView({
     (p) => p.width === width && p.height === height,
   );
   const canGenerate =
-    !generating && !!config?.apiKey && !!outputFolder && !!prompt.trim();
+    !generating && !autoGenProgress && !!config?.apiKey && !!outputFolder && !!prompt.trim();
   // Vibe Transfer와 Precise Reference는 동시 사용 불가
   const vibeDisabled = preciseRef !== null;
   const preciseDisabled = vibes.length > 0;
@@ -1925,25 +2154,90 @@ export function GenerationView({
           />
         </div>
 
+        {/* 자동 생성 */}
+        <div className="border-t border-border/40 bg-sidebar">
+          <AutoGenSection
+            count={autoGenCount}
+            setCount={setAutoGenCount}
+            delay={autoGenDelay}
+            setDelay={setAutoGenDelay}
+            seedMode={autoGenSeedMode}
+            setSeedMode={setAutoGenSeedMode}
+            infinite={autoGenInfinite}
+            setInfinite={setAutoGenInfinite}
+          />
+        </div>
+
         {/* 생성 버튼 */}
         <div className="p-3 border-t border-border bg-sidebar">
-          <button
-            onClick={() => void handleGenerate()}
-            disabled={!canGenerate}
-            className={cn(
-              "w-full h-10 flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all",
-              canGenerate
-                ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
-                : "bg-secondary/60 text-muted-foreground cursor-not-allowed",
-            )}
-          >
-            {generating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Wand2 className="h-4 w-4" />
-            )}
-            {generating ? "생성 중..." : "생성하기"}
-          </button>
+          {autoGenProgress ? (
+            <div className="space-y-2">
+              {autoGenProgress.total !== null ? (
+                <div className="w-full bg-secondary rounded-full h-1">
+                  <div
+                    className="bg-primary h-1 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${(autoGenProgress.current / autoGenProgress.total) * 100}%`,
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="w-full bg-secondary rounded-full h-1 overflow-hidden">
+                  <div className="h-1 bg-primary/60 animate-pulse w-full" />
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground tabular-nums flex items-center gap-1.5">
+                  {generating && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {autoGenProgress.current} / {autoGenProgress.total ?? "∞"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    autoCancelRef.current.cancelled = true;
+                  }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                  중지
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={() => void handleGenerate()}
+                disabled={!canGenerate}
+                className={cn(
+                  "flex-1 h-10 flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all",
+                  canGenerate
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
+                    : "bg-secondary/60 text-muted-foreground cursor-not-allowed",
+                )}
+              >
+                {generating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="h-4 w-4" />
+                )}
+                {generating ? "생성 중..." : "생성하기"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAutoGenerate()}
+                disabled={!canGenerate}
+                title="자동 생성"
+                className={cn(
+                  "h-10 px-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-center",
+                  canGenerate
+                    ? "border-primary/50 text-primary hover:bg-primary/10"
+                    : "border-border/40 text-muted-foreground cursor-not-allowed",
+                )}
+              >
+                <Sparkles className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
