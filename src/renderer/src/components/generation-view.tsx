@@ -24,6 +24,13 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select as RadixSelect,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { cn } from "@/lib/utils";
 import type {
@@ -531,6 +538,39 @@ function RecentThumb({
   );
 }
 
+function DeferredNumberInput({
+  value,
+  onChange,
+  className,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  className?: string;
+}) {
+  const [local, setLocal] = useState(String(value));
+
+  useEffect(() => {
+    setLocal(String(value));
+  }, [value]);
+
+  return (
+    <input
+      type="number"
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        const n = Number(local);
+        if (!isNaN(n) && n > 0) onChange(n);
+        else setLocal(String(value));
+      }}
+      className={className}
+    />
+  );
+}
+
+const INLINE_NUM_CLS =
+  "w-10 text-sm font-semibold tabular-nums leading-none bg-transparent border-none outline-none text-foreground p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+
 function AdvancedParamsSection({
   steps,
   setSteps,
@@ -565,66 +605,108 @@ function AdvancedParamsSection({
   onReset: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [localSeed, setLocalSeed] = useState(seedInput);
+  const [seedFocused, setSeedFocused] = useState(false);
 
-  const seedDisplay = seedInput.trim() ? seedInput.trim() : "-";
+  useEffect(() => {
+    if (!seedFocused) setLocalSeed(seedInput);
+  }, [seedInput, seedFocused]);
 
   return (
     <div className="overflow-hidden">
-      {/* 접힌 헤더 / 요약 */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-secondary/40 transition-colors"
-      >
-        <div className="flex flex-col gap-1.5 min-w-0">
-          {/* <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-            파라미터
-          </span> */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="flex flex-col gap-0.5">
-              <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-                Steps
-              </span>
-              <span className="text-sm font-semibold tabular-nums leading-none">
-                {steps}
-              </span>
+      {/* 헤더 */}
+      <div className="flex">
+        <div className="flex items-center gap-3 flex-wrap px-4 py-3.5 min-w-0">
+          {/* Steps */}
+          <span className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+              Steps
             </span>
-            <span className="w-px h-6 bg-border/50 shrink-0" />
-            <span className="flex flex-col gap-0.5">
-              <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-                CFG
-              </span>
-              <span className="text-sm font-semibold tabular-nums leading-none">
-                {scale.toFixed(1)}
-              </span>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={steps}
+              onChange={(e) => setSteps(Number(e.target.value))}
+              className={INLINE_NUM_CLS}
+            />
+          </span>
+          <span className="w-px h-6 bg-border/50 shrink-0" />
+          {/* CFG */}
+          <span className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+              CFG
             </span>
-            <span className="w-px h-6 bg-border/50 shrink-0" />
-            <span className="flex flex-col gap-0.5">
-              <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-                Seed
-              </span>
-              <span className="text-sm font-semibold tabular-nums leading-none font-mono">
-                {seedDisplay}
-              </span>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              step={0.1}
+              value={scale}
+              onChange={(e) => setScale(Number(e.target.value))}
+              className={INLINE_NUM_CLS}
+            />
+          </span>
+          <span className="w-px h-6 bg-border/50 shrink-0" />
+          {/* Seed */}
+          <span className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+              Seed
             </span>
-            <span className="w-px h-6 bg-border/50 shrink-0" />
-            <span className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-                Sampler
+            {localSeed.trim() && !seedFocused ? (
+              <span
+                onClick={() => { setLocalSeed(""); setSeedInput(""); }}
+                className="text-sm font-semibold tabular-nums leading-none font-mono text-foreground cursor-pointer"
+              >
+                {localSeed.trim()}
               </span>
-              <span className="text-sm font-semibold leading-none truncate">
-                {sampler}
-              </span>
+            ) : (
+              <input
+                type="text"
+                inputMode="numeric"
+                value={localSeed}
+                onChange={(e) => setLocalSeed(e.target.value)}
+                onFocus={() => setSeedFocused(true)}
+                onBlur={() => { setSeedFocused(false); setSeedInput(localSeed); }}
+                placeholder="-"
+                className="w-16 text-sm font-semibold tabular-nums leading-none font-mono bg-transparent border-none outline-none text-foreground placeholder:text-foreground/30 p-0"
+              />
+            )}
+          </span>
+          <span className="w-px h-6 bg-border/50 shrink-0" />
+          {/* Sampler */}
+          <span className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+              Sampler
             </span>
-          </div>
+            <RadixSelect value={sampler} onValueChange={setSampler}>
+              <SelectTrigger className="h-auto data-[size=default]:h-auto p-0 border-none bg-transparent dark:bg-transparent shadow-none text-sm font-semibold leading-none text-foreground gap-1 focus-visible:ring-0 max-w-[120px] [&_svg]:size-3.5">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SAMPLERS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </RadixSelect>
+          </span>
         </div>
-        <ChevronUp
-          className={cn(
-            "h-4 w-4 shrink-0 text-muted-foreground transition-transform ml-2",
-            open && "rotate-180",
-          )}
-        />
-      </button>
+        {/* 펼치기 버튼 */}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="ml-auto self-stretch px-4 flex items-center justify-center rounded hover:bg-secondary transition-colors"
+        >
+          <ChevronUp
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+      </div>
 
       {/* 펼쳐진 본문 */}
       {open && (
@@ -741,12 +823,8 @@ function AutoGenSection({
   const [open, setOpen] = useState(false);
   return (
     <div className="overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-secondary/40 transition-colors"
-      >
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex">
+        <div className="flex items-center gap-3 flex-wrap px-4 py-3.5 min-w-0">
           <span className="flex flex-col gap-0.5">
             <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
               Count
@@ -774,12 +852,19 @@ function AutoGenSection({
             </span>
           </span>
         </div>
-        {open ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-        ) : (
-          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
-      </button>
+        {/* 펼치기 버튼 */}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="ml-auto self-stretch px-4 flex items-center justify-center rounded hover:bg-secondary transition-colors"
+        >
+          {open ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+      </div>
       {open && (
         <div className="px-4 pb-4 space-y-4">
           <div>
@@ -873,9 +958,9 @@ export function GenerationView({
     "prompt" | "negativePrompt"
   >("prompt");
   const promptEditorMode: PromptEditorMode = "simple";
-  const [characterPrompts, setCharacterPrompts] = useState<CharacterPromptInput[]>(
-    () => loadLastGenParams()?.characterPrompts ?? [],
-  );
+  const [characterPrompts, setCharacterPrompts] = useState<
+    CharacterPromptInput[]
+  >(() => loadLastGenParams()?.characterPrompts ?? []);
   const [characterAddOpen, setCharacterAddOpen] = useState(false);
   const [aiChoice, setAiChoice] = useState(() => loadLastGenParams()?.aiChoice ?? true);
   const duplicatePositions = !aiChoice
@@ -954,7 +1039,10 @@ export function GenerationView({
       const onMove = (ev: MouseEvent) => {
         if (!rightResizeRef.current) return;
         const delta = ev.clientX - rightResizeRef.current.startX;
-        const next = Math.max(200, Math.min(480, rightResizeRef.current.startWidth + delta));
+        const next = Math.max(
+          290,
+          Math.min(480, rightResizeRef.current.startWidth + delta),
+        );
         setRightPanelWidth(next);
         rightPanelWidthRef.current = next;
       };
@@ -989,9 +1077,9 @@ export function GenerationView({
   // Resizable panel
   const [panelWidth, setPanelWidth] = useState(() => {
     try {
-      return Number(localStorage.getItem("konomi-gen-panel-width")) || 390;
+      return Number(localStorage.getItem("konomi-gen-panel-width")) || 450;
     } catch {
-      return 390;
+      return 450;
     }
   });
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -1165,7 +1253,7 @@ export function GenerationView({
         if (!resizeRef.current) return;
         const delta = e.clientX - resizeRef.current.startX;
         const next = Math.max(
-          260,
+          450,
           Math.min(560, resizeRef.current.startWidth + delta),
         );
         setPanelWidth(next);
@@ -2130,26 +2218,18 @@ export function GenerationView({
                 ))}
               </div>
               <div className="flex items-center gap-2 mt-2">
-                <input
-                  type="number"
+                <DeferredNumberInput
                   value={width}
-                  onChange={(e) => setWidth(Number(e.target.value))}
-                  className={cn(
-                    INPUT_CLS,
-                    "flex-1 min-w-0 font-mono text-center",
-                  )}
+                  onChange={setWidth}
+                  className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono text-center")}
                 />
                 <span className="text-muted-foreground/50 text-xs shrink-0">
                   ×
                 </span>
-                <input
-                  type="number"
+                <DeferredNumberInput
                   value={height}
-                  onChange={(e) => setHeight(Number(e.target.value))}
-                  className={cn(
-                    INPUT_CLS,
-                    "flex-1 min-w-0 font-mono text-center",
-                  )}
+                  onChange={setHeight}
+                  className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono text-center")}
                 />
               </div>
             </div>
