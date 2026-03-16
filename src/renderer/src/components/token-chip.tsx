@@ -47,9 +47,12 @@ function inferWeightExpression(token: PromptToken): TokenWeightExpression {
   return "numerical";
 }
 
+const MIN_WEIGHT = -1;
+const MAX_WEIGHT = 3;
+
 function clampWeight(value: number): number {
   if (!Number.isFinite(value)) return 1;
-  return Math.max(0, Math.min(3, value));
+  return Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, value));
 }
 
 function buildNumericalRaw(text: string, weight: number): string {
@@ -566,7 +569,9 @@ function TokenChipCore({
           />
           {inlineWeighted ? (
             <span className="shrink-0 text-[10px] font-mono text-foreground/60">
-              {`x${formatWeight(draftWeight)}`}
+              {draftWeight < 0
+                ? `${formatWeight(draftWeight)}x`
+                : `x${formatWeight(draftWeight)}`}
             </span>
           ) : null}
         </div>
@@ -596,7 +601,9 @@ function TokenChipCore({
           </span>
           {weighted ? (
             <span className="shrink-0 text-[10px] font-mono text-foreground/60">
-              {`x${formatWeight(token.weight)}`}
+              {token.weight < 0
+                ? `${formatWeight(token.weight)}x`
+                : `x${formatWeight(token.weight)}`}
             </span>
           ) : null}
           {copied ? <Copy className="h-3 w-3 shrink-0" /> : null}
@@ -647,7 +654,7 @@ function TokenChipCore({
                   <button
                     type="button"
                     onClick={() => stepWeight(-0.1)}
-                    disabled={draftWeight <= 0}
+                    disabled={draftWeight <= MIN_WEIGHT}
                     className="h-5 w-5 flex items-center justify-center rounded border border-border/50 text-muted-foreground hover:text-foreground hover:border-border disabled:opacity-30 transition-colors"
                   >
                     <Minus className="h-2.5 w-2.5" />
@@ -658,7 +665,7 @@ function TokenChipCore({
                   <button
                     type="button"
                     onClick={() => stepWeight(0.1)}
-                    disabled={draftWeight >= 3}
+                    disabled={draftWeight >= MAX_WEIGHT}
                     className="h-5 w-5 flex items-center justify-center rounded border border-border/50 text-muted-foreground hover:text-foreground hover:border-border disabled:opacity-30 transition-colors"
                   >
                     <Plus className="h-2.5 w-2.5" />
@@ -667,8 +674,8 @@ function TokenChipCore({
               </div>
               <input
                 type="range"
-                min={0}
-                max={3}
+                min={MIN_WEIGHT}
+                max={MAX_WEIGHT}
                 step={0.01}
                 value={draftWeight}
                 onChange={(e) =>
