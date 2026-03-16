@@ -464,6 +464,8 @@ interface GenerationViewProps {
 
 const LAST_GEN_PARAMS_KEY = "konomi-last-gen-params";
 const AUTO_GEN_POLICY_AGREEMENT_KEY = "konomi-auto-gen-policy-agreed";
+const NAI_SEED_MIN = 0;
+const NAI_SEED_MAX = 4294967295;
 
 function loadLastGenParams() {
   try {
@@ -487,6 +489,29 @@ function loadAutoGenPolicyAgreement() {
   } catch {
     return false;
   }
+}
+
+function createRandomSeed() {
+  return Math.floor(Math.random() * (NAI_SEED_MAX + 1));
+}
+
+function parseSeedInputValue(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return { kind: "empty" as const };
+  if (!/^\d+$/.test(trimmed)) return { kind: "invalid" as const };
+  const parsed = Number(trimmed);
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < NAI_SEED_MIN ||
+    parsed > NAI_SEED_MAX
+  ) {
+    return { kind: "invalid" as const };
+  }
+  return { kind: "valid" as const, value: parsed };
+}
+
+function getStoredSeedInput(raw: string) {
+  return parseSeedInputValue(raw).kind === "invalid" ? "" : raw;
 }
 
 const NAI_GEN_KEY = "konomi-nai-gen-settings";
@@ -675,7 +700,7 @@ function AdvancedParamsSection({
             {localSeed.trim() && !seedFocused ? (
               <span
                 onClick={() => { setLocalSeed(""); setSeedInput(""); }}
-                className="text-sm font-semibold tabular-nums leading-none font-mono text-foreground cursor-pointer"
+                className="max-w-16 truncate text-sm font-semibold tabular-nums leading-none font-mono text-foreground cursor-pointer"
               >
                 {localSeed.trim()}
               </span>
@@ -688,7 +713,7 @@ function AdvancedParamsSection({
                 onFocus={() => setSeedFocused(true)}
                 onBlur={() => { setSeedFocused(false); setSeedInput(localSeed); }}
                 placeholder="-"
-                className="w-16 text-sm font-semibold tabular-nums leading-none font-mono bg-transparent border-none outline-none text-foreground placeholder:text-foreground/30 p-0"
+                className="w-16 max-w-16 text-sm font-semibold tabular-nums leading-none font-mono bg-transparent border-none outline-none text-foreground placeholder:text-foreground/30 p-0"
               />
             )}
           </span>
@@ -1471,18 +1496,46 @@ export function GenerationView({
       },
     );
 
-  const saveLastGenParams = () => {
+  const saveLastGenParams = (nextSeedInput = seedInput) => {
     try {
       localStorage.setItem(
         LAST_GEN_PARAMS_KEY,
-        JSON.stringify({ prompt, negativePrompt, characterPrompts, aiChoice, seedInput }),
+        JSON.stringify({
+          prompt,
+          negativePrompt,
+          characterPrompts,
+          aiChoice,
+          seedInput: nextSeedInput,
+        }),
       );
     } catch { /* ignore */ }
   };
 
+  const resolveSeedForGeneration = useCallback(
+    (
+      rawSeedInput: string,
+      options?: { switchAutoSeedModeToRandom?: boolean },
+    ) => {
+      const parsedSeed = parseSeedInputValue(rawSeedInput);
+      if (parsedSeed.kind !== "invalid") {
+        return parsedSeed.kind === "valid" ? parsedSeed.value : undefined;
+      }
+
+      toast.warning(
+        `Seed는 ${NAI_SEED_MIN}부터 ${NAI_SEED_MAX} 사이의 정수만 사용할 수 있어 랜덤으로 전환합니다.`,
+      );
+      setSeedInput("");
+      if (options?.switchAutoSeedModeToRandom) {
+        setAutoGenSeedMode("random");
+      }
+      return createRandomSeed();
+    },
+    [],
+  );
+
   const handleGenerate = async (force = false) => {
     if (!prompt.trim()) return;
-    const seed = seedInput.trim() ? parseInt(seedInput, 10) : undefined;
+    const seed = resolveSeedForGeneration(seedInput);
     const validCharacterPrompts = characterPrompts.filter((c) =>
       c.prompt.trim(),
     );
@@ -1569,7 +1622,7 @@ export function GenerationView({
       const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
       setResultSrc(src);
       setRecentImages((prev) => [src, ...prev]);
-      saveLastGenParams();
+      saveLastGenParams(getStoredSeedInput(seedInput));
       void window.image.readNaiMeta(filePath).then((meta) => {
         if (meta?.seed != null) {
           setRecentSeeds((prev) => new Map(prev).set(src, meta.seed!));
@@ -1591,16 +1644,19 @@ export function GenerationView({
     if (!prompt.trim() || !config?.apiKey || !outputFolder) return;
     const cancelToken = { cancelled: false };
     autoCancelRef.current = cancelToken;
+    const fixedSeed =
+      autoGenSeedMode === "fixed"
+        ? resolveSeedForGeneration(seedInput, {
+            switchAutoSeedModeToRandom: true,
+          })
+        : undefined;
+    const useRandomSeed =
+      autoGenSeedMode === "random" || fixedSeed === undefined;
 
     for (let i = 0; autoGenInfinite || i < autoGenCount; i++) {
       if (cancelToken.cancelled) break;
 
-      const overrideSeed =
-        autoGenSeedMode === "random"
-          ? Math.floor(Math.random() * 4294967295)
-          : seedInput.trim()
-            ? parseInt(seedInput, 10)
-            : undefined;
+      const overrideSeed = useRandomSeed ? createRandomSeed() : fixedSeed;
 
       const validCharacterPrompts = characterPrompts.filter((c) =>
         c.prompt.trim(),
@@ -1661,7 +1717,7 @@ export function GenerationView({
         const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
         setResultSrc(src);
         setRecentImages((prev) => [src, ...prev]);
-        saveLastGenParams();
+        saveLastGenParams(getStoredSeedInput(seedInput));
         void window.image.readNaiMeta(filePath).then((meta) => {
           if (meta?.seed != null) {
             setRecentSeeds((prev) => new Map(prev).set(src, meta.seed!));
