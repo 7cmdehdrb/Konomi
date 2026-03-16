@@ -457,6 +457,7 @@ interface GenerationViewProps {
 }
 
 const LAST_GEN_PARAMS_KEY = "konomi-last-gen-params";
+const AUTO_GEN_POLICY_AGREEMENT_KEY = "konomi-auto-gen-policy-agreed";
 
 function loadLastGenParams() {
   try {
@@ -471,6 +472,14 @@ function loadLastGenParams() {
     };
   } catch {
     return null;
+  }
+}
+
+function loadAutoGenPolicyAgreement() {
+  try {
+    return localStorage.getItem(AUTO_GEN_POLICY_AGREEMENT_KEY) === "true";
+  } catch {
+    return false;
   }
 }
 
@@ -814,6 +823,8 @@ function AutoGenSection({
   setSeedMode,
   infinite,
   setInfinite,
+  policyAgreed,
+  setPolicyAgreed,
 }: {
   count: number;
   setCount: (v: number) => void;
@@ -823,8 +834,30 @@ function AutoGenSection({
   setSeedMode: (v: "random" | "fixed") => void;
   infinite: boolean;
   setInfinite: (v: boolean) => void;
+  policyAgreed: boolean;
+  setPolicyAgreed: (v: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [warningOpen, setWarningOpen] = useState(false);
+  const warningButtonRef = useRef<HTMLButtonElement | null>(null);
+  const warningPopoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) setWarningOpen(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (!warningOpen) return;
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (warningButtonRef.current?.contains(target)) return;
+      if (warningPopoverRef.current?.contains(target)) return;
+      setWarningOpen(false);
+    };
+    window.addEventListener("mousedown", handleMouseDown);
+    return () => window.removeEventListener("mousedown", handleMouseDown);
+  }, [warningOpen]);
+
   return (
     <div className="overflow-hidden">
       <div className="flex">
@@ -911,22 +944,59 @@ function AutoGenSection({
             <span className="text-xs text-muted-foreground block mb-2">
               Seed 모드
             </span>
-            <div className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1">
-              {(["random", "fixed"] as const).map((mode) => (
+            <div className="flex items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1">
+                {(["random", "fixed"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setSeedMode(mode)}
+                    className={cn(
+                      "px-2.5 py-1 text-xs rounded-md transition-colors",
+                      seedMode === mode
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
+                    )}
+                  >
+                    {mode === "random" ? "매번 랜덤" : "고정"}
+                  </button>
+                ))}
+              </div>
+              <div className="relative">
                 <button
-                  key={mode}
+                  ref={warningButtonRef}
                   type="button"
-                  onClick={() => setSeedMode(mode)}
-                  className={cn(
-                    "px-2.5 py-1 text-xs rounded-md transition-colors",
-                    seedMode === mode
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
-                  )}
+                  onClick={() => setWarningOpen((prev) => !prev)}
+                  title="자동 생성 경고"
+                  aria-label="자동 생성 경고 보기"
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-600 transition-colors hover:border-amber-500/50 hover:text-amber-500"
                 >
-                  {mode === "random" ? "매번 랜덤" : "고정"}
+                  <TriangleAlert className="h-4 w-4" />
                 </button>
-              ))}
+                {warningOpen && (
+                  <div
+                    ref={warningPopoverRef}
+                    className="absolute bottom-full right-0 z-20 mb-2 w-80 rounded-xl border border-border/60 bg-popover p-3 shadow-xl"
+                  >
+                    <p className="text-sm font-semibold text-foreground">
+                      경고
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-foreground/85">
+                      NovelAI API를 통한 사용이 정책을 위반하거나 혹은 사용량이
+                      비정상적으로 많은 경우 일시적, 영구적인 이용 제한 조치를
+                      받으실 수 있으며 이에 대한 책임은 전적으로 사용자
+                      책임입니다.
+                    </p>
+                    <div className="mt-3 border-t border-border/40 pt-3">
+                      <Checkbox
+                        checked={policyAgreed}
+                        onChange={setPolicyAgreed}
+                        label="확인했습니다"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1144,6 +1214,9 @@ export function GenerationView({
   const [autoGenDelay, setAutoGenDelay] = useState(3);
   const [autoGenSeedMode, setAutoGenSeedMode] = useState<"random" | "fixed">("random");
   const [autoGenInfinite, setAutoGenInfinite] = useState(false);
+  const [autoGenPolicyAgreed, setAutoGenPolicyAgreed] = useState(
+    () => loadAutoGenPolicyAgreement(),
+  );
   const [autoGenProgress, setAutoGenProgress] = useState<{ current: number; total: number | null } | null>(null);
   const [autoCancelPending, setAutoCancelPending] = useState(false);
   const autoCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
@@ -1253,6 +1326,13 @@ export function GenerationView({
     height,
     noiseSchedule,
   ]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      AUTO_GEN_POLICY_AGREEMENT_KEY,
+      String(autoGenPolicyAgreed),
+    );
+  }, [autoGenPolicyAgreed]);
 
   // Cleanup object URLs on unmount
   useEffect(() => {
@@ -1485,6 +1565,10 @@ export function GenerationView({
   };
 
   const handleAutoGenerate = async () => {
+    if (!autoGenPolicyAgreed) {
+      toast.error("자동 생성을 사용하려면 경고를 확인해 주세요.");
+      return;
+    }
     if (!prompt.trim() || !config?.apiKey || !outputFolder) return;
     const cancelToken = { cancelled: false };
     autoCancelRef.current = cancelToken;
@@ -1776,6 +1860,7 @@ export function GenerationView({
   );
   const canGenerate =
     !generating && !autoGenProgress && !!config?.apiKey && !!outputFolder && !!prompt.trim();
+  const canAutoGenerate = canGenerate && autoGenPolicyAgreed;
   // Vibe Transfer와 Precise Reference는 동시 사용 불가
   const vibeDisabled = preciseRef !== null;
   const preciseDisabled = vibes.length > 0;
@@ -2317,6 +2402,8 @@ export function GenerationView({
             setSeedMode={setAutoGenSeedMode}
             infinite={autoGenInfinite}
             setInfinite={setAutoGenInfinite}
+            policyAgreed={autoGenPolicyAgreed}
+            setPolicyAgreed={setAutoGenPolicyAgreed}
           />
         </div>
 
@@ -2384,11 +2471,15 @@ export function GenerationView({
               <button
                 type="button"
                 onClick={() => void handleAutoGenerate()}
-                disabled={!canGenerate}
-                title="자동 생성"
+                disabled={!canAutoGenerate}
+                title={
+                  autoGenPolicyAgreed
+                    ? "자동 생성"
+                    : "자동 생성 기능 경고를 확인해야 사용할 수 있습니다"
+                }
                 className={cn(
                   "h-10 px-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-center",
-                  canGenerate
+                  canAutoGenerate
                     ? "border-primary/50 text-primary hover:bg-primary/10"
                     : "border-border/40 text-muted-foreground cursor-not-allowed",
                 )}
