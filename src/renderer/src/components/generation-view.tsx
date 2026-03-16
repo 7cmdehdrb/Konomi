@@ -23,11 +23,15 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { cn } from "@/lib/utils";
-import type { NaiConfig, GenerateParams, PromptGroup } from "@preload/index.d";
+import type {
+  NaiConfig,
+  GenerateParams,
+  PromptCategory,
+} from "@preload/index.d";
 import type { NovelAIMeta } from "@/types/nai";
 import type { ImageData } from "@/components/image-card";
 import { PromptInput } from "@/components/prompt-input";
-import { GroupManagerModal } from "@/components/group-manager-modal";
+import { PromptGroupPanel } from "@/components/prompt-group-panel";
 import { PromptSourcePanel } from "@/components/prompt-source-panel";
 
 type DropItem =
@@ -440,8 +444,7 @@ export function GenerationView({
     tier?: string;
     error?: string;
   } | null>(null);
-  const [groupManagerOpen, setGroupManagerOpen] = useState(false);
-  const [groups, setGroups] = useState<PromptGroup[]>([]);
+  const [categories, setCategories] = useState<PromptCategory[]>([]);
 
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
@@ -640,8 +643,8 @@ export function GenerationView({
 
   const reloadGroups = () => {
     window.promptBuilder
-      .listGroups()
-      .then((gs) => setGroups(gs))
+      .listCategories()
+      .then((cs) => setCategories(cs))
       .catch(() => {});
   };
 
@@ -791,11 +794,24 @@ export function GenerationView({
   };
 
   const expandGroupRefs = (text: string): string =>
-    text.replace(/@\{([^}]+)\}/g, (_, name: string) => {
-      const group = groups.find((g) => g.name === name);
-      if (!group || group.tokens.length === 0) return "";
-      return group.tokens.map((t) => t.label).join(", ");
-    });
+    text.replace(
+      /@\{([^:}]+)(?::([^}]*))?\}/g,
+      (_, name: string, overrideStr?: string) => {
+        if (overrideStr !== undefined) {
+          // Use local override tags embedded in the token
+          const tags = overrideStr
+            .split("|")
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0);
+          return tags.join(", ");
+        }
+        const group = categories
+          .flatMap((c) => c.groups)
+          .find((g) => g.name === name);
+        if (!group || group.tokens.length === 0) return "";
+        return group.tokens.map((t) => t.label).join(", ");
+      },
+    );
 
   const handleGenerate = async (force = false) => {
     if (!prompt.trim()) return;
@@ -1170,7 +1186,7 @@ export function GenerationView({
                 }
                 minHeight={180}
                 maxHeight={460}
-                groups={groups}
+                groups={categories.flatMap((c) => c.groups)}
                 allowExternalDrop
               />
             </div>
@@ -1316,7 +1332,7 @@ export function GenerationView({
                         minHeight={110}
                         maxHeight={300}
                         className="min-w-0"
-                        groups={groups}
+                        groups={categories.flatMap((c) => c.groups)}
                         allowExternalDrop
                       />
                     </div>
@@ -1671,12 +1687,10 @@ export function GenerationView({
             </div>
             {/* Body */}
             {rightPanelTab === "prompt-group" && (
-              <div className="flex-1 flex flex-col items-center justify-center gap-2 select-none">
-                <div className="h-12 w-12 rounded-xl bg-secondary/50 border border-border/30 flex items-center justify-center">
-                  <LayoutList className="h-5 w-5 text-muted-foreground/30" />
-                </div>
-                <p className="text-xs text-muted-foreground/40">프롬프트 그룹</p>
-              </div>
+              <PromptGroupPanel
+                categories={categories}
+                onCategoriesChange={setCategories}
+              />
             )}
             {rightPanelTab === "settings" && (
               <div className="flex-1 flex flex-col min-h-0">
@@ -2168,14 +2182,6 @@ export function GenerationView({
           </div>
         </div>
       )}
-
-      <GroupManagerModal
-        open={groupManagerOpen}
-        onClose={() => {
-          setGroupManagerOpen(false);
-          reloadGroups();
-        }}
-      />
     </div>
   );
 }

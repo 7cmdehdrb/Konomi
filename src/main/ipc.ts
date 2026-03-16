@@ -134,20 +134,29 @@ export function registerIpcHandlers(): void {
     bridge.request("image:clearIgnoredDuplicates"),
   );
 
-  ipcMain.handle("prompt:listGroups", () =>
-    bridge.request("prompt:listGroups"),
+  ipcMain.handle("prompt:listCategories", () =>
+    bridge.request("prompt:listCategories"),
   );
-  ipcMain.handle("prompt:createGroup", (_, name: string, type: string) =>
-    bridge.request("prompt:createGroup", { name, type }),
+  ipcMain.handle("prompt:createCategory", (_, name: string) =>
+    bridge.request("prompt:createCategory", { name }),
+  );
+  ipcMain.handle("prompt:renameCategory", (_, id: number, name: string) =>
+    bridge.request("prompt:renameCategory", { id, name }),
+  );
+  ipcMain.handle("prompt:deleteCategory", (_, id: number) =>
+    bridge.request("prompt:deleteCategory", { id }),
+  );
+  ipcMain.handle("prompt:resetCategories", () =>
+    bridge.request("prompt:resetCategories"),
+  );
+  ipcMain.handle("prompt:createGroup", (_, categoryId: number, name: string) =>
+    bridge.request("prompt:createGroup", { categoryId, name }),
   );
   ipcMain.handle("prompt:deleteGroup", (_, id: number) =>
     bridge.request("prompt:deleteGroup", { id }),
   );
   ipcMain.handle("prompt:renameGroup", (_, id: number, name: string) =>
     bridge.request("prompt:renameGroup", { id, name }),
-  );
-  ipcMain.handle("prompt:reorderGroups", (_, ids: number[]) =>
-    bridge.request("prompt:reorderGroups", { ids }),
   );
   ipcMain.handle("prompt:createToken", (_, groupId: number, label: string) =>
     bridge.request("prompt:createToken", { groupId, label }),
@@ -157,9 +166,6 @@ export function registerIpcHandlers(): void {
   );
   ipcMain.handle("prompt:reorderTokens", (_, groupId: number, ids: number[]) =>
     bridge.request("prompt:reorderTokens", { groupId, ids }),
-  );
-  ipcMain.handle("prompt:resetGroups", () =>
-    bridge.request("prompt:resetGroups"),
   );
 
   ipcMain.handle("image:computeHashes", () =>

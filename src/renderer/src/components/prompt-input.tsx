@@ -95,6 +95,7 @@ export function PromptInput({
   const tokenRowRef = useRef<HTMLDivElement | null>(null);
   const tokenRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const inlineEditTokenIdRef = useRef<string | null>(null);
+  const chipCursorIndexRef = useRef<number | null>(null);
   const previousModeRef = useRef<PromptInputEditorMode>(mode);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const undoStackRef = useRef<{ tokens: EditableToken[]; draft: string }[]>([]);
@@ -123,8 +124,8 @@ export function PromptInput({
       return;
     }
     window.promptBuilder
-      .listGroups()
-      .then((gs) => setGroups(gs))
+      .listCategories()
+      .then((cs) => setGroups(cs.flatMap((c) => c.groups)))
       .catch(() => {});
   }, [groupsProp]);
 
@@ -167,6 +168,10 @@ export function PromptInput({
   useEffect(() => {
     inlineEditTokenIdRef.current = inlineEditTokenId;
   }, [inlineEditTokenId]);
+
+  useEffect(() => {
+    chipCursorIndexRef.current = chipCursorIndex;
+  }, [chipCursorIndex]);
 
   useEffect(() => {
     setInlineEditTokenId((prev) =>
@@ -399,8 +404,14 @@ export function PromptInput({
   const focusTokenAtIndex = (index: number) => {
     const token = tokens[index];
     if (!token) return;
-    setChipCursorIndex(null);
-    setInlineEditTokenId(token.id);
+    if (isGroupRef(token)) {
+      setInlineEditTokenId(null);
+      setChipCursorIndex(index);
+      tokenRefs.current.get(token.id)?.focus();
+    } else {
+      setChipCursorIndex(null);
+      setInlineEditTokenId(token.id);
+    }
   };
 
   const handleInputKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -479,7 +490,6 @@ export function PromptInput({
 
     const chipData = tokens
       .map((token, i) => {
-        if (isGroupRef(token)) return null;
         const node = tokenRefs.current.get(token.id);
         if (!node) return null;
         const rect = node.getBoundingClientRect();
@@ -527,7 +537,13 @@ export function PromptInput({
     }
     if (e.key === "ArrowLeft") {
       e.preventDefault();
-      if (chipCursorIndex === index) focusTokenAtIndex(index);
+      const currentToken = tokens[index];
+      if (
+        currentToken &&
+        !isGroupRef(currentToken) &&
+        chipCursorIndex === index
+      )
+        focusTokenAtIndex(index);
       else if (index > 0) focusTokenAtIndex(index - 1);
       else focusInput("start");
       return;
@@ -601,23 +617,53 @@ export function PromptInput({
         }
       } : undefined}
       onDragLeave={allowExternalDrop ? () => setExternalDragOver(false) : undefined}
-      onDrop={allowExternalDrop ? (e) => {
-        setExternalDragOver(false);
-        const data = e.dataTransfer.getData(DRAG_TOKEN_MIME);
-        if (!data) return;
-        e.preventDefault();
-        try {
-          const token = JSON.parse(data) as { text: string; weight: number; raw?: string };
-          const nextTokens = [
-            ...tokens,
-            { text: token.text, weight: token.weight, raw: token.raw, id: createTokenId() },
-          ];
-          emit(nextTokens, draft);
-          requestAnimationFrame(() => inputRef.current?.focus());
-        } catch {
-          // ignore invalid data
-        }
-      } : undefined}
+      onDrop={
+        allowExternalDrop
+          ? (e) => {
+              setExternalDragOver(false);
+              const data = e.dataTransfer.getData(DRAG_TOKEN_MIME);
+              if (!data) return;
+              e.preventDefault();
+              try {
+                const parsed = JSON.parse(data) as Record<string, unknown>;
+                if (
+                  parsed.kind === "group" &&
+                  typeof parsed.groupName === "string"
+                ) {
+                  const groupToken: EditableToken = {
+                    kind: "group",
+                    groupName: parsed.groupName,
+                    ...(Array.isArray(parsed.overrideTags)
+                      ? { overrideTags: parsed.overrideTags as string[] }
+                      : {}),
+                    id: createTokenId(),
+                  };
+                  emit([...tokens, groupToken], draft);
+                } else if (typeof parsed.text === "string") {
+                  emit(
+                    [
+                      ...tokens,
+                      {
+                        text: parsed.text,
+                        weight:
+                          typeof parsed.weight === "number" ? parsed.weight : 1,
+                        raw:
+                          typeof parsed.raw === "string"
+                            ? parsed.raw
+                            : undefined,
+                        id: createTokenId(),
+                      },
+                    ],
+                    draft,
+                  );
+                }
+                requestAnimationFrame(() => inputRef.current?.focus());
+              } catch {
+                // ignore invalid data
+              }
+            }
+          : undefined
+      }
     >
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <SortableContext
@@ -630,17 +676,57 @@ export function PromptInput({
           >
             {tokens.map((token, index) =>
               isGroupRef(token) ? (
-                <GroupChip
-                  key={token.id}
-                  token={token}
-                  groups={groups}
-                  isEditable={true}
-                  chipRef={(node) => setTokenRef(token.id, node)}
-                  onTokenFocus={() => setInlineEditTokenId(null)}
-                  onTokenKeyDown={(e) => handleTokenKeyDown(e, index)}
-                  isSortable={true}
-                  sortableId={token.id}
-                />
+                <Fragment key={token.id}>
+                  <GroupChip
+                    token={token}
+                    groups={groups}
+                    readOnly={true}
+                    onChange={(nextToken) => {
+                      const nextTokens = tokens.map((t) =>
+                        t.id === token.id ? { ...nextToken, id: token.id } : t,
+                      );
+                      emit(nextTokens, draft);
+                    }}
+                    onDelete={() => {
+                      const nextTokens = tokens.filter((_, i) => i !== index);
+                      emit(nextTokens, draft);
+                      requestAnimationFrame(() => {
+                        if (nextTokens.length === 0) {
+                          focusInput("start");
+                          return;
+                        }
+                        const nextIndex = Math.min(
+                          index,
+                          nextTokens.length - 1,
+                        );
+                        const nextId = nextTokens[nextIndex]?.id;
+                        if (!nextId) {
+                          focusInput("start");
+                          return;
+                        }
+                        const nextNode = tokenRefs.current.get(nextId);
+                        if (nextNode) nextNode.focus();
+                        else focusInput("start");
+                      });
+                    }}
+                    chipRef={(node) => setTokenRef(token.id, node)}
+                    onTokenFocus={() => {
+                      setInlineEditTokenId(null);
+                      setChipCursorIndex(index);
+                    }}
+                    onTokenKeyDown={(e) => handleTokenKeyDown(e, index)}
+                    isSortable={true}
+                    sortableId={token.id}
+                  />
+                  {chipCursorIndex === index && (
+                    <span
+                      className="inline-block w-0.5 h-4 self-center rounded-full bg-primary/80"
+                      style={{
+                        animation: "chip-cursor-blink 0.7s step-end infinite",
+                      }}
+                    />
+                  )}
+                </Fragment>
               ) : (
                 <Fragment key={token.id}>
                   <TokenChip
@@ -660,7 +746,10 @@ export function PromptInput({
                         if (prev !== token.id) return prev;
                         if (reason !== "cancel") {
                           requestAnimationFrame(() => {
-                            if (inlineEditTokenIdRef.current === null)
+                            if (
+                              inlineEditTokenIdRef.current === null &&
+                              chipCursorIndexRef.current === null
+                            )
                               focusInput("end");
                           });
                         }

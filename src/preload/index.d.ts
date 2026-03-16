@@ -130,9 +130,17 @@ export type PromptToken = {
 export type PromptGroup = {
   id: number;
   name: string;
-  type: string;
+  categoryId: number;
   order: number;
   tokens: PromptToken[];
+};
+
+export type PromptCategory = {
+  id: number;
+  name: string;
+  isBuiltin: boolean;
+  order: number;
+  groups: PromptGroup[];
 };
 
 export type NaiConfig = {
@@ -180,15 +188,17 @@ declare global {
       get: () => Promise<AppInfo>;
     };
     promptBuilder: {
-      listGroups: () => Promise<PromptGroup[]>;
-      createGroup: (name: string, type: string) => Promise<PromptGroup>;
+      listCategories: () => Promise<PromptCategory[]>;
+      createCategory: (name: string) => Promise<PromptCategory>;
+      renameCategory: (id: number, name: string) => Promise<void>;
+      deleteCategory: (id: number) => Promise<void>;
+      resetCategories: () => Promise<void>;
+      createGroup: (categoryId: number, name: string) => Promise<PromptGroup>;
       deleteGroup: (id: number) => Promise<void>;
       renameGroup: (id: number, name: string) => Promise<void>;
-      reorderGroups: (ids: number[]) => Promise<void>;
       createToken: (groupId: number, label: string) => Promise<PromptToken>;
       deleteToken: (id: number) => Promise<void>;
       reorderTokens: (groupId: number, ids: number[]) => Promise<void>;
-      resetGroups: () => Promise<void>;
     };
     image: {
       readNaiMeta: (path: string) => Promise<NovelAIMeta | null>;

@@ -29,12 +29,14 @@ import {
   clearIgnoredDuplicatePaths,
 } from "./lib/image";
 import {
-  listGroups,
-  createGroup,
-  deleteGroup,
-  renameGroup,
-  reorderGroups,
-  resetGroups,
+  listCategories as listPromptCategories,
+  createCategory as createPromptCategory,
+  renameCategory as renamePromptCategory,
+  deleteCategory as deletePromptCategory,
+  resetCategories as resetPromptCategories,
+  createGroup as createPromptGroup,
+  deleteGroup as deletePromptGroup,
+  renameGroup as renamePromptGroup,
   createToken,
   deleteToken,
   reorderTokens,
@@ -216,23 +218,36 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
     case "image:clearIgnoredDuplicates":
       return clearIgnoredDuplicatePaths();
 
-    case "prompt:listGroups":
-      return listGroups();
+    case "prompt:listCategories":
+      return listPromptCategories();
+    case "prompt:createCategory": {
+      const { name } = payload as { name: string };
+      return createPromptCategory(name);
+    }
+    case "prompt:renameCategory": {
+      const { id, name } = payload as { id: number; name: string };
+      return renamePromptCategory(id, name);
+    }
+    case "prompt:deleteCategory": {
+      const { id } = payload as { id: number };
+      return deletePromptCategory(id);
+    }
+    case "prompt:resetCategories":
+      return resetPromptCategories();
     case "prompt:createGroup": {
-      const { name, type: pType } = payload as { name: string; type: string };
-      return createGroup(name, pType);
+      const { categoryId, name } = payload as {
+        categoryId: number;
+        name: string;
+      };
+      return createPromptGroup(categoryId, name);
     }
     case "prompt:deleteGroup": {
       const { id } = payload as { id: number };
-      return deleteGroup(id);
+      return deletePromptGroup(id);
     }
     case "prompt:renameGroup": {
       const { id, name } = payload as { id: number; name: string };
-      return renameGroup(id, name);
-    }
-    case "prompt:reorderGroups": {
-      const { ids } = payload as { ids: number[] };
-      return reorderGroups(ids);
+      return renamePromptGroup(id, name);
     }
     case "prompt:createToken": {
       const { groupId, label } = payload as { groupId: number; label: string };
@@ -246,8 +261,6 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
       const { groupId, ids } = payload as { groupId: number; ids: number[] };
       return reorderTokens(groupId, ids);
     }
-    case "prompt:resetGroups":
-      return resetGroups();
 
     case "image:computeHashes":
       if (computeHashesInFlight) {

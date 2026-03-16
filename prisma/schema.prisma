@@ -18,12 +18,21 @@ model Folder {
   images    Image[]
 }
 
+model PromptCategory {
+  id        Int           @id @default(autoincrement())
+  name      String
+  isBuiltin Boolean       @default(false)
+  order     Int
+  groups    PromptGroup[]
+}
+
 model PromptGroup {
-  id     Int           @id @default(autoincrement())
-  name   String
-  type   String        // "base" | "character"
-  order  Int
-  tokens PromptToken[]
+  id         Int             @id @default(autoincrement())
+  name       String
+  categoryId Int
+  order      Int
+  tokens     PromptToken[]
+  category   PromptCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 }
 
 model PromptToken {

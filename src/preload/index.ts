@@ -170,20 +170,24 @@ contextBridge.exposeInMainWorld("dialog", {
     ipcRenderer.invoke("selectDirectory"),
 });
 contextBridge.exposeInMainWorld("promptBuilder", {
-  listGroups: () => ipcRenderer.invoke("prompt:listGroups"),
-  createGroup: (name: string, type: string) =>
-    ipcRenderer.invoke("prompt:createGroup", name, type),
+  listCategories: () => ipcRenderer.invoke("prompt:listCategories"),
+  createCategory: (name: string) =>
+    ipcRenderer.invoke("prompt:createCategory", name),
+  renameCategory: (id: number, name: string) =>
+    ipcRenderer.invoke("prompt:renameCategory", id, name),
+  deleteCategory: (id: number) =>
+    ipcRenderer.invoke("prompt:deleteCategory", id),
+  resetCategories: () => ipcRenderer.invoke("prompt:resetCategories"),
+  createGroup: (categoryId: number, name: string) =>
+    ipcRenderer.invoke("prompt:createGroup", categoryId, name),
   deleteGroup: (id: number) => ipcRenderer.invoke("prompt:deleteGroup", id),
   renameGroup: (id: number, name: string) =>
     ipcRenderer.invoke("prompt:renameGroup", id, name),
-  reorderGroups: (ids: number[]) =>
-    ipcRenderer.invoke("prompt:reorderGroups", ids),
   createToken: (groupId: number, label: string) =>
     ipcRenderer.invoke("prompt:createToken", groupId, label),
   deleteToken: (id: number) => ipcRenderer.invoke("prompt:deleteToken", id),
   reorderTokens: (groupId: number, ids: number[]) =>
     ipcRenderer.invoke("prompt:reorderTokens", groupId, ids),
-  resetGroups: () => ipcRenderer.invoke("prompt:resetGroups"),
 });
 contextBridge.exposeInMainWorld("category", {
   list: () => ipcRenderer.invoke("category:list"),
