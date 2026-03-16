@@ -1021,6 +1021,7 @@ export function GenerationView({
   const [autoGenSeedMode, setAutoGenSeedMode] = useState<"random" | "fixed">("random");
   const [autoGenInfinite, setAutoGenInfinite] = useState(false);
   const [autoGenProgress, setAutoGenProgress] = useState<{ current: number; total: number | null } | null>(null);
+  const [autoCancelPending, setAutoCancelPending] = useState(false);
   const autoCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
   const appendTagToPrompt = useCallback((tag: string) => {
@@ -1432,6 +1433,7 @@ export function GenerationView({
     }
 
     setAutoGenProgress(null);
+    setAutoCancelPending(false);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -2193,13 +2195,20 @@ export function GenerationView({
                 </span>
                 <button
                   type="button"
+                  disabled={autoCancelPending}
                   onClick={() => {
                     autoCancelRef.current.cancelled = true;
+                    setAutoCancelPending(true);
                   }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                  className={cn(
+                    "flex items-center gap-1 text-xs transition-colors",
+                    autoCancelPending
+                      ? "text-muted-foreground/40 cursor-not-allowed"
+                      : "text-muted-foreground hover:text-destructive",
+                  )}
                 >
                   <X className="h-3 w-3" />
-                  중지
+                  {autoCancelPending ? "중지 예정..." : "중지"}
                 </button>
               </div>
             </div>
