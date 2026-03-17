@@ -207,7 +207,7 @@ function TokenChipCore({
     const prefix = draftText.trim();
 
     if (!canSuggest || !prefix) {
-      setTagSuggestions([]);
+      setTagSuggestions((prev) => (prev.length === 0 ? prev : []));
       setTagSuggestionOpen(false);
       setTagSuggestionIndex(0);
       if (tagSuggestDebounceRef.current) {
