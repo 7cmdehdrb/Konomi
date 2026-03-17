@@ -2683,24 +2683,41 @@ export function GenerationView({
               </div>
             </div>
           ) : (
-            <div className="flex gap-2" data-tour="gen-generate-button">
-              <button
-                onClick={() => void handleGenerate()}
-                disabled={!canGenerate}
-                className={cn(
-                  "flex-1 h-10 flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all",
-                  canGenerate
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
-                    : "bg-secondary/60 text-muted-foreground cursor-not-allowed",
-                )}
-              >
-                {generating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Wand2 className="h-4 w-4" />
-                )}
-                {generating ? "생성 중..." : "생성하기"}
-              </button>
+            <div
+              className="relative flex gap-2"
+              data-tour="gen-generate-button"
+            >
+              <div className="group/gen relative flex-1">
+                {!canGenerate &&
+                  !generating &&
+                  !autoGenProgress &&
+                  !!config?.apiKey &&
+                  !!outputFolder &&
+                  !prompt.trim() && (
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden -translate-x-1/2 rounded-lg border border-border/60 bg-popover px-2.5 py-1.5 shadow-lg group-hover/gen:block">
+                      <p className="whitespace-nowrap text-[11px] text-foreground/85">
+                        프롬프트를 입력해 주세요
+                      </p>
+                    </div>
+                  )}
+                <button
+                  onClick={() => void handleGenerate()}
+                  disabled={!canGenerate}
+                  className={cn(
+                    "w-full h-10 flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all",
+                    canGenerate
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
+                      : "bg-secondary/60 text-muted-foreground cursor-not-allowed",
+                  )}
+                >
+                  {generating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-4 w-4" />
+                  )}
+                  {generating ? "생성 중..." : "생성하기"}
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => void handleAutoGenerate()}
