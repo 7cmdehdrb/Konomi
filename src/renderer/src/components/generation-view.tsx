@@ -460,6 +460,8 @@ interface GenerationViewProps {
   outputFolder: string;
   onOutputFolderChange: (folder: string) => void;
   appendPromptTagRequest?: AppendPromptTagRequest | null;
+  tourActive?: boolean;
+  tourAction?: string | null;
 }
 
 const LAST_GEN_PARAMS_KEY = "konomi-last-gen-params";
@@ -1057,6 +1059,8 @@ export function GenerationView({
   outputFolder,
   onOutputFolderChange,
   appendPromptTagRequest,
+  tourActive,
+  tourAction,
 }: GenerationViewProps) {
   const [config, setConfig] = useState<NaiConfig | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
@@ -1152,6 +1156,62 @@ export function GenerationView({
     setRightPanelVisible(true);
     onClearPendingSourceImport?.();
   }, [pendingSourceImport, onClearPendingSourceImport]);
+
+  // Fill demo params when tour is active
+  const tourPrevParamsRef = useRef<{
+    prompt: string;
+    negativePrompt: string;
+    width: number;
+    height: number;
+    steps: number;
+    scale: number;
+    sampler: string;
+  } | null>(null);
+  useEffect(() => {
+    if (tourActive && !tourPrevParamsRef.current) {
+      tourPrevParamsRef.current = {
+        prompt,
+        negativePrompt,
+        width,
+        height,
+        steps,
+        scale,
+        sampler,
+      };
+      setPrompt(
+        "1girl, yukata, peace sign, %{looking at viewer|looking to the side}, fireworks, night, sparkles, watercolor, painterly, smile, 1.2::masterpiece ::, -1::simple background ::, ",
+      );
+      setNegativePrompt(
+        "lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views, gigantic breasts, blurry",
+      );
+      setWidth(832);
+      setHeight(1216);
+      setSteps(28);
+      setScale(5.5);
+      setSampler("k_euler_ancestral");
+    } else if (!tourActive && tourPrevParamsRef.current) {
+      const prev = tourPrevParamsRef.current;
+      setPrompt(prev.prompt);
+      setNegativePrompt(prev.negativePrompt);
+      setWidth(prev.width);
+      setHeight(prev.height);
+      setSteps(prev.steps);
+      setScale(prev.scale);
+      setSampler(prev.sampler);
+      tourPrevParamsRef.current = null;
+    }
+  }, [tourActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle tour actions
+  useEffect(() => {
+    if (tourAction === "open-prompt-group-panel") {
+      setRightPanelVisible(true);
+      setRightPanelTab("prompt-group");
+    } else if (tourAction === "open-settings-panel") {
+      setRightPanelVisible(true);
+      setRightPanelTab("settings");
+    }
+  }, [tourAction]);
 
   const handleRightResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -1951,7 +2011,7 @@ export function GenerationView({
           maxWidth: panelWidth,
         }}
       >
-        {(!config?.apiKey || !outputFolder) && (
+        {(!config?.apiKey || !outputFolder) && !tourActive && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 backdrop-blur-sm bg-sidebar/60 select-none">
             <Settings className="h-8 w-8 text-muted-foreground/40" />
             <div className="flex flex-col items-center gap-1">
@@ -1993,7 +2053,7 @@ export function GenerationView({
             </div>
 
             {/* 프롬프트 */}
-            <div>
+            <div data-tour="gen-prompt-input">
               <SectionHeader label="프롬프트" />
               <div
                 className="mb-2 inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1"
@@ -2467,7 +2527,7 @@ export function GenerationView({
         </div>
 
         {/* 자동 생성 */}
-        <div className="border-t border-border/40 bg-sidebar">
+        <div className="border-t border-border/40 bg-sidebar" data-tour="gen-auto-gen">
           <AutoGenSection
             count={autoGenCount}
             setCount={setAutoGenCount}
@@ -2525,7 +2585,7 @@ export function GenerationView({
               </div>
             </div>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex gap-2" data-tour="gen-generate-button">
               <button
                 onClick={() => void handleGenerate()}
                 disabled={!canGenerate}
@@ -2626,10 +2686,12 @@ export function GenerationView({
             </div>
             {/* Body */}
             {rightPanelTab === "prompt-group" && (
-              <PromptGroupPanel
-                categories={categories}
-                onCategoriesChange={setCategories}
-              />
+              <div data-tour="gen-prompt-group-panel" className="flex-1 min-h-0">
+                <PromptGroupPanel
+                  categories={categories}
+                  onCategoriesChange={setCategories}
+                />
+              </div>
             )}
             {rightPanelTab === "settings" && (
               <div className="flex-1 flex flex-col min-h-0">

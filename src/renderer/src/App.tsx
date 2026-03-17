@@ -15,6 +15,7 @@ import { ImageDetail } from "@/components/image-detail";
 import { SettingsView } from "@/components/settings-view";
 import { CategoryDialog } from "@/components/category-dialog";
 import { GenerationView } from "@/components/generation-view";
+import { FeatureTour } from "@/components/feature-tour";
 import {
   Dialog,
   DialogContent,
@@ -137,6 +138,12 @@ export default function App() {
   const [activePanel, setActivePanel] = useState<
     "gallery" | "generator" | "settings"
   >("gallery");
+  const [folderCount, setFolderCount] = useState<number | null>(null);
+  const [folderDialogRequest, setFolderDialogRequest] = useState(0);
+  const [tourOpen, setTourOpen] = useState(
+    () => localStorage.getItem("konomi-tour-completed") !== "true",
+  );
+  const [tourAction, setTourAction] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     try {
       return Number(localStorage.getItem("konomi-sidebar-width")) || 288;
@@ -836,6 +843,12 @@ export default function App() {
     schedulePageRefresh(0);
   }, [schedulePageRefresh]);
 
+  const handleTourClose = useCallback(() => {
+    setTourOpen(false);
+    setActivePanel("gallery");
+    localStorage.setItem("konomi-tour-completed", "true");
+  }, []);
+
   useEffect(() => {
     if (!selectedImage || !selectedImageId) {
       setSimilarImages([]);
@@ -936,6 +949,7 @@ export default function App() {
         onAdvancedFiltersChange={setAdvancedFilters}
         availableResolutions={availableResolutions}
         availableModels={availableModels}
+        onStartTour={() => setTourOpen(true)}
       />
 
       <div className="relative flex flex-1 overflow-hidden">
@@ -952,6 +966,8 @@ export default function App() {
             outputFolder={outputFolder}
             onOutputFolderChange={setOutputFolder}
             appendPromptTagRequest={appendPromptTagRequest}
+            tourActive={tourOpen}
+            tourAction={tourAction}
           />
         </div>
 
@@ -991,6 +1007,8 @@ export default function App() {
               onCategoryAddByPrompt={handleCategoryAddByPrompt}
               onRandomRefresh={handleRandomRefresh}
               isAnalyzing={isAnalyzing}
+              onFolderCountChange={setFolderCount}
+              folderDialogRequest={folderDialogRequest}
             />
             <div
               className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 transition-colors z-10"
@@ -1062,6 +1080,8 @@ export default function App() {
               onPageChange={setGalleryPage}
               searchQuery={searchQuery || undefined}
               onClearSearch={() => setSearchQuery("")}
+              hasFolders={folderCount === null || folderCount > 0}
+              onAddFolder={() => setFolderDialogRequest((n) => n + 1)}
             />
           </div>
         </div>
@@ -1141,6 +1161,8 @@ export default function App() {
         onSimilarImageClick={setSelectedImage}
         similarPageSize={settings.similarPageSize}
       />
+
+      <FeatureTour open={tourOpen} onClose={handleTourClose} onPanelChange={setActivePanel} onAction={setTourAction} />
     </div>
   );
 }

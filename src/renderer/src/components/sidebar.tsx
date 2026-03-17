@@ -53,6 +53,8 @@ interface SidebarProps {
   onCategoryAddByPrompt: (id: number, query: string) => void;
   onRandomRefresh: () => void;
   isAnalyzing?: boolean;
+  onFolderCountChange?: (count: number) => void;
+  folderDialogRequest?: number;
 }
 
 const views = [
@@ -81,6 +83,8 @@ export function Sidebar({
   onCategoryAddByPrompt,
   onRandomRefresh,
   isAnalyzing,
+  onFolderCountChange,
+  folderDialogRequest,
 }: SidebarProps) {
   const { folders, addFolder, removeFolder, renameFolder, reorderFolders } =
     useFolders();
@@ -130,6 +134,21 @@ export function Sidebar({
     if (duplicateResolution.folderAddResolvedSeq === 0) return;
     handleFolderDialogOpenChange(false);
   }, [duplicateResolution.folderAddResolvedSeq, handleFolderDialogOpenChange]);
+
+  useEffect(() => {
+    onFolderCountChange?.(folders.length);
+  }, [folders.length, onFolderCountChange]);
+
+  const folderDialogRequestRef = useRef(0);
+  useEffect(() => {
+    if (
+      folderDialogRequest &&
+      folderDialogRequest !== folderDialogRequestRef.current
+    ) {
+      folderDialogRequestRef.current = folderDialogRequest;
+      folder.handleOpenChange(true);
+    }
+  }, [folderDialogRequest, folder]);
 
   const handleRemoveFolder = async (id: number) => {
     try {
@@ -261,7 +280,7 @@ export function Sidebar({
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-4 space-y-6">
             {/* Views */}
-            <div className="space-y-1">
+            <div className="space-y-1" data-tour="sidebar-views">
               {views.map((view) => {
                 const Icon = view.icon;
                 return (
@@ -287,7 +306,7 @@ export function Sidebar({
             </div>
 
             {/* Folders */}
-            <div className="pt-4 border-t border-border">
+            <div className="pt-4 border-t border-border" data-tour="sidebar-folders">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground select-none">
                   <FolderPlus className="h-4 w-4" />
@@ -443,7 +462,7 @@ export function Sidebar({
             </div>
 
             {/* Categories */}
-            <div className="border-t border-border pt-4">
+            <div className="border-t border-border pt-4" data-tour="sidebar-categories">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground select-none">
                   <Tag className="h-4 w-4" />

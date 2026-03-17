@@ -117,6 +117,7 @@ interface HeaderProps {
   onAdvancedFiltersChange: (filters: AdvancedFilter[]) => void;
   availableResolutions: { width: number; height: number }[];
   availableModels: string[];
+  onStartTour?: () => void;
 }
 
 export function Header({
@@ -136,6 +137,7 @@ export function Header({
   onAdvancedFiltersChange,
   availableResolutions,
   availableModels,
+  onStartTour,
 }: HeaderProps) {
   const hasSearchStatsProgress =
     !!searchStatsProgress &&
@@ -395,7 +397,7 @@ export function Header({
             )}
           </div>
 
-          <div className="flex flex-1 max-w-2xl flex-col gap-1.5">
+          <div className="flex flex-1 max-w-2xl flex-col gap-1.5" data-tour="search">
             <div className="flex gap-1.5">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -558,7 +560,7 @@ export function Header({
             )}
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0" data-tour="panel-buttons">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -638,7 +640,7 @@ export function Header({
         availableResolutions={availableResolutions}
         availableModels={availableModels}
       />
-      <AppInfoDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      <AppInfoDialog open={aboutOpen} onOpenChange={setAboutOpen} onStartTour={onStartTour} />
     </header>
   );
 }

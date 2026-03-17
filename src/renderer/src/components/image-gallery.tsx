@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ImageCard, type ImageData } from "./image-card";
+import { OnboardingView } from "./onboarding-view";
 import { cn } from "@/lib/utils";
 
 interface ImageGalleryProps {
@@ -45,6 +46,8 @@ interface ImageGalleryProps {
   onPageChange?: (page: number) => void;
   searchQuery?: string;
   onClearSearch?: () => void;
+  hasFolders?: boolean;
+  onAddFolder?: () => void;
 }
 
 export const ImageGallery = memo(function ImageGallery({
@@ -71,6 +74,8 @@ export const ImageGallery = memo(function ImageGallery({
   onPageChange,
   searchQuery,
   onClearSearch,
+  hasFolders = true,
+  onAddFolder,
 }: ImageGalleryProps) {
   const [internalPage, setInternalPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -179,7 +184,7 @@ export const ImageGallery = memo(function ImageGallery({
 
   return (
     <div className="relative flex-1 flex flex-col">
-      <div className="flex flex-col gap-3 p-4 border-b border-border bg-background">
+      <div className="flex flex-col gap-3 p-4 border-b border-border bg-background" data-tour="gallery-toolbar">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground select-none">
@@ -350,6 +355,8 @@ export const ImageGallery = memo(function ImageGallery({
             </div>
           </div>
         </ScrollArea>
+      ) : !hasFolders && onAddFolder ? (
+        <OnboardingView onAddFolder={onAddFolder} />
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-center p-4 select-none">
           <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FolderGit2, Github, Loader2, Sparkles } from "lucide-react";
+import { Compass, FolderGit2, Github, Loader2, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import type { AppInfo } from "@preload/index.d";
 interface AppInfoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onStartTour?: () => void;
 }
 
 const PROJECT_REPO_URL = "https://github.com/blackwaterbread/Konomi";
@@ -204,7 +205,7 @@ accepting any such warranty or additional liability.
 
 END OF TERMS AND CONDITIONS`;
 
-export function AppInfoDialog({ open, onOpenChange }: AppInfoDialogProps) {
+export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialogProps) {
   const [loading, setLoading] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [licenseOpen, setLicenseOpen] = useState(false);
@@ -274,6 +275,21 @@ export function AppInfoDialog({ open, onOpenChange }: AppInfoDialogProps) {
                     Open Source Licenses
                   </span>
                 </button>
+                {onStartTour && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenChange(false);
+                      onStartTour();
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                  >
+                    <Compass className="h-5 w-5" />
+                    <span className="text-sm font-medium">
+                      기능 둘러보기
+                    </span>
+                  </button>
+                )}
               </div>
               {loading && (
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
