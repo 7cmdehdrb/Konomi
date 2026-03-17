@@ -178,6 +178,17 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("prompt:reorderTokens", (_, groupId: number, ids: number[]) =>
     bridge.request("prompt:reorderTokens", { groupId, ids }),
   );
+  ipcMain.handle(
+    "prompt:suggestTags",
+    (
+      _,
+      query: {
+        prefix: string;
+        limit?: number;
+        exclude?: string[];
+      },
+    ) => bridge.request("prompt:suggestTags", query),
+  );
 
   ipcMain.handle("image:computeHashes", () =>
     bridge.request("image:computeHashes", undefined, 0),

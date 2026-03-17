@@ -67,6 +67,7 @@ import { getNaiConfig, updateNaiConfig, generateImage, validateApiKey } from "./
 import type { NaiConfigPatch, GenerateParams } from "./lib/nai-gen";
 import type { CancelToken } from "./lib/scanner";
 import { createLogger } from "./lib/logger";
+import { suggestPromptTags } from "./lib/prompts-db";
 
 let scanCancelToken: CancelToken | null = null;
 let computeHashesInFlight: Promise<number> | null = null;
@@ -261,6 +262,14 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
       const { groupId, ids } = payload as { groupId: number; ids: number[] };
       return reorderTokens(groupId, ids);
     }
+    case "prompt:suggestTags":
+      return suggestPromptTags(
+        (payload as {
+          prefix: string;
+          limit?: number;
+          exclude?: string[];
+        }) ?? { prefix: "" },
+      );
 
     case "image:computeHashes":
       if (computeHashesInFlight) {

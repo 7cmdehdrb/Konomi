@@ -9,7 +9,7 @@ import Database from "better-sqlite3";
 
 const PROMPTS_DB_FILENAME = "prompts-rich-reference.db";
 const PROMPTS_SCHEMA_VERSION = 1;
-const APP_USER_DATA_DIRNAME = "Konomi";
+const APP_USER_DATA_DIRNAME = "konomi";
 
 function resolveDefaultOutputPath() {
   const userDataOverride = (process.env.KONOMI_USER_DATA ?? "").trim();

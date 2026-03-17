@@ -172,6 +172,11 @@ contextBridge.exposeInMainWorld("dialog", {
 });
 contextBridge.exposeInMainWorld("promptBuilder", {
   listCategories: () => ipcRenderer.invoke("prompt:listCategories"),
+  suggestTags: (query: {
+    prefix: string;
+    limit?: number;
+    exclude?: string[];
+  }) => ipcRenderer.invoke("prompt:suggestTags", query),
   createCategory: (name: string) =>
     ipcRenderer.invoke("prompt:createCategory", name),
   renameCategory: (id: number, name: string) =>

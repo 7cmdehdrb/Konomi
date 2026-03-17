@@ -1,44 +1,14 @@
 import fs from "fs";
-import os from "os";
 import path from "path";
 import Database from "better-sqlite3";
 
 const PROMPTS_DB_FILENAME = "prompts.db";
 const PROMPTS_SCHEMA_VERSION = 1;
-const APP_USER_DATA_DIRNAME = "Konomi";
-
-function resolveDefaultOutputPath() {
-  const userDataOverride = (process.env.KONOMI_USER_DATA ?? "").trim();
-  if (userDataOverride) {
-    return path.join(userDataOverride, PROMPTS_DB_FILENAME);
-  }
-
-  if (process.platform === "win32") {
-    const appDataDir =
-      process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming");
-    return path.join(appDataDir, APP_USER_DATA_DIRNAME, PROMPTS_DB_FILENAME);
-  }
-
-  if (process.platform === "darwin") {
-    return path.join(
-      os.homedir(),
-      "Library",
-      "Application Support",
-      APP_USER_DATA_DIRNAME,
-      PROMPTS_DB_FILENAME,
-    );
-  }
-
-  const xdgConfigHome =
-    process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config");
-  return path.join(
-    xdgConfigHome,
-    APP_USER_DATA_DIRNAME,
-    PROMPTS_DB_FILENAME,
-  );
-}
-
-const DEFAULT_OUTPUT_PATH = resolveDefaultOutputPath();
+const DEFAULT_OUTPUT_PATH = path.resolve(
+  process.cwd(),
+  "resources",
+  PROMPTS_DB_FILENAME,
+);
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS prompts_meta (
@@ -62,12 +32,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_prompt_tag_tag
 
 CREATE INDEX IF NOT EXISTS idx_prompt_tag_post_count
   ON prompt_tag(post_count DESC, id ASC);
+
+CREATE INDEX IF NOT EXISTS idx_prompt_tag_search
+  ON prompt_tag(
+    LOWER(REPLACE(tag, '_', ' ')),
+    post_count DESC,
+    tag ASC
+  );
 `;
 
 function printUsageAndExit() {
   console.error(
     "Usage: npm run db:prompts -- <csv-path> [--out <output-db-path>]",
   );
+  console.error(`Default output: ${DEFAULT_OUTPUT_PATH}`);
   process.exit(1);
 }
 

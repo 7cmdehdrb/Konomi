@@ -28,7 +28,7 @@ import {
   isGroupRef,
   isWildcard,
 } from "@/lib/token";
-import type { PromptGroup } from "@preload/index.d";
+import type { PromptGroup, PromptTagSuggestion } from "@preload/index.d";
 import { TokenChip } from "./token-chip";
 import { GroupChip } from "./group-chip";
 import { WildcardChip } from "./wildcard-chip";
@@ -40,6 +40,11 @@ const INPUT_WRAP_CARET_BUFFER_PX = 18;
 const INPUT_WRAP_TOKEN_GAP_PX = 6;
 
 const DRAG_TOKEN_MIME = "application/x-konomi-token";
+const TAG_SUGGEST_LIMIT = 8;
+
+function formatTagSuggestionCount(count: number): string {
+  return new Intl.NumberFormat().format(Math.max(0, Math.floor(count)));
+}
 
 interface PromptInputProps {
   value: string;
@@ -131,6 +136,15 @@ export function PromptInput({
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
   const [groupSearch, setGroupSearch] = useState("");
   const [groupDropdownIndex, setGroupDropdownIndex] = useState(0);
+  const [tagSuggestions, setTagSuggestions] = useState<PromptTagSuggestion[]>(
+    [],
+  );
+  const [tagSuggestionOpen, setTagSuggestionOpen] = useState(false);
+  const [tagSuggestionIndex, setTagSuggestionIndex] = useState(0);
+  const tagSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const tagSuggestRequestSeqRef = useRef(0);
 
   useEffect(() => {
     if (groupsProp !== undefined) {
@@ -143,6 +157,15 @@ export function PromptInput({
       .catch(() => {});
   }, [groupsProp]);
 
+  useEffect(
+    () => () => {
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+      }
+    },
+    [],
+  );
+
   const filteredGroups = useMemo(
     () =>
       groups.filter((g) =>
@@ -150,6 +173,79 @@ export function PromptInput({
       ),
     [groups, groupSearch],
   );
+
+  const promptTagExclusions = useMemo(
+    () =>
+      tokens
+        .filter(
+          (token): token is EditableToken & PromptToken =>
+            !isGroupRef(token) && !isWildcard(token),
+        )
+        .map((token) => token.text.trim())
+        .filter(Boolean),
+    [tokens],
+  );
+
+  useEffect(() => {
+    if (mode !== "simple" || groupDropdownOpen) {
+      setTagSuggestions([]);
+      setTagSuggestionOpen(false);
+      setTagSuggestionIndex(0);
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+        tagSuggestDebounceRef.current = null;
+      }
+      return;
+    }
+
+    const prefix = draft.trim();
+    if (!prefix) {
+      setTagSuggestions([]);
+      setTagSuggestionOpen(false);
+      setTagSuggestionIndex(0);
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+        tagSuggestDebounceRef.current = null;
+      }
+      return;
+    }
+
+    if (tagSuggestDebounceRef.current) {
+      clearTimeout(tagSuggestDebounceRef.current);
+      tagSuggestDebounceRef.current = null;
+    }
+
+    tagSuggestDebounceRef.current = setTimeout(() => {
+      const requestId = ++tagSuggestRequestSeqRef.current;
+      window.promptBuilder
+        .suggestTags({
+          prefix,
+          limit: TAG_SUGGEST_LIMIT,
+          exclude: promptTagExclusions,
+        })
+        .then((results) => {
+          if (requestId !== tagSuggestRequestSeqRef.current) return;
+          setTagSuggestions(results);
+          setTagSuggestionOpen(results.length > 0);
+          setTagSuggestionIndex((prev) =>
+            results.length === 0 ? 0 : Math.min(prev, results.length - 1),
+          );
+        })
+        .catch(() => {
+          if (requestId !== tagSuggestRequestSeqRef.current) return;
+          setTagSuggestions([]);
+          setTagSuggestionOpen(false);
+          setTagSuggestionIndex(0);
+        });
+    }, 120);
+
+    return () => {
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+        tagSuggestDebounceRef.current = null;
+      }
+    };
+  }, [draft, groupDropdownOpen, mode, promptTagExclusions]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -358,6 +454,27 @@ export function PromptInput({
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
+  const applyTagSuggestion = (suggestion: PromptTagSuggestion) => {
+    const nextToken = {
+      ...parseRawToken(suggestion.tag),
+      id: createTokenId(),
+    } as EditableToken;
+    const nextTokens =
+      insertIndex !== null
+        ? [
+            ...tokens.slice(0, insertIndex),
+            nextToken,
+            ...tokens.slice(insertIndex),
+          ]
+        : [...tokens, nextToken];
+    if (insertIndex !== null) setInsertIndex(insertIndex + 1);
+    emit(nextTokens, "");
+    setTagSuggestions([]);
+    setTagSuggestionOpen(false);
+    setTagSuggestionIndex(0);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   const handleDraftChange = (nextValue: string) => {
     // Detect @{ prefix for group autocomplete
     const groupPrefixMatch = nextValue.match(/^@\{([^}]*)$/);
@@ -496,6 +613,32 @@ export function PromptInput({
       }
       if (e.key === "Escape") {
         setGroupDropdownOpen(false);
+        return;
+      }
+    }
+
+    if (tagSuggestionOpen && tagSuggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setTagSuggestionIndex((i) => (i + 1) % tagSuggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setTagSuggestionIndex((i) =>
+          i <= 0 ? tagSuggestions.length - 1 : i - 1,
+        );
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        applyTagSuggestion(tagSuggestions[tagSuggestionIndex] ?? tagSuggestions[0]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setTagSuggestionOpen(false);
+        setTagSuggestionIndex(0);
         return;
       }
     }
@@ -695,7 +838,10 @@ export function PromptInput({
           setChipCursorIndex(null);
         }}
         onBlur={() => {
-          setTimeout(() => setGroupDropdownOpen(false), 150);
+          setTimeout(() => {
+            setGroupDropdownOpen(false);
+            setTagSuggestionOpen(false);
+          }, 150);
           if (draft.trim()) {
             const serializedWithDraft = serializePrompt(tokens, draft);
             lastEmittedRef.current = serializedWithDraft;
@@ -727,6 +873,31 @@ export function PromptInput({
             >
               <span className="font-semibold text-group">@</span>
               {`{${g.name}}`}
+            </button>
+          ))}
+        </div>
+      )}
+      {!groupDropdownOpen && tagSuggestionOpen && tagSuggestions.length > 0 && (
+        <div className="absolute top-full left-0 mt-1 w-72 rounded-lg border border-border bg-popover shadow-lg z-50 overflow-hidden">
+          {tagSuggestions.map((suggestion, index) => (
+            <button
+              key={`${suggestion.tag}-${suggestion.count}`}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyTagSuggestion(suggestion);
+              }}
+              className={cn(
+                "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors",
+                index === tagSuggestionIndex
+                  ? "bg-primary/15 text-primary"
+                  : "text-foreground/85 hover:bg-secondary",
+              )}
+            >
+              <span className="truncate">{suggestion.tag}</span>
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                {formatTagSuggestionCount(suggestion.count)}
+              </span>
             </button>
           ))}
         </div>
@@ -940,6 +1111,15 @@ export function PromptInput({
                     token={token as PromptToken & { id: string }}
                     raw={tokenToRawString(token)}
                     isEditable={true}
+                    tagSuggestionExclude={tokens
+                      .filter(
+                        (t): t is EditableToken & PromptToken =>
+                          t.id !== token.id &&
+                          !isGroupRef(t) &&
+                          !isWildcard(t) &&
+                          t.text.trim().length > 0,
+                      )
+                      .map((t) => t.text.trim())}
                     constrainToContainer={true}
                     maxWidthPx={Math.max(
                       0,

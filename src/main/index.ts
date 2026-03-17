@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, protocol } from "electron";
-import { join } from "path";
+import { dirname, join } from "path";
 import fs from "fs";
 import { Readable } from "stream";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
@@ -11,6 +11,7 @@ import {
   isManagedImagePath,
   isSupportedImagePath,
 } from "./lib/path-guard";
+import { PROMPTS_DB_FILENAME } from "./lib/prompts-db";
 
 // Must be called before app.whenReady()
 protocol.registerSchemesAsPrivileged([
@@ -20,10 +21,105 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
+configureAppDataPaths();
 registerIpcHandlers();
 const log = createLogger("main/index");
 
 const BOUNDS_FILE = join(app.getPath("userData"), "window-bounds.json");
+
+function configureAppDataPaths(): void {
+  if (app.isPackaged) {
+    return;
+  }
+
+  const defaultUserDataPath = app.getPath("userData");
+  const devUserDataPath = `${defaultUserDataPath}-dev`;
+  const devSessionDataPath = join(devUserDataPath, "session-data");
+
+  app.setPath("userData", devUserDataPath);
+  app.setPath("sessionData", devSessionDataPath);
+}
+
+function resolveBundledPromptsDBPath(): string | null {
+  const overridePath = (process.env.KONOMI_BUNDLED_PROMPTS_DB_PATH ?? "").trim();
+  if (overridePath && fs.existsSync(overridePath)) {
+    return overridePath;
+  }
+
+  const candidates = [
+    join(process.resourcesPath, PROMPTS_DB_FILENAME),
+    join(app.getAppPath(), "resources", PROMPTS_DB_FILENAME),
+    join(process.cwd(), "resources", PROMPTS_DB_FILENAME),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function getUserPromptsDBPath(): string {
+  return join(app.getPath("userData"), PROMPTS_DB_FILENAME);
+}
+
+function syncBundledPromptsDBToUserData(): void {
+  const targetPath = getUserPromptsDBPath();
+  const sourcePath = resolveBundledPromptsDBPath();
+  if (!sourcePath) {
+    log.info("No bundled prompts DB found", {
+      targetPath,
+    });
+    return;
+  }
+
+  if (pathEquals(sourcePath, targetPath)) {
+    return;
+  }
+
+  try {
+    const sourceStat = fs.statSync(sourcePath);
+    let shouldCopy = true;
+
+    if (fs.existsSync(targetPath)) {
+      const targetStat = fs.statSync(targetPath);
+      shouldCopy =
+        targetStat.size !== sourceStat.size ||
+        Math.abs(targetStat.mtimeMs - sourceStat.mtimeMs) > 1000;
+    }
+
+    if (!shouldCopy) {
+      return;
+    }
+
+    fs.mkdirSync(dirname(targetPath), { recursive: true });
+    const tempPath = `${targetPath}.tmp`;
+    fs.copyFileSync(sourcePath, tempPath);
+    fs.utimesSync(tempPath, sourceStat.atime, sourceStat.mtime);
+    fs.rmSync(targetPath, { force: true });
+    fs.renameSync(tempPath, targetPath);
+
+    log.info("Synchronized bundled prompts DB", {
+      sourcePath,
+      targetPath,
+      size: sourceStat.size,
+    });
+  } catch (error) {
+    log.errorWithStack("Failed to synchronize bundled prompts DB", error, {
+      sourcePath,
+      targetPath,
+    });
+  }
+}
+
+function pathEquals(left: string, right: string): boolean {
+  const normalizedLeft = process.platform === "win32" ? left.toLowerCase() : left;
+  const normalizedRight =
+    process.platform === "win32" ? right.toLowerCase() : right;
+  return normalizedLeft === normalizedRight;
+}
 
 function loadBounds(): {
   width: number;
@@ -115,56 +211,61 @@ function createWindow(): void {
   bridge.setWebContents(mainWindow.webContents);
 }
 
-app.whenReady().then(() => {
-  log.info("App ready");
-  bridge.start(join(__dirname, "utility.js"));
+app.whenReady()
+  .then(() => {
+    log.info("App ready");
+    syncBundledPromptsDBToUserData();
+    bridge.start(join(__dirname, "utility.js"));
 
-  // Serve local image files via konomi:// protocol
-  // URL format: konomi://local/<encodeURIComponent(forwardSlashPath)>
-  protocol.handle("konomi", async (request) => {
-    try {
-      const parsedUrl = new URL(request.url);
-      if (parsedUrl.hostname !== "local") {
-        return new Response(null, { status: 400 });
-      }
-      const encodedPath = parsedUrl.pathname.startsWith("/")
-        ? parsedUrl.pathname.slice(1)
-        : parsedUrl.pathname;
-      const filePath = decodeURIComponent(encodedPath);
-      if (!filePath || !isSupportedImagePath(filePath)) {
-        return new Response(null, { status: 415 });
-      }
-      if (!(await isManagedImagePath(filePath))) {
-        log.warn("Blocked konomi protocol path outside managed roots", {
-          filePath,
+    // Serve local image files via konomi:// protocol
+    // URL format: konomi://local/<encodeURIComponent(forwardSlashPath)>
+    protocol.handle("konomi", async (request) => {
+      try {
+        const parsedUrl = new URL(request.url);
+        if (parsedUrl.hostname !== "local") {
+          return new Response(null, { status: 400 });
+        }
+        const encodedPath = parsedUrl.pathname.startsWith("/")
+          ? parsedUrl.pathname.slice(1)
+          : parsedUrl.pathname;
+        const filePath = decodeURIComponent(encodedPath);
+        if (!filePath || !isSupportedImagePath(filePath)) {
+          return new Response(null, { status: 415 });
+        }
+        if (!(await isManagedImagePath(filePath))) {
+          log.warn("Blocked konomi protocol path outside managed roots", {
+            filePath,
+          });
+          return new Response(null, { status: 403 });
+        }
+        const data = Readable.toWeb(
+          fs.createReadStream(filePath),
+        ) as unknown as BodyInit;
+        return new Response(data, {
+          headers: { "content-type": getImageContentType(filePath) },
         });
-        return new Response(null, { status: 403 });
+      } catch {
+        log.debug("konomi protocol file miss", { url: request.url });
+        return new Response(null, { status: 404 });
       }
-      const data = Readable.toWeb(
-        fs.createReadStream(filePath),
-      ) as unknown as BodyInit;
-      return new Response(data, {
-        headers: { "content-type": getImageContentType(filePath) },
-      });
-    } catch {
-      log.debug("konomi protocol file miss", { url: request.url });
-      return new Response(null, { status: 404 });
-    }
+    });
+
+    electronApp.setAppUserModelId("com.dayrain.konomi");
+
+    app.on("browser-window-created", (_, window) => {
+      optimizer.watchWindowShortcuts(window);
+    });
+
+    createWindow();
+
+    app.on("activate", () => {
+      log.info("App activate");
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  })
+  .catch((error) => {
+    log.errorWithStack("App startup failed", error);
   });
-
-  electronApp.setAppUserModelId("com.dayrain.konomi");
-
-  app.on("browser-window-created", (_, window) => {
-    optimizer.watchWindowShortcuts(window);
-  });
-
-  createWindow();
-
-  app.on("activate", () => {
-    log.info("App activate");
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
 
 app.on("window-all-closed", () => {
   log.info("All windows closed", { platform: process.platform });

@@ -127,6 +127,15 @@ export type PromptToken = {
   order: number;
   groupId: number;
 };
+export type PromptTagSuggestQuery = {
+  prefix: string;
+  limit?: number;
+  exclude?: string[];
+};
+export type PromptTagSuggestion = {
+  tag: string;
+  count: number;
+};
 export type PromptGroup = {
   id: number;
   name: string;
@@ -192,6 +201,9 @@ declare global {
     };
     promptBuilder: {
       listCategories: () => Promise<PromptCategory[]>;
+      suggestTags: (
+        query: PromptTagSuggestQuery,
+      ) => Promise<PromptTagSuggestion[]>;
       createCategory: (name: string) => Promise<PromptCategory>;
       renameCategory: (id: number, name: string) => Promise<void>;
       deleteCategory: (id: number) => Promise<void>;

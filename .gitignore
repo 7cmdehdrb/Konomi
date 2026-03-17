@@ -26,3 +26,4 @@ prisma/migrations
 debug.ts
 dev.db
 dev.db-journal
+resources/prompts.db

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import type { PromptToken, TokenWeightExpression } from "@/lib/token";
+import type { PromptTagSuggestion } from "@preload/index.d";
 
 function weightClass(w: number): string {
   if (w >= 1.3) return "bg-warning/15 text-warning";
@@ -86,6 +87,11 @@ interface SortableBindings {
 const POPOVER_WIDTH = 224;
 const POPOVER_GAP = 6;
 const POPOVER_EDGE_PADDING = 8;
+const TAG_SUGGEST_LIMIT = 8;
+
+function formatTagSuggestionCount(count: number): string {
+  return new Intl.NumberFormat().format(Math.max(0, Math.floor(count)));
+}
 
 interface TokenChipProps {
   token: PromptToken;
@@ -114,6 +120,7 @@ interface TokenChipProps {
   isSortable?: boolean;
   sortableId?: SortableId;
   sortableDisabled?: boolean;
+  tagSuggestionExclude?: string[];
 }
 
 function TokenChipCore({
@@ -140,6 +147,7 @@ function TokenChipCore({
   focusEditorOnOpen = true,
   onTokenFocus,
   onTokenKeyDown,
+  tagSuggestionExclude = [],
   sortable,
 }: Omit<TokenChipProps, "isSortable" | "sortableId" | "sortableDisabled"> & {
   sortable?: SortableBindings;
@@ -151,6 +159,11 @@ function TokenChipCore({
   const editorInputRef = useRef<HTMLInputElement | null>(null);
   const inlineInputRef = useRef<HTMLInputElement | null>(null);
   const inlineHandlingRef = useRef<"apply" | "cancel" | null>(null);
+  const suppressTagSuggestOnceRef = useRef(false);
+  const tagSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const tagSuggestRequestSeqRef = useRef(0);
   const [internalEditorOpen, setInternalEditorOpen] = useState(false);
   const [popoverStyle, setPopoverStyle] = useState<CSSProperties | null>(null);
   const [draftText, setDraftText] = useState(token.text);
@@ -158,12 +171,26 @@ function TokenChipCore({
   const [draftExpression, setDraftExpression] = useState<TokenWeightExpression>(
     inferWeightExpression(token),
   );
+  const [tagSuggestions, setTagSuggestions] = useState<PromptTagSuggestion[]>(
+    [],
+  );
+  const [tagSuggestionOpen, setTagSuggestionOpen] = useState(false);
+  const [tagSuggestionIndex, setTagSuggestionIndex] = useState(0);
 
   useEffect(() => {
     setDraftText(token.text);
     setDraftWeight(clampWeight(token.weight));
     setDraftExpression(inferWeightExpression(token));
   }, [token, raw]);
+
+  useEffect(
+    () => () => {
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+      }
+    },
+    [],
+  );
 
   const isEditorOpenControlled = typeof editorOpen === "boolean";
   const resolvedEditorOpen = isEditorOpenControlled
@@ -174,6 +201,63 @@ function TokenChipCore({
     if (!isEditorOpenControlled) setInternalEditorOpen(open);
     onEditorOpenChange?.(open);
   };
+
+  useEffect(() => {
+    const canSuggest = inlineEditOpen || resolvedEditorOpen;
+    const prefix = draftText.trim();
+
+    if (!canSuggest || !prefix) {
+      setTagSuggestions([]);
+      setTagSuggestionOpen(false);
+      setTagSuggestionIndex(0);
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+        tagSuggestDebounceRef.current = null;
+      }
+      return;
+    }
+
+    if (suppressTagSuggestOnceRef.current) {
+      suppressTagSuggestOnceRef.current = false;
+      return;
+    }
+
+    if (tagSuggestDebounceRef.current) {
+      clearTimeout(tagSuggestDebounceRef.current);
+      tagSuggestDebounceRef.current = null;
+    }
+
+    tagSuggestDebounceRef.current = setTimeout(() => {
+      const requestId = ++tagSuggestRequestSeqRef.current;
+      window.promptBuilder
+        .suggestTags({
+          prefix,
+          limit: TAG_SUGGEST_LIMIT,
+          exclude: tagSuggestionExclude,
+        })
+        .then((results) => {
+          if (requestId !== tagSuggestRequestSeqRef.current) return;
+          setTagSuggestions(results);
+          setTagSuggestionOpen(results.length > 0);
+          setTagSuggestionIndex((prev) =>
+            results.length === 0 ? 0 : Math.min(prev, results.length - 1),
+          );
+        })
+        .catch(() => {
+          if (requestId !== tagSuggestRequestSeqRef.current) return;
+          setTagSuggestions([]);
+          setTagSuggestionOpen(false);
+          setTagSuggestionIndex(0);
+        });
+    }, 120);
+
+    return () => {
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+        tagSuggestDebounceRef.current = null;
+      }
+    };
+  }, [draftText, inlineEditOpen, resolvedEditorOpen, tagSuggestionExclude]);
 
   useEffect(() => {
     if (!resolvedEditorOpen) return;
@@ -301,6 +385,35 @@ function TokenChipCore({
   };
 
   const handleInlineKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (tagSuggestionOpen && tagSuggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setTagSuggestionIndex((i) => (i + 1) % tagSuggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setTagSuggestionIndex((i) =>
+          i <= 0 ? tagSuggestions.length - 1 : i - 1,
+        );
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        applyTagSuggestion(
+          tagSuggestions[tagSuggestionIndex] ?? tagSuggestions[0],
+        );
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setTagSuggestionOpen(false);
+        setTagSuggestionIndex(0);
+        return;
+      }
+    }
+
     if (e.key === "Backspace" && e.currentTarget.value === "") {
       e.preventDefault();
       applyInlineEdit(false);
@@ -386,6 +499,23 @@ function TokenChipCore({
     setDraftExpression(inferWeightExpression(token));
   };
 
+  const applyTagSuggestion = (suggestion: PromptTagSuggestion) => {
+    suppressTagSuggestOnceRef.current = true;
+    setDraftText(suggestion.tag);
+    setTagSuggestions([]);
+    setTagSuggestionOpen(false);
+    setTagSuggestionIndex(0);
+    window.requestAnimationFrame(() => {
+      if (inlineEditOpen) {
+        inlineInputRef.current?.focus();
+        return;
+      }
+      if (resolvedEditorOpen) {
+        editorInputRef.current?.focus();
+      }
+    });
+  };
+
   const emitChange = (
     nextText: string,
     nextWeight: number,
@@ -461,6 +591,35 @@ function TokenChipCore({
   };
 
   const handleTagInputKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (tagSuggestionOpen && tagSuggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setTagSuggestionIndex((i) => (i + 1) % tagSuggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setTagSuggestionIndex((i) =>
+          i <= 0 ? tagSuggestions.length - 1 : i - 1,
+        );
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        applyTagSuggestion(
+          tagSuggestions[tagSuggestionIndex] ?? tagSuggestions[0],
+        );
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setTagSuggestionOpen(false);
+        setTagSuggestionIndex(0);
+        return;
+      }
+    }
+
     if (e.altKey && !e.ctrlKey && !e.shiftKey) {
       const start = e.currentTarget.selectionStart ?? 0;
       const end = e.currentTarget.selectionEnd ?? 0;
@@ -621,6 +780,31 @@ function TokenChipCore({
           {copied ? <Copy className="h-3 w-3 shrink-0" /> : null}
         </div>
       )}
+      {inlineEditOpen && tagSuggestionOpen && tagSuggestions.length > 0 ? (
+        <div className="absolute top-full left-0 z-40 mt-1 w-72 overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
+          {tagSuggestions.map((suggestion, index) => (
+            <button
+              key={`${suggestion.tag}-${suggestion.count}`}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyTagSuggestion(suggestion);
+              }}
+              className={cn(
+                "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors",
+                index === tagSuggestionIndex
+                  ? "bg-primary/15 text-primary"
+                  : "text-foreground/85 hover:bg-secondary",
+              )}
+            >
+              <span className="truncate">{suggestion.tag}</span>
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                {formatTagSuggestionCount(suggestion.count)}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 
@@ -647,14 +831,41 @@ function TokenChipCore({
               <label className="block text-[10px] uppercase tracking-wider text-muted-foreground">
                 Tag
               </label>
-              <input
-                ref={editorInputRef}
-                value={draftText}
-                onChange={(e) => setDraftText(e.target.value)}
-                onKeyDown={handleTagInputKeyDown}
-                placeholder="tag"
-                className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary/60"
-              />
+              <div className="relative">
+                <input
+                  ref={editorInputRef}
+                  value={draftText}
+                  onChange={(e) => setDraftText(e.target.value)}
+                  onKeyDown={handleTagInputKeyDown}
+                  placeholder="tag"
+                  className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary/60"
+                />
+                {tagSuggestionOpen && tagSuggestions.length > 0 ? (
+                  <div className="absolute top-full left-0 z-40 mt-1 max-h-56 w-full overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-popover shadow-lg">
+                    {tagSuggestions.map((suggestion, index) => (
+                      <button
+                        key={`${suggestion.tag}-${suggestion.count}`}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          applyTagSuggestion(suggestion);
+                        }}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors",
+                          index === tagSuggestionIndex
+                            ? "bg-primary/15 text-primary"
+                            : "text-foreground/85 hover:bg-secondary",
+                        )}
+                      >
+                        <span className="truncate">{suggestion.tag}</span>
+                        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                          {formatTagSuggestionCount(suggestion.count)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-2.5 space-y-1.5">
