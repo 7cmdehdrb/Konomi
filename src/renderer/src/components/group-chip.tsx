@@ -61,7 +61,9 @@ function GroupChipCore({
   const newTagInputRef = useRef<HTMLInputElement | null>(null);
 
   // "preview" = popup showing current expansion; "editor" = full edit popover; "delete" = delete confirm
-  const [activePopup, setActivePopup] = useState<"preview" | "editor" | "delete" | null>(null);
+  const [activePopup, setActivePopup] = useState<
+    "preview" | "editor" | "delete" | null
+  >(null);
   const [popoverStyle, setPopoverStyle] = useState<CSSProperties | null>(null);
 
   // Editor draft state
@@ -70,7 +72,8 @@ function GroupChipCore({
   const [newTagDraft, setNewTagDraft] = useState("");
 
   const group = groups.find((g) => g.name === token.groupName);
-  const currentTags = token.overrideTags ?? group?.tokens.map((t) => t.label) ?? [];
+  const currentTags =
+    token.overrideTags ?? group?.tokens.map((t) => t.label) ?? [];
   const hasOverride = token.overrideTags !== undefined;
 
   const openEditor = () => {
@@ -248,19 +251,15 @@ function GroupChipCore({
         {...(activePopup !== null ? {} : sortable?.listeners)}
         className={cn(
           "inline-flex items-center gap-1 px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer touch-none select-none",
-          "bg-violet-100 text-violet-800 border-violet-300/60",
-          "dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-400/30",
+          "bg-group/14 text-group border-group/35",
           "hover:brightness-105",
           sortable?.isDragging && "opacity-70",
-          hasOverride &&
-            "ring-1 ring-violet-400/60 dark:ring-violet-400/40",
+          hasOverride && "ring-1 ring-group/40",
         )}
       >
-        <span className="font-semibold text-violet-500 dark:text-violet-400 shrink-0">
-          @
-        </span>
+        <span className="font-semibold text-group shrink-0">@</span>
         <span>{`{${token.groupName}}`}</span>
-        <ChevronDown className="h-2.5 w-2.5 shrink-0 text-violet-400" />
+        <ChevronDown className="h-2.5 w-2.5 shrink-0 text-group/80" />
       </div>
     </div>
   );
@@ -278,7 +277,7 @@ function GroupChipCore({
           {token.groupName}
         </p>
         {hasOverride && (
-          <span className="text-[9px] text-violet-500/80 bg-violet-100 dark:bg-violet-500/10 px-1.5 py-0.5 rounded">
+          <span className="rounded bg-group/12 px-1.5 py-0.5 text-[9px] text-group/85">
             편집됨
           </span>
         )}
@@ -305,7 +304,7 @@ function GroupChipCore({
           <button
             type="button"
             onClick={() => openEditor()}
-            className="text-[10px] text-violet-500 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
+            className="text-[10px] text-group hover:text-group/80 transition-colors"
           >
             편집
           </button>
@@ -447,7 +446,10 @@ function GroupChipCore({
       onClick={(e) => e.stopPropagation()}
     >
       <p className="text-xs text-foreground/80 mb-2.5">
-        <span className="font-medium text-violet-500">@{`{${token.groupName}}`}</span>을 제거하시겠습니까?
+        <span className="font-medium text-group">
+          @{`{${token.groupName}}`}
+        </span>
+        을 제거하시겠습니까?
       </p>
       <div className="flex items-center justify-end gap-1.5">
         <button

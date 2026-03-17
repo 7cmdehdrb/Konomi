@@ -115,7 +115,9 @@ export function PromptInput({
     toEditableTokens(parsePromptTokens(value)),
   );
   const [draft, setDraft] = useState("");
-  const [inlineEditTokenId, setInlineEditTokenId] = useState<string | null>(null);
+  const [inlineEditTokenId, setInlineEditTokenId] = useState<string | null>(
+    null,
+  );
   const [popoverTokenId, setPopoverTokenId] = useState<string | null>(null);
   // When set, new tokens from the draft are inserted at this index (instead of appended).
   // Also controls where the input element is rendered in the chip list.
@@ -413,7 +415,9 @@ export function PromptInput({
       .map((token) => (token.id === id ? { ...nextToken, id } : token))
       .filter(
         (token) =>
-          isGroupRef(token) || isWildcard(token) || token.text.trim().length > 0,
+          isGroupRef(token) ||
+          isWildcard(token) ||
+          token.text.trim().length > 0,
       );
     emit(nextTokens, draft);
   };
@@ -533,7 +537,9 @@ export function PromptInput({
       const nextTokens = tokens.filter((_, i) => i !== deleteAt);
       if (insertIndex !== null) {
         // If no tokens remain, exit insert mode (input returns to trailing position)
-        setInsertIndex(nextTokens.length === 0 ? null : Math.max(0, insertIndex - 1));
+        setInsertIndex(
+          nextTokens.length === 0 ? null : Math.max(0, insertIndex - 1),
+        );
       }
       emit(nextTokens, "");
     }
@@ -719,7 +725,7 @@ export function PromptInput({
                   : "text-foreground/80 hover:bg-secondary",
               )}
             >
-              <span className="text-violet-500 font-semibold">@</span>
+              <span className="font-semibold text-group">@</span>
               {`{${g.name}}`}
             </button>
           ))}
@@ -761,14 +767,20 @@ export function PromptInput({
           }
         }
       }}
-      onDragOver={allowExternalDrop ? (e) => {
-        if (e.dataTransfer.types.includes(DRAG_TOKEN_MIME)) {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "copy";
-          setExternalDragOver(true);
-        }
-      } : undefined}
-      onDragLeave={allowExternalDrop ? () => setExternalDragOver(false) : undefined}
+      onDragOver={
+        allowExternalDrop
+          ? (e) => {
+              if (e.dataTransfer.types.includes(DRAG_TOKEN_MIME)) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+                setExternalDragOver(true);
+              }
+            }
+          : undefined
+      }
+      onDragLeave={
+        allowExternalDrop ? () => setExternalDragOver(false) : undefined
+      }
       onDrop={
         allowExternalDrop
           ? (e) => {
@@ -896,7 +908,9 @@ export function PromptInput({
                       handleWildcardChange(token.id, nextToken)
                     }
                     onDelete={() => {
-                      const nextTokens = tokens.filter((t) => t.id !== token.id);
+                      const nextTokens = tokens.filter(
+                        (t) => t.id !== token.id,
+                      );
                       emit(nextTokens, draft);
                       requestAnimationFrame(() => focusInput("end"));
                     }}
@@ -953,7 +967,9 @@ export function PromptInput({
                       handleTokenChange(token.id, nextToken)
                     }
                     onDelete={() => {
-                      const nextTokens = tokens.filter((t) => t.id !== token.id);
+                      const nextTokens = tokens.filter(
+                        (t) => t.id !== token.id,
+                      );
                       emit(nextTokens, draft);
                       requestAnimationFrame(() => focusInput("end"));
                     }}
@@ -988,7 +1004,8 @@ export function PromptInput({
                         else focusInput("start");
                         return;
                       }
-                      if (index < tokens.length - 1) focusTokenAtIndex(index + 1);
+                      if (index < tokens.length - 1)
+                        focusTokenAtIndex(index + 1);
                       else focusInput("start");
                     }}
                     onRequestVerticalNavigation={(direction) =>
@@ -1003,7 +1020,8 @@ export function PromptInput({
                     <div className="relative min-w-[3ch] basis-0 flex-1">
                       {inputInner}
                     </div>
-                  ) : (chipCursorIndex === index || inlineEditTokenId === token.id) ? (
+                  ) : chipCursorIndex === index ||
+                    inlineEditTokenId === token.id ? (
                     <span
                       className="inline-block w-0.5 h-4 self-center rounded-full bg-primary/80"
                       style={{

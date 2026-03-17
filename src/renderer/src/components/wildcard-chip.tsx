@@ -59,9 +59,7 @@ function WildcardChipCore({
   const [newOptionDraft, setNewOptionDraft] = useState("");
 
   const previewText =
-    token.options.length > 0
-      ? token.options.join("|")
-      : "옵션 없음";
+    token.options.length > 0 ? token.options.join("|") : "옵션 없음";
 
   const openPopover = () => {
     setDraftOptions([...token.options]);
@@ -111,19 +109,32 @@ function WildcardChipCore({
 
       let left = rect.left;
       left = Math.max(POPOVER_EDGE_PADDING, left);
-      left = Math.min(left, viewportWidth - POPOVER_WIDTH - POPOVER_EDGE_PADDING);
+      left = Math.min(
+        left,
+        viewportWidth - POPOVER_WIDTH - POPOVER_EDGE_PADDING,
+      );
 
       const spaceBelow = viewportHeight - rect.bottom - POPOVER_EDGE_PADDING;
       const spaceAbove = rect.top - POPOVER_EDGE_PADDING;
-      const shouldOpenAbove = spaceBelow < popoverHeight && spaceAbove > spaceBelow;
+      const shouldOpenAbove =
+        spaceBelow < popoverHeight && spaceAbove > spaceBelow;
 
       let top = shouldOpenAbove
         ? rect.top - popoverHeight - POPOVER_GAP
         : rect.bottom + POPOVER_GAP;
       top = Math.max(POPOVER_EDGE_PADDING, top);
-      top = Math.min(top, viewportHeight - popoverHeight - POPOVER_EDGE_PADDING);
+      top = Math.min(
+        top,
+        viewportHeight - popoverHeight - POPOVER_EDGE_PADDING,
+      );
 
-      setPopoverStyle({ position: "fixed", top, left, width: POPOVER_WIDTH, zIndex: 3000 });
+      setPopoverStyle({
+        position: "fixed",
+        top,
+        left,
+        width: POPOVER_WIDTH,
+        zIndex: 3000,
+      });
     };
 
     const onPointerDown = (e: MouseEvent) => {
@@ -191,17 +202,16 @@ function WildcardChipCore({
         {...(!popoverOpen ? sortable?.listeners : {})}
         className={cn(
           "inline-flex items-center gap-1 px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer touch-none select-none",
-          "bg-amber-100 text-amber-800 border-amber-300/60",
-          "dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-400/30",
+          "bg-wildcard/14 text-wildcard border-wildcard/35",
           "hover:brightness-105",
           sortable?.isDragging && "opacity-70",
         )}
       >
-        <Dices className="h-3 w-3 shrink-0 text-amber-500 dark:text-amber-400" />
+        <Dices className="h-3 w-3 shrink-0 text-wildcard" />
         <span
           className={cn(
             "max-w-[120px] truncate",
-            token.resolved ? "text-amber-700 dark:text-amber-200 font-medium" : "text-amber-700/70 dark:text-amber-400/70",
+            token.resolved ? "text-wildcard font-medium" : "text-wildcard/70",
           )}
         >
           {token.resolved ?? previewText}
@@ -224,7 +234,9 @@ function WildcardChipCore({
       {/* Option list */}
       <div className="space-y-1 max-h-36 overflow-y-auto mb-2">
         {draftOptions.length === 0 ? (
-          <p className="text-xs text-muted-foreground/40 text-center py-2">옵션 없음</p>
+          <p className="text-xs text-muted-foreground/40 text-center py-2">
+            옵션 없음
+          </p>
         ) : (
           draftOptions.map((opt, i) => (
             <div key={i} className="flex items-center gap-1.5 group/opt">
@@ -273,7 +285,7 @@ function WildcardChipCore({
       </div>
 
       {token.resolved && (
-        <p className="text-[10px] text-amber-500/80 mb-2">
+        <p className="mb-2 text-[10px] text-wildcard/85">
           마지막 선택: <span className="font-medium">{token.resolved}</span>
         </p>
       )}
@@ -329,8 +341,14 @@ function SortableWildcardChip({
   sortableDisabled = false,
   ...props
 }: Omit<WildcardChipProps, "isSortable"> & { sortableId: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: sortableId, disabled: sortableDisabled });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sortableId, disabled: sortableDisabled });
 
   return (
     <WildcardChipCore

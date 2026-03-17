@@ -9,7 +9,7 @@ const features = [
   {
     icon: Search,
     title: "프롬프트 검색",
-    description: "이미지에 포함된 프롬프트를 자동으로 추출하고 검색할 수 있습니다",
+    description: "이미지에 포함된 프롬프트로 검색할 수 있습니다",
   },
   {
     icon: Sparkles,
@@ -19,7 +19,7 @@ const features = [
   {
     icon: Tags,
     title: "카테고리 관리",
-    description: "이미지를 카테고리로 분류하고 즐겨찾기로 관리하세요",
+    description: "이미지를 입맛대로 카테고리로 분류하세요",
   },
 ];
 
@@ -32,13 +32,11 @@ export function OnboardingView({ onAddFolder }: OnboardingViewProps) {
           <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
             <Images className="h-10 w-10 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground">
-            Konomi에 오신 것을 환영합니다
-          </h2>
+          <h2 className="text-2xl font-bold text-foreground">환영합니다</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            NovelAI, Stable Diffusion 이미지의 프롬프트를 자동으로 추출하고
+            AI 생성 이미지를 더 쉽고 편리하게
             <br />
-            검색, 분류, 관리할 수 있는 이미지 갤러리입니다.
+            검색, 분류, 관리할 수 있는 솔루션입니다.
           </p>
         </div>
 
@@ -65,13 +63,13 @@ export function OnboardingView({ onAddFolder }: OnboardingViewProps) {
         </div>
 
         {/* CTA */}
-        <div className="space-y-2">
+        <div className="space-y-4">
           <Button size="lg" className="gap-2" onClick={onAddFolder}>
             <FolderPlus className="h-5 w-5" />
             이미지 폴더 추가하기
           </Button>
           <p className="text-xs text-muted-foreground">
-            PNG 이미지가 있는 폴더를 추가하면 자동으로 스캔이 시작됩니다
+            이미지가 있는 폴더를 추가하면 자동으로 스캔이 시작됩니다
           </p>
         </div>
       </div>

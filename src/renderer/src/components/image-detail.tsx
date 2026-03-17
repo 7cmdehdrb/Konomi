@@ -37,13 +37,13 @@ function SimilarThumb({
         "relative w-full aspect-square rounded-md overflow-hidden ring-2 transition-all block",
         isCurrent
           ? "ring-primary cursor-default"
-          : "ring-transparent hover:ring-primary/50 dark:hover:ring-white/40 cursor-pointer",
+          : "ring-transparent hover:ring-primary/50 cursor-pointer",
       )}
       onClick={onClick}
     >
       {!loaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/60 dark:bg-white/5">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/60 dark:text-white/30" />
+        <div className="absolute inset-0 flex items-center justify-center bg-background/70">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/70" />
         </div>
       )}
       <img
@@ -58,12 +58,12 @@ function SimilarThumb({
       {!isCurrent && reason && (
         <span
           className={cn(
-            "absolute left-1 top-1 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+            "absolute left-1 top-1 rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide backdrop-blur-sm",
             reason === "both"
-              ? "bg-amber-500/90 text-black"
+              ? "border-warning/45 bg-background/85 text-warning"
               : reason === "visual"
-                ? "bg-sky-500/90 text-white"
-                : "bg-emerald-500/90 text-white",
+                ? "border-info/45 bg-background/85 text-info"
+                : "border-success/45 bg-background/85 text-success",
           )}
         >
           {reason === "both" ? "B" : reason === "visual" ? "V" : "P"}
@@ -186,27 +186,26 @@ export function ImageDetail({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 bg-background/95 dark:bg-black/95 flex flex-col",
+        "fixed inset-0 z-50 bg-background/95 flex flex-col",
         !isOpen && "hidden",
       )}
     >
       {/* Top Bar */}
-      <div className="relative flex items-center justify-between px-5 py-2.5 shrink-0 border-b border-border/60 dark:border-white/10 bg-background/70 dark:bg-transparent">
+      <div className="relative flex items-center justify-between border-b border-border/60 bg-background/80 px-5 py-2.5 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             className={cn(
-              "h-8 text-muted-foreground hover:text-foreground dark:text-white/60 dark:hover:text-white",
-              image.isFavorite &&
-                "text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300",
+              "h-8 text-muted-foreground hover:text-foreground",
+              image.isFavorite && "text-favorite hover:text-favorite",
             )}
             onClick={() => onToggleFavorite(image.id)}
           >
             <Heart
               className={cn(
                 "h-4 w-4 mr-1.5",
-                image.isFavorite && "fill-red-400",
+                image.isFavorite && "fill-favorite",
               )}
             />
             {image.isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}
@@ -214,11 +213,11 @@ export function ImageDetail({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 text-muted-foreground hover:text-foreground dark:text-white/60 dark:hover:text-white"
+            className="h-8 text-muted-foreground hover:text-foreground"
             onClick={() => handleCopy("prompt", image.prompt)}
           >
             {copiedKey === "prompt" ? (
-              <Check className="h-4 w-4 mr-1.5 text-green-400" />
+              <Check className="h-4 w-4 mr-1.5 text-success" />
             ) : (
               <Copy className="h-4 w-4 mr-1.5" />
             )}
@@ -227,7 +226,7 @@ export function ImageDetail({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 text-muted-foreground hover:text-foreground dark:text-white/60 dark:hover:text-white"
+            className="h-8 text-muted-foreground hover:text-foreground"
             onClick={() => setFitMode((m) => (m === "fit" ? "actual" : "fit"))}
           >
             {fitMode === "fit" ? (
@@ -244,7 +243,7 @@ export function ImageDetail({
           </Button>
         </div>
 
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 text-xs text-muted-foreground dark:text-white/30 pointer-events-none">
+        <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center gap-2 text-xs text-muted-foreground/70">
           {image.model && <span>{image.model}</span>}
           {image.model && <span>·</span>}
           <span>
@@ -255,7 +254,7 @@ export function ImageDetail({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground dark:text-white/60 dark:hover:text-white"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={onClose}
         >
           <X className="h-5 w-5" />
@@ -265,8 +264,8 @@ export function ImageDetail({
       {/* Body: similar | image | info */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Similar Images Panel */}
-        <div className="w-24 shrink-0 border-r border-border/60 dark:border-white/10 bg-card/70 dark:bg-black/40 flex flex-col">
-          <p className="text-[10px] font-semibold text-muted-foreground dark:text-white/30 uppercase tracking-widest text-center pt-3 pb-1 shrink-0">
+        <div className="flex w-24 shrink-0 flex-col border-r border-border/60 bg-card/70">
+          <p className="shrink-0 pt-3 pb-1 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
             유사 이미지
           </p>
           <div className="flex-1 min-h-0 overflow-y-auto">
@@ -285,21 +284,21 @@ export function ImageDetail({
                 ))}
               </div>
             ) : (
-              <p className="text-[10px] text-muted-foreground/70 dark:text-white/50 text-center px-2 pt-4">
+              <p className="px-2 pt-4 text-center text-[10px] text-muted-foreground/70">
                 없음
               </p>
             )}
           </div>
           {totalPages > 1 && (
-            <div className="shrink-0 flex items-center justify-between px-1.5 py-1.5 border-t border-border/60 dark:border-white/10">
+            <div className="flex shrink-0 items-center justify-between border-t border-border/60 px-1.5 py-1.5">
               <button
                 onClick={() => setSimilarPage((p) => Math.max(0, p - 1))}
                 disabled={similarPage === 0}
-                className="text-muted-foreground/70 hover:text-foreground dark:text-white/40 dark:hover:text-white disabled:opacity-20 transition-colors"
+                className="text-muted-foreground/70 hover:text-foreground disabled:opacity-20 transition-colors"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </button>
-              <span className="text-[10px] text-muted-foreground dark:text-white/30 tabular-nums">
+              <span className="text-[10px] text-muted-foreground/70 tabular-nums">
                 {similarPage + 1}/{totalPages}
               </span>
               <button
@@ -307,7 +306,7 @@ export function ImageDetail({
                   setSimilarPage((p) => Math.min(totalPages - 1, p + 1))
                 }
                 disabled={similarPage === totalPages - 1}
-                className="text-muted-foreground/70 hover:text-foreground dark:text-white/40 dark:hover:text-white disabled:opacity-20 transition-colors"
+                className="text-muted-foreground/70 hover:text-foreground disabled:opacity-20 transition-colors"
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -319,7 +318,7 @@ export function ImageDetail({
         <div className="relative flex-1 min-w-0 min-h-0 overflow-hidden">
           {!imgLoaded && (
             <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/70 dark:text-white/30" />
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/70" />
             </div>
           )}
           {fitMode === "fit" ? (
@@ -374,7 +373,7 @@ export function ImageDetail({
           {/* Prev button */}
           <button
             className={cn(
-              "absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-full rounded-full bg-background/75 text-muted-foreground/80 hover:bg-background hover:text-foreground dark:bg-black/40 dark:text-white/50 dark:hover:bg-black/70 dark:hover:text-white transition-colors",
+              "absolute left-3 top-1/2 flex h-full w-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/75 text-muted-foreground/80 hover:bg-background/90 hover:text-foreground transition-colors",
               !prevImage && "opacity-0 pointer-events-none",
             )}
             onClick={onPrev}
@@ -385,7 +384,7 @@ export function ImageDetail({
           {/* Next button */}
           <button
             className={cn(
-              "absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-full rounded-full bg-background/75 text-muted-foreground/80 hover:bg-background hover:text-foreground dark:bg-black/40 dark:text-white/50 dark:hover:bg-black/70 dark:hover:text-white transition-colors",
+              "absolute right-3 top-1/2 flex h-full w-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/75 text-muted-foreground/80 hover:bg-background/90 hover:text-foreground transition-colors",
               !nextImage && "opacity-0 pointer-events-none",
             )}
             onClick={onNext}
@@ -395,23 +394,23 @@ export function ImageDetail({
         </div>
 
         {/* Info Panel */}
-        <div className="w-80 shrink-0 border-l border-border/60 dark:border-white/10 bg-card/70 dark:bg-black/40">
+        <div className="w-80 shrink-0 border-l border-border/60 bg-card/70">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-3">
               {/* Prompt */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-semibold text-muted-foreground dark:text-white/40 uppercase tracking-widest select-none">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
                     Prompt
                   </p>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 px-1.5 py-0 text-muted-foreground dark:text-white/30 hover:text-foreground dark:hover:text-white"
+                    className="h-5 px-1.5 py-0 text-muted-foreground hover:text-foreground"
                     onClick={() => handleCopy("prompt", image.prompt)}
                   >
                     {copiedKey === "prompt" ? (
-                      <Check className="h-3 w-3 text-green-400" />
+                      <Check className="h-3 w-3 text-success" />
                     ) : (
                       <Copy className="h-3 w-3" />
                     )}
@@ -427,21 +426,21 @@ export function ImageDetail({
 
               {/* Negative Prompt */}
               {image.negativePrompt && (
-                <div className="space-y-1 border-t border-border/60 dark:border-white/10 pt-3">
+                <div className="space-y-1 border-t border-border/60 pt-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-semibold text-muted-foreground dark:text-white/40 uppercase tracking-widest select-none">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
                       Negative
                     </p>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-5 px-1.5 py-0 text-muted-foreground dark:text-white/30 hover:text-foreground dark:hover:text-white"
+                      className="h-5 px-1.5 py-0 text-muted-foreground hover:text-foreground"
                       onClick={() =>
                         handleCopy("negative", image.negativePrompt!)
                       }
                     >
                       {copiedKey === "negative" ? (
-                        <Check className="h-3 w-3 text-green-400" />
+                        <Check className="h-3 w-3 text-success" />
                       ) : (
                         <Copy className="h-3 w-3" />
                       )}
@@ -461,20 +460,20 @@ export function ImageDetail({
                 image.characterPrompts.map((cp, i) => (
                   <div
                     key={i}
-                    className="space-y-1 border-t border-border/60 dark:border-white/10 pt-3"
+                    className="space-y-1 border-t border-border/60 pt-3"
                   >
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-semibold text-muted-foreground dark:text-white/40 uppercase tracking-widest select-none">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
                         Char {i + 1}
                       </p>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-5 px-1.5 py-0 text-muted-foreground dark:text-white/30 hover:text-foreground dark:hover:text-white"
+                        className="h-5 px-1.5 py-0 text-muted-foreground hover:text-foreground"
                         onClick={() => handleCopy(`char-${i}`, cp)}
                       >
                         {copiedKey === `char-${i}` ? (
-                          <Check className="h-3 w-3 text-green-400" />
+                          <Check className="h-3 w-3 text-success" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
@@ -492,103 +491,83 @@ export function ImageDetail({
                 ))}
 
               {/* Metadata */}
-              <div className="border-t border-border/60 dark:border-white/10 pt-3 space-y-1">
-                <p className="text-[10px] font-semibold text-muted-foreground dark:text-white/40 uppercase tracking-widest">
+              <div className="border-t border-border/60 pt-3 space-y-1">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
                   Info
                 </p>
                 <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-                  <span className="text-muted-foreground dark:text-white/30">
-                    Model
-                  </span>
-                  <span className="text-foreground/80 dark:text-white/70 truncate">
+                  <span className="text-muted-foreground/70">Model</span>
+                  <span className="text-foreground/80 truncate">
                     {image.model || "—"}
                   </span>
-                  <span className="text-muted-foreground dark:text-white/30">
-                    Seed
-                  </span>
+                  <span className="text-muted-foreground/70">Seed</span>
                   <span className="flex items-center gap-1.5">
-                    <span className="text-foreground/80 dark:text-white/70 font-mono">
+                    <span className="font-mono text-foreground/80">
                       {hasSeed ? image.seed : "—"}
                     </span>
                     {hasSeed ? (
                       <button
-                        className="text-muted-foreground dark:text-white/50 hover:text-foreground dark:hover:text-white transition-colors"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
                         onClick={() => handleCopy("seed", String(image.seed))}
                       >
                         {copiedKey === "seed" ? (
-                          <Check className="h-3 w-3 text-green-400" />
+                          <Check className="h-3 w-3 text-success" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
                       </button>
                     ) : null}
                   </span>
-                  <span className="text-muted-foreground dark:text-white/30">
-                    Size
-                  </span>
-                  <span className="text-foreground/80 dark:text-white/70 font-mono">
+                  <span className="text-muted-foreground/70">Size</span>
+                  <span className="font-mono text-foreground/80">
                     {image.width}×{image.height}
                   </span>
-                  <span className="text-muted-foreground dark:text-white/30">
-                    Sampler
-                  </span>
-                  <span className="text-foreground/80 dark:text-white/70 truncate">
+                  <span className="text-muted-foreground/70">Sampler</span>
+                  <span className="text-foreground/80 truncate">
                     {image.sampler || "—"}
                   </span>
-                  <span className="text-muted-foreground dark:text-white/30">
-                    Steps
-                  </span>
-                  <span className="text-foreground/80 dark:text-white/70 font-mono">
+                  <span className="text-muted-foreground/70">Steps</span>
+                  <span className="font-mono text-foreground/80">
                     {image.steps || "—"}
                   </span>
-                  <span className="text-muted-foreground dark:text-white/30">
-                    CFG
-                  </span>
-                  <span className="text-foreground/80 dark:text-white/70 font-mono">
+                  <span className="text-muted-foreground/70">CFG</span>
+                  <span className="font-mono text-foreground/80">
                     {image.cfgScale || "—"}
                   </span>
                   {image.cfgRescale ? (
                     <>
-                      <span className="text-muted-foreground dark:text-white/30">
+                      <span className="text-muted-foreground/70">
                         CFG Rescale
                       </span>
-                      <span className="text-foreground/80 dark:text-white/70 font-mono">
+                      <span className="font-mono text-foreground/80">
                         {image.cfgRescale}
                       </span>
                     </>
                   ) : null}
                   {image.noiseSchedule ? (
                     <>
-                      <span className="text-muted-foreground dark:text-white/30">
+                      <span className="text-muted-foreground/70">
                         Noise Schedule
                       </span>
-                      <span className="text-foreground/80 dark:text-white/70 truncate">
+                      <span className="text-foreground/80 truncate">
                         {image.noiseSchedule}
                       </span>
                     </>
                   ) : null}
                   {image.varietyPlus ? (
                     <>
-                      <span className="text-muted-foreground dark:text-white/30">
-                        Variety+
-                      </span>
-                      <span className="text-foreground/80 dark:text-white/70">
-                        ON
-                      </span>
+                      <span className="text-muted-foreground/70">Variety+</span>
+                      <span className="text-foreground/80">ON</span>
                     </>
                   ) : null}
-                  <span className="text-muted-foreground dark:text-white/30">
-                    Date
-                  </span>
-                  <span className="text-foreground/80 dark:text-white/70">
+                  <span className="text-muted-foreground/70">Date</span>
+                  <span className="text-foreground/80">
                     {new Date(image.fileModifiedAt).toLocaleDateString("ko-KR")}
                   </span>
                   {image.pHash ? (
                     <>
-                      <span className="text-muted-foreground dark:text-white/30">
-                        P-Hash
-                      </span>
-                      <span className="text-muted-foreground/80 dark:text-white/50 font-mono truncate">
+                      <span className="text-muted-foreground/70">P-Hash</span>
+                      <span className="font-mono text-muted-foreground/80 truncate">
                         {image.pHash}
                       </span>
                     </>

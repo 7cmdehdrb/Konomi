@@ -69,7 +69,33 @@ type RefImage = {
 type CharacterPromptMode = "prompt" | "negativePrompt";
 type PromptEditorMode = "simple" | "advanced";
 
-type CharacterPosition = "global" | "A1" | "A2" | "A3" | "A4" | "A5" | "B1" | "B2" | "B3" | "B4" | "B5" | "C1" | "C2" | "C3" | "C4" | "C5" | "D1" | "D2" | "D3" | "D4" | "D5" | "E1" | "E2" | "E3" | "E4" | "E5";
+type CharacterPosition =
+  | "global"
+  | "A1"
+  | "A2"
+  | "A3"
+  | "A4"
+  | "A5"
+  | "B1"
+  | "B2"
+  | "B3"
+  | "B4"
+  | "B5"
+  | "C1"
+  | "C2"
+  | "C3"
+  | "C4"
+  | "C5"
+  | "D1"
+  | "D2"
+  | "D3"
+  | "D4"
+  | "D5"
+  | "E1"
+  | "E2"
+  | "E3"
+  | "E4"
+  | "E5";
 
 const POSITION_COLS = ["A", "B", "C", "D", "E"] as const;
 const POSITION_ROWS = [1, 2, 3, 4, 5] as const;
@@ -88,7 +114,9 @@ function PositionAdjustButton({
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties | null>(null);
+  const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -701,7 +729,10 @@ function AdvancedParamsSection({
             </span>
             {localSeed.trim() && !seedFocused ? (
               <span
-                onClick={() => { setLocalSeed(""); setSeedInput(""); }}
+                onClick={() => {
+                  setLocalSeed("");
+                  setSeedInput("");
+                }}
                 className="max-w-16 truncate text-sm font-semibold tabular-nums leading-none font-mono text-foreground cursor-pointer"
               >
                 {localSeed.trim()}
@@ -713,7 +744,10 @@ function AdvancedParamsSection({
                 value={localSeed}
                 onChange={(e) => setLocalSeed(e.target.value)}
                 onFocus={() => setSeedFocused(true)}
-                onBlur={() => { setSeedFocused(false); setSeedInput(localSeed); }}
+                onBlur={() => {
+                  setSeedFocused(false);
+                  setSeedInput(localSeed);
+                }}
                 placeholder="-"
                 className="w-16 max-w-16 text-sm font-semibold tabular-nums leading-none font-mono bg-transparent border-none outline-none text-foreground placeholder:text-foreground/30 p-0"
               />
@@ -726,7 +760,7 @@ function AdvancedParamsSection({
               Sampler
             </span>
             <RadixSelect value={sampler} onValueChange={setSampler}>
-              <SelectTrigger className="h-auto data-[size=default]:h-auto p-0 border-none bg-transparent dark:bg-transparent shadow-none text-sm font-semibold leading-none text-foreground gap-1 focus-visible:ring-0 max-w-[120px] [&_svg]:size-3.5">
+              <SelectTrigger className="h-auto data-[size=default]:h-auto p-0 border-none bg-transparent shadow-none text-sm font-semibold leading-none text-foreground gap-1 focus-visible:ring-0 max-w-[120px] [&_svg]:size-3.5">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -956,8 +990,7 @@ function AutoGenSection({
                       : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
                   )}
                 >
-                  {infinite && <Check className="h-2.5 w-2.5" />}
-                  ∞ 무한
+                  {infinite && <Check className="h-2.5 w-2.5" />}∞ 무한
                 </button>
               </div>
             </div>
@@ -971,7 +1004,13 @@ function AutoGenSection({
           </div>
           <div>
             <FieldLabel label="딜레이" value={`${delay.toFixed(1)}s`} />
-            <Slider min={3} max={60} step={0.5} value={delay} onChange={setDelay} />
+            <Slider
+              min={3}
+              max={60}
+              step={0.5}
+              value={delay}
+              onChange={setDelay}
+            />
           </div>
           <div>
             <span className="text-xs text-muted-foreground block mb-2">
@@ -1005,7 +1044,7 @@ function AutoGenSection({
                         onClick={() => setWarningOpen((prev) => !prev)}
                         title="자동 생성 경고"
                         aria-label="자동 생성 경고 보기"
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-600 transition-colors hover:border-amber-500/50 hover:text-amber-500"
+                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-warning/30 bg-warning/12 text-warning transition-colors hover:border-warning/50 hover:bg-warning/16"
                       >
                         <TriangleAlert className="h-4 w-4" />
                       </button>
@@ -1075,7 +1114,9 @@ export function GenerationView({
   const [categories, setCategories] = useState<PromptCategory[]>([]);
 
   const [prompt, setPrompt] = useState(() => loadLastGenParams()?.prompt ?? "");
-  const [negativePrompt, setNegativePrompt] = useState(() => loadLastGenParams()?.negativePrompt ?? "");
+  const [negativePrompt, setNegativePrompt] = useState(
+    () => loadLastGenParams()?.negativePrompt ?? "",
+  );
   const [promptInputMode, setPromptInputMode] = useState<
     "prompt" | "negativePrompt"
   >("prompt");
@@ -1084,7 +1125,9 @@ export function GenerationView({
     CharacterPromptInput[]
   >(() => loadLastGenParams()?.characterPrompts ?? []);
   const [characterAddOpen, setCharacterAddOpen] = useState(false);
-  const [aiChoice, setAiChoice] = useState(() => loadLastGenParams()?.aiChoice ?? true);
+  const [aiChoice, setAiChoice] = useState(
+    () => loadLastGenParams()?.aiChoice ?? true,
+  );
   const duplicatePositions = !aiChoice
     ? new Set(
         Object.entries(
@@ -1112,7 +1155,9 @@ export function GenerationView({
   const [noiseSchedule, setNoiseSchedule] = useState(
     () => loadNaiGenSettings().noiseSchedule,
   );
-  const [seedInput, setSeedInput] = useState(() => loadLastGenParams()?.seedInput ?? "");
+  const [seedInput, setSeedInput] = useState(
+    () => loadLastGenParams()?.seedInput ?? "",
+  );
 
   // Reference states
   const [i2iRef, setI2iRef] = useState<
@@ -1130,7 +1175,9 @@ export function GenerationView({
   const [resultSrc, setResultSrc] = useState<string | null>(null);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [recentImages, setRecentImages] = useState<string[]>([]);
-  const [recentSeeds, setRecentSeeds] = useState<Map<string, number>>(new Map());
+  const [recentSeeds, setRecentSeeds] = useState<Map<string, number>>(
+    new Map(),
+  );
   const [error, setError] = useState<string | null>(null);
   const [seedDropdownOpen, setSeedDropdownOpen] = useState(false);
   const seedDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -1138,7 +1185,9 @@ export function GenerationView({
   // Right side panel
   const [sourceImage, setSourceImage] = useState<ImageData | null>(null);
   const [rightPanelVisible, setRightPanelVisible] = useState(false);
-  const [rightPanelTab, setRightPanelTab] = useState<"settings" | "prompt-group" | "reference">("settings");
+  const [rightPanelTab, setRightPanelTab] = useState<
+    "settings" | "prompt-group" | "reference"
+  >("settings");
   const [rightPanelWidth, setRightPanelWidth] = useState(() => {
     try {
       return Number(localStorage.getItem("konomi-right-panel-width")) || 290;
@@ -1146,7 +1195,9 @@ export function GenerationView({
       return 290;
     }
   });
-  const rightResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const rightResizeRef = useRef<{ startX: number; startWidth: number } | null>(
+    null,
+  );
   const rightPanelWidthRef = useRef(rightPanelWidth);
 
   useEffect(() => {
@@ -1216,7 +1267,10 @@ export function GenerationView({
   const handleRightResizeStart = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      rightResizeRef.current = { startX: e.clientX, startWidth: rightPanelWidth };
+      rightResizeRef.current = {
+        startX: e.clientX,
+        startWidth: rightPanelWidth,
+      };
       const onMove = (ev: MouseEvent) => {
         if (!rightResizeRef.current) return;
         const delta = ev.clientX - rightResizeRef.current.startX;
@@ -1229,8 +1283,13 @@ export function GenerationView({
       };
       const onUp = () => {
         try {
-          localStorage.setItem("konomi-right-panel-width", String(rightPanelWidthRef.current));
-        } catch { /* ignore */ }
+          localStorage.setItem(
+            "konomi-right-panel-width",
+            String(rightPanelWidthRef.current),
+          );
+        } catch {
+          /* ignore */
+        }
         rightResizeRef.current = null;
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
@@ -1244,8 +1303,13 @@ export function GenerationView({
   useEffect(() => {
     const onUnload = () => {
       try {
-        localStorage.setItem("konomi-right-panel-width", String(rightPanelWidthRef.current));
-      } catch { /* ignore */ }
+        localStorage.setItem(
+          "konomi-right-panel-width",
+          String(rightPanelWidthRef.current),
+        );
+      } catch {
+        /* ignore */
+      }
     };
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
@@ -1258,7 +1322,10 @@ export function GenerationView({
   useEffect(() => {
     if (!seedDropdownOpen) return;
     const handler = (e: MouseEvent) => {
-      if (seedDropdownRef.current && !seedDropdownRef.current.contains(e.target as Node)) {
+      if (
+        seedDropdownRef.current &&
+        !seedDropdownRef.current.contains(e.target as Node)
+      ) {
         setSeedDropdownOpen(false);
       }
     };
@@ -1316,12 +1383,17 @@ export function GenerationView({
   const lastAppendPromptTagRequestIdRef = useRef<number | null>(null);
   const [autoGenCount, setAutoGenCount] = useState(5);
   const [autoGenDelay, setAutoGenDelay] = useState(3);
-  const [autoGenSeedMode, setAutoGenSeedMode] = useState<"random" | "fixed">("random");
-  const [autoGenInfinite, setAutoGenInfinite] = useState(false);
-  const [autoGenPolicyAgreed, setAutoGenPolicyAgreed] = useState(
-    () => loadAutoGenPolicyAgreement(),
+  const [autoGenSeedMode, setAutoGenSeedMode] = useState<"random" | "fixed">(
+    "random",
   );
-  const [autoGenProgress, setAutoGenProgress] = useState<{ current: number; total: number | null } | null>(null);
+  const [autoGenInfinite, setAutoGenInfinite] = useState(false);
+  const [autoGenPolicyAgreed, setAutoGenPolicyAgreed] = useState(() =>
+    loadAutoGenPolicyAgreement(),
+  );
+  const [autoGenProgress, setAutoGenProgress] = useState<{
+    current: number;
+    total: number | null;
+  } | null>(null);
   const [autoCancelPending, setAutoCancelPending] = useState(false);
   const autoCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
@@ -1371,7 +1443,10 @@ export function GenerationView({
     setPromptInputMode("prompt");
   }, [appendPromptTagRequest, appendTagToPrompt]);
 
-  const promptGroups = useMemo(() => categories.flatMap((c) => c.groups), [categories]);
+  const promptGroups = useMemo(
+    () => categories.flatMap((c) => c.groups),
+    [categories],
+  );
 
   const reloadGroups = () => {
     window.promptBuilder
@@ -1568,7 +1643,9 @@ export function GenerationView({
           seedInput: nextSeedInput,
         }),
       );
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   };
 
   const resolveSeedForGeneration = useCallback(
@@ -1722,7 +1799,10 @@ export function GenerationView({
         c.prompt.trim(),
       );
 
-      setAutoGenProgress({ current: i + 1, total: autoGenInfinite ? null : autoGenCount });
+      setAutoGenProgress({
+        current: i + 1,
+        total: autoGenInfinite ? null : autoGenCount,
+      });
       setGenerating(true);
       setError(null);
       setResultSrc(null);
@@ -1924,7 +2004,8 @@ export function GenerationView({
           meta.characterPrompts.map((cp, i) => ({
             ...createCharacterPromptInput(cp),
             negativePrompt: meta.characterNegativePrompts?.[i] ?? "",
-            position: (meta.characterPositions?.[i] ?? "global") as CharacterPosition,
+            position: (meta.characterPositions?.[i] ??
+              "global") as CharacterPosition,
           })),
         );
       }
@@ -1994,7 +2075,11 @@ export function GenerationView({
     (p) => p.width === width && p.height === height,
   );
   const canGenerate =
-    !generating && !autoGenProgress && !!config?.apiKey && !!outputFolder && !!prompt.trim();
+    !generating &&
+    !autoGenProgress &&
+    !!config?.apiKey &&
+    !!outputFolder &&
+    !!prompt.trim();
   const canAutoGenerate = canGenerate && autoGenPolicyAgreed;
   // Vibe Transfer와 Precise Reference는 동시 사용 불가
   const vibeDisabled = preciseRef !== null;
@@ -2155,7 +2240,8 @@ export function GenerationView({
                         setCharacterPrompts((prev) =>
                           prev.map((c) => ({
                             ...c,
-                            position: c.position === "global" ? "C3" : c.position,
+                            position:
+                              c.position === "global" ? "C3" : c.position,
                           })),
                         );
                       }
@@ -2167,11 +2253,13 @@ export function GenerationView({
                         : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
                     )}
                   >
-                    <Check className={cn("h-3 w-3", !aiChoice && "opacity-20")} />
+                    <Check
+                      className={cn("h-3 w-3", !aiChoice && "opacity-20")}
+                    />
                     Automatic Position
                   </button>
                   {duplicatePositions.size > 0 && (
-                    <div className="flex items-center gap-1 text-[11px] text-amber-500 dark:text-amber-400">
+                    <div className="flex items-center gap-1 text-[11px] text-warning">
                       <TriangleAlert className="h-3 w-3 shrink-0" />
                       <span>동일한 포지션을 가진 캐릭터가 있습니다</span>
                     </div>
@@ -2190,7 +2278,7 @@ export function GenerationView({
                       className={cn(
                         "rounded-lg border bg-secondary/20 p-2 space-y-2",
                         !aiChoice && duplicatePositions.has(character.position)
-                          ? "border-amber-400/60 dark:border-amber-400/40"
+                          ? "border-warning/50"
                           : "border-border/40",
                       )}
                     >
@@ -2476,7 +2564,10 @@ export function GenerationView({
                 <DeferredNumberInput
                   value={width}
                   onChange={setWidth}
-                  className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono text-center")}
+                  className={cn(
+                    INPUT_CLS,
+                    "flex-1 min-w-0 font-mono text-center",
+                  )}
                 />
                 <button
                   type="button"
@@ -2490,7 +2581,10 @@ export function GenerationView({
                 <DeferredNumberInput
                   value={height}
                   onChange={setHeight}
-                  className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono text-center")}
+                  className={cn(
+                    INPUT_CLS,
+                    "flex-1 min-w-0 font-mono text-center",
+                  )}
                 />
               </div>
             </div>
@@ -2527,7 +2621,10 @@ export function GenerationView({
         </div>
 
         {/* 자동 생성 */}
-        <div className="border-t border-border/40 bg-sidebar" data-tour="gen-auto-gen">
+        <div
+          className="border-t border-border/40 bg-sidebar"
+          data-tour="gen-auto-gen"
+        >
           <AutoGenSection
             count={autoGenCount}
             setCount={setAutoGenCount}
@@ -2686,7 +2783,10 @@ export function GenerationView({
             </div>
             {/* Body */}
             {rightPanelTab === "prompt-group" && (
-              <div data-tour="gen-prompt-group-panel" className="flex-1 min-h-0">
+              <div
+                data-tour="gen-prompt-group-panel"
+                className="flex-1 min-h-0"
+              >
                 <PromptGroupPanel
                   categories={categories}
                   onCategoriesChange={setCategories}
@@ -2699,7 +2799,7 @@ export function GenerationView({
                   {/* NAI API Key */}
                   <div className="px-4 py-3 space-y-1.5">
                     <span className="text-xs text-muted-foreground">
-                      API Key
+                      NovelAI API Key
                     </span>
                     {apiKeyValidated ? (
                       <div className="flex gap-1.5">
@@ -2736,7 +2836,7 @@ export function GenerationView({
                       className={cn(
                         "mt-1.5 w-full h-8 flex items-center justify-center gap-1.5 rounded-lg border text-xs transition-colors disabled:opacity-40",
                         apiKeyValidated
-                          ? "border-green-500/40 bg-green-500/10 text-green-600 dark:text-green-400"
+                          ? "border-success/40 bg-success/10 text-success"
                           : "border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border",
                       )}
                     >
@@ -2918,7 +3018,9 @@ export function GenerationView({
                     <div className="absolute bottom-full right-0 mb-1.5 w-36 rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
                       <button
                         onClick={() => {
-                          void navigator.clipboard.writeText(String(recentSeeds.get(resultSrc)));
+                          void navigator.clipboard.writeText(
+                            String(recentSeeds.get(resultSrc)),
+                          );
                           setSeedDropdownOpen(false);
                           toast.success("시드가 클립보드에 복사됐습니다");
                         }}
@@ -3022,7 +3124,7 @@ export function GenerationView({
                 className={cn(
                   "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
                   validateResult.valid
-                    ? "bg-green-500/15 text-green-500"
+                    ? "bg-success/15 text-success"
                     : "bg-destructive/15 text-destructive",
                 )}
               >

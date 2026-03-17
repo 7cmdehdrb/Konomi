@@ -36,16 +36,13 @@ function DraggableGroupChip({ groupName }: { groupName: string }) {
       className={cn(
         "inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-xs",
         "cursor-grab active:cursor-grabbing select-none transition-opacity shrink-0",
-        "bg-violet-100 text-violet-800 border-violet-300/60",
-        "dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-400/30",
+        "bg-group/14 text-group border-group/35",
         dragging && "opacity-40",
       )}
       title="드래그해서 프롬프트에 추가"
     >
-      <GripVertical className="h-2.5 w-2.5 text-violet-400/60 shrink-0 -ml-0.5" />
-      <span className="font-semibold text-violet-500 dark:text-violet-400">
-        @
-      </span>
+      <GripVertical className="h-2.5 w-2.5 text-group/70 shrink-0 -ml-0.5" />
+      <span className="font-semibold text-group">@</span>
       <span className="truncate max-w-20">{`{${groupName}}`}</span>
     </div>
   );
@@ -420,9 +417,7 @@ function CategoryItem({
                   onRename={(name) => onRenameGroup(group.id, name)}
                   onDelete={() => onDeleteGroup(group.id)}
                   onAddToken={(label) => onAddToken(group.id, label)}
-                  onDeleteToken={(tokenId) =>
-                    onDeleteToken(group.id, tokenId)
-                  }
+                  onDeleteToken={(tokenId) => onDeleteToken(group.id, tokenId)}
                 />
               ))}
             </div>
@@ -562,9 +557,7 @@ export function PromptGroupPanel({
           ? {
               ...c,
               groups: c.groups.map((g) =>
-                g.id === groupId
-                  ? { ...g, tokens: [...g.tokens, token] }
-                  : g,
+                g.id === groupId ? { ...g, tokens: [...g.tokens, token] } : g,
               ),
             }
           : c,

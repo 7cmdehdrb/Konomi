@@ -22,16 +22,11 @@ import { cn } from "@/lib/utils";
 import type { PromptToken, TokenWeightExpression } from "@/lib/token";
 
 function weightClass(w: number): string {
-  if (w >= 1.3)
-    return "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300";
-  if (w > 1.0)
-    return "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-200";
-  if (w < 0)
-    return "bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-300";
-  if (w < 0.75)
-    return "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300";
-  if (w < 1.0)
-    return "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-200";
+  if (w >= 1.3) return "bg-warning/15 text-warning";
+  if (w > 1.0) return "bg-primary/15 text-primary";
+  if (w < 0) return "bg-destructive/15 text-destructive";
+  if (w < 0.75) return "bg-info/15 text-info";
+  if (w < 1.0) return "bg-group/14 text-group";
   return "bg-muted text-foreground/80";
 }
 
@@ -311,12 +306,20 @@ function TokenChipCore({
       applyInlineEdit(false);
       return;
     }
-    if (e.ctrlKey && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+    if (
+      e.ctrlKey &&
+      !e.altKey &&
+      (e.key === "ArrowUp" || e.key === "ArrowDown")
+    ) {
       e.preventDefault();
       stepWeight(e.key === "ArrowUp" ? 0.1 : -0.1);
       return;
     }
-    if (!e.ctrlKey && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+    if (
+      !e.ctrlKey &&
+      !e.altKey &&
+      (e.key === "ArrowUp" || e.key === "ArrowDown")
+    ) {
       e.preventDefault();
       applyInlineEdit(false);
       onRequestVerticalNavigation?.(e.key === "ArrowUp" ? "up" : "down");
@@ -736,12 +739,17 @@ function TokenChipCore({
                 <button
                   type="button"
                   className="h-7 w-7 rounded border border-destructive/40 text-destructive/70 hover:bg-destructive/10 hover:text-destructive flex items-center justify-center transition-colors"
-                  onClick={() => { setEditorOpenState(false); onDelete(); }}
+                  onClick={() => {
+                    setEditorOpenState(false);
+                    onDelete();
+                  }}
                   title="삭제"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
-              ) : <span />}
+              ) : (
+                <span />
+              )}
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"

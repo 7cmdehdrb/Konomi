@@ -19,6 +19,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "이미지에 포함된 프롬프트를 검색할 수 있습니다. 쉼표로 여러 태그를 입력하세요.",
     placement: "bottom",
+    panel: "gallery",
   },
   {
     targetSelector: '[data-tour="panel-buttons"]',
@@ -26,6 +27,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "이미지 생성, 갤러리, 설정, 앱 정보 패널을 전환할 수 있습니다.",
     placement: "bottom",
+    panel: "gallery",
   },
   {
     targetSelector: '[data-tour="sidebar-views"]',
@@ -33,6 +35,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "모든 이미지를 보거나 최근 생성된 이미지만 필터링할 수 있습니다.",
     placement: "right",
+    panel: "gallery",
   },
   {
     targetSelector: '[data-tour="sidebar-folders"]',
@@ -40,13 +43,14 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "이미지 폴더를 추가하고, 눈 아이콘으로 표시 여부를 전환하세요.",
     placement: "right",
+    panel: "gallery",
   },
   {
     targetSelector: '[data-tour="sidebar-categories"]',
     title: "카테고리",
-    description:
-      "즐겨찾기, 랜덤 픽 등 카테고리로 이미지를 분류할 수 있습니다.",
+    description: "즐겨찾기, 랜덤 픽 등 카테고리로 이미지를 분류할 수 있습니다.",
     placement: "right",
+    panel: "gallery",
   },
   {
     targetSelector: '[data-tour="gallery-toolbar"]',
@@ -54,6 +58,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "정렬 방식 변경, 뷰 모드 전환, 선택 모드를 사용할 수 있습니다.",
     placement: "bottom",
+    panel: "gallery",
   },
   // GenerationView steps
   {
@@ -68,7 +73,7 @@ const TOUR_STEPS: TourStep[] = [
     targetSelector: '[data-tour="gen-prompt-input"]',
     title: "PromptInput 커서",
     description:
-      "토큰 칩 사이를 클릭하면 입력 커서가 이동합니다. 칩 사이 어디든 새 태그를 삽입할 수 있어, 텍스트 입력 커서와는 별개로 동작합니다.",
+      "토큰 칩을 클릭하면 입력 커서가 이동합니다. 이질감 없이 텍스트를 수정하는 것처럼 토큰 칩을 수정할 수 있습니다.",
     placement: "bottom",
     panel: "generator",
   },
@@ -355,7 +360,8 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
           </div>
           {isLast && (
             <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border">
-              우측 상단 ℹ 버튼 → "기능 둘러보기"에서 다시 볼 수 있습니다
+              우측 상단 ℹ 버튼 → &quot;기능 둘러보기&quot;에서 다시 볼 수
+              있습니다
             </p>
           )}
         </div>

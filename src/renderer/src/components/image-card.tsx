@@ -118,7 +118,7 @@ export const ImageCard = memo(function ImageCard({
         <Heart
           className={cn(
             "h-4 w-4",
-            image.isFavorite ? "fill-red-500 text-red-500" : "",
+            image.isFavorite ? "fill-favorite text-favorite" : "",
           )}
         />
         {image.isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
@@ -209,7 +209,7 @@ export const ImageCard = memo(function ImageCard({
                 new Date(image.fileModifiedAt).toLocaleTimeString("ko-KR")}
             </span>
             {image.isFavorite && (
-              <Heart className="h-3.5 w-3.5 fill-red-500 text-red-500 shrink-0" />
+              <Heart className="h-3.5 w-3.5 fill-favorite text-favorite shrink-0" />
             )}
           </div>
         </ContextMenuTrigger>
@@ -276,7 +276,7 @@ export const ImageCard = memo(function ImageCard({
             {/* Favorite Badge */}
             {image.isFavorite && (
               <div className="absolute top-3 right-3">
-                <Heart className="h-5 w-5 fill-red-500 text-red-500" />
+                <Heart className="h-5 w-5 fill-favorite text-favorite" />
               </div>
             )}
 
