@@ -20,6 +20,7 @@ import {
   Check,
   LayoutList,
   Image as ImageIcon,
+  Info,
   TriangleAlert,
   ChevronUp,
   Hash,
@@ -2098,12 +2099,12 @@ export function GenerationView({
       >
         {(!config?.apiKey || !outputFolder) && !tourActive && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 backdrop-blur-sm bg-sidebar/60 select-none">
-            <Settings className="h-8 w-8 text-muted-foreground/40" />
+            <Settings className="h-8 w-8 text-muted-foreground/60" />
             <div className="flex flex-col items-center gap-1">
-              <span className="text-sm font-medium text-foreground/70">
+              <span className="text-sm font-medium text-foreground/80">
                 설정이 필요합니다
               </span>
-              <span className="text-[11px] text-muted-foreground/50 text-center leading-relaxed">
+              <span className="text-[11px] text-muted-foreground text-center leading-relaxed">
                 {!config?.apiKey && !outputFolder
                   ? "API 키와 출력 폴더를"
                   : !config?.apiKey
@@ -2798,9 +2799,36 @@ export function GenerationView({
                 <div className="divide-y divide-border/40 flex-1 overflow-y-auto">
                   {/* NAI API Key */}
                   <div className="px-4 py-3 space-y-1.5">
-                    <span className="text-xs text-muted-foreground">
-                      NovelAI API Key
-                    </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground select-none">
+                        NovelAI API Key
+                      </span>
+                      <TooltipProvider delayDuration={0}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              // title="NovelAI API Key 안내"
+                              aria-label="NovelAI API Key 설정 안내 보기"
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-transparent text-muted-foreground transition-colors hover:border-border hover:bg-secondary/40 hover:text-foreground"
+                            >
+                              <Info className="h-3 w-3" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            sideOffset={8}
+                            className="max-w-80 text-foreground/85 p-2"
+                          >
+                            NovelAI 웹페이지 메뉴에서 Account Settings →{" "}
+                            <span className="font-medium text-foreground">
+                              Get Persistent API Token
+                            </span>{" "}
+                            버튼을 클릭하면 API Token을 얻을 수 있습니다.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     {apiKeyValidated ? (
                       <div className="flex gap-1.5">
                         <input
@@ -2851,7 +2879,7 @@ export function GenerationView({
 
                   {/* 다운로드 폴더 */}
                   <div className="px-4 py-3 space-y-1.5">
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground select-none">
                       다운로드 폴더
                     </span>
                     <div className="flex gap-1.5">
@@ -3047,9 +3075,9 @@ export function GenerationView({
           ) : (
             <div className="flex flex-col items-center gap-3 select-none">
               <div className="h-16 w-16 rounded-2xl bg-secondary/50 border border-border/30 flex items-center justify-center">
-                <Wand2 className="h-7 w-7 text-muted-foreground/30" />
+                <Wand2 className="h-7 w-7 text-muted-foreground/80" />
               </div>
-              <p className="text-xs text-muted-foreground/40">
+              <p className="text-xs text-muted-foreground/80">
                 프롬프트를 입력하거나 이미지를 드롭하세요
               </p>
             </div>

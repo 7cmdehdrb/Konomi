@@ -312,7 +312,7 @@ function CategoryItem({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="h-4 w-4 flex items-center justify-center text-muted-foreground/40 hover:text-foreground shrink-0"
+          className="h-4 w-4 flex items-center justify-center text-muted-foreground/80 hover:text-foreground shrink-0"
         >
           {expanded ? (
             <ChevronDown className="h-3 w-3" />
@@ -345,12 +345,12 @@ function CategoryItem({
           </span>
         )}
 
-        <span className="text-[10px] text-muted-foreground/30 shrink-0 tabular-nums">
+        <span className="text-[10px] text-muted-foreground/80 shrink-0 tabular-nums">
           {category.groups.length}
         </span>
 
         {!renaming && !confirmDelete && (
-          <div className="flex items-center gap-0.5 opacity-0 group-hover/cat:opacity-100 transition-opacity shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0">
             <button
               type="button"
               onClick={() => {
@@ -358,14 +358,14 @@ function CategoryItem({
                 setAddingGroup(true);
               }}
               title="그룹 추가"
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors"
+              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-foreground hover:bg-secondary transition-colors"
             >
               <Plus className="h-2.5 w-2.5" />
             </button>
             <button
               type="button"
               onClick={() => setRenaming(true)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors"
+              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-foreground hover:bg-secondary transition-colors"
             >
               <Pencil className="h-2.5 w-2.5" />
             </button>
@@ -373,7 +373,7 @@ function CategoryItem({
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
-                className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <Trash2 className="h-2.5 w-2.5" />
               </button>
@@ -405,8 +405,8 @@ function CategoryItem({
       {expanded && (
         <div className="bg-secondary/10">
           {category.groups.length === 0 && !addingGroup ? (
-            <p className="text-[11px] text-muted-foreground/30 py-1.5 text-center">
-              그룹 없음 — + 버튼으로 추가
+            <p className="text-[11px] text-muted-foreground/60 py-1.5 text-center">
+              생성된 그룹 없음
             </p>
           ) : (
             <div className="py-0.5">
@@ -463,14 +463,15 @@ function CategoryItem({
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setAddingGroup(true)}
-              className="w-full text-left px-3 pb-1.5 text-[11px] text-muted-foreground/30 hover:text-muted-foreground transition-colors flex items-center gap-1"
-            >
-              <Plus className="h-2.5 w-2.5" />
-              그룹 추가
-            </button>
+            // <button
+            //   type="button"
+            //   onClick={() => setAddingGroup(true)}
+            //   className="w-full text-left px-3 pb-1.5 text-[11px] text-muted-foreground/80 hover:text-muted-foreground transition-colors flex items-center gap-1"
+            // >
+            //   <Plus className="h-2.5 w-2.5" />
+            //   그룹 추가
+            // </button>
+            <></>
           )}
         </div>
       )}
@@ -607,12 +608,12 @@ export function PromptGroupPanel({
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="shrink-0 px-3 pt-2.5 pb-1.5 flex items-center justify-between border-b border-border/30">
-        <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">
           그룹 프롬프트
         </p>
         {confirmReset ? (
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground/60">
+            <span className="text-[10px] text-destructive">
               모든 설정을 초기화합니다.
             </span>
             <button
@@ -625,7 +626,7 @@ export function PromptGroupPanel({
             <button
               type="button"
               onClick={() => setConfirmReset(false)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/50 hover:text-foreground hover:bg-secondary transition-colors text-xs"
+              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-foreground hover:bg-secondary transition-colors text-xs"
             >
               ×
             </button>
@@ -635,7 +636,7 @@ export function PromptGroupPanel({
             type="button"
             onClick={() => setConfirmReset(true)}
             title="기본값으로 초기화"
-            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/30 hover:text-muted-foreground hover:bg-secondary transition-colors"
+            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-muted-foreground hover:bg-secondary transition-colors"
           >
             <RotateCcw className="h-3 w-3" />
           </button>
@@ -643,7 +644,7 @@ export function PromptGroupPanel({
       </div>
 
       {/* Hint */}
-      <p className="text-[9px] text-muted-foreground/40 px-3 py-1.5 shrink-0 border-b border-border/20">
+      <p className="text-xs text-muted-foreground/80 px-3 py-1.5 shrink-0 border-b border-border/20 select-none">
         칩을 드래그해서 프롬프트 입력란에 추가하세요
       </p>
 

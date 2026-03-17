@@ -4,10 +4,17 @@ import {
   RotateCcw,
   RefreshCw,
   Trash2,
+  Info,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { DEFAULTS, type Settings } from "@/hooks/useSettings";
 import { THEMES } from "@/lib/themes";
@@ -36,16 +43,21 @@ function ResetButton({ onClick }: { onClick: () => void }) {
 function SectionHeader({
   children,
   onReset,
+  suffix,
 }: {
   children: React.ReactNode;
   onReset: () => void;
+  suffix?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <h2 className="text-sm font-medium text-foreground select-none">
-        {children}
-      </h2>
-      <ResetButton onClick={onReset} />
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <h2 className="text-sm font-medium text-foreground select-none">
+          {children}
+        </h2>
+        <ResetButton onClick={onReset} />
+      </div>
+      {suffix}
     </div>
   );
 }
@@ -84,22 +96,22 @@ function OptionGroup<T extends number>({
 const similarityQualityLabel = (value: number): string =>
   (
     ({
-      16: "최하",
-      15: "낮음",
-      14: "하",
-      13: "중하",
-      12: "중간",
-      11: "중상",
-      10: "상",
-      9: "매우 높음",
-      8: "최상",
+      16: "극단적 느슨함",
+      15: "매우 느슨함",
+      14: "느슨함",
+      13: "조금 느슨함",
+      12: "균형",
+      11: "조금 엄격함",
+      10: "엄격함",
+      9: "매우 엄격함",
+      8: "극단적 엄격함",
     }) as Record<number, string>
   )[value] ?? String(value);
 
 const jaccardLabel = (value: number): string => {
   if (value >= 0.68) return "매우 엄격";
   if (value >= 0.64) return "엄격";
-  if (value >= 0.58) return "중간";
+  if (value >= 0.58) return "균형";
   if (value >= 0.54) return "느슨";
   return "매우 느슨";
 };
@@ -368,11 +380,40 @@ export function SettingsView({
                 "promptSimilarityThreshold",
               ])
             }
+            suffix={
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="유사 이미지 판단 강도 안내 보기"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-transparent text-muted-foreground transition-colors hover:border-border hover:bg-secondary/40 hover:text-foreground"
+                    >
+                      <Info className="h-3 w-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    sideOffset={8}
+                    className="max-w-80 text-foreground/85 p-2"
+                  >
+                    Konomi App은 두 가지 로직으로 유사 이미지를 판별합니다.
+                    Perceptual Hash, Jaccard 유사도. 두 알고리즘은 각각 실제로
+                    이미지의 유사도, 그리고 프롬프트의 유사도를 판별합니다. 이
+                    두 가지 알고리즘은 상호 보완적으로 작동합니다. 유사 이미지
+                    목록에서 V로 마킹된 이미지는 Perceptual Hash로 판별된
+                    이미지고, P로 마킹된 이미지는 Jaccard 유사도로 판별된
+                    이미지, B로 마킹된 이미지는 둘 다 해당됨을 의미합니다.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            }
           >
-            유사 이미지 설정
+            유사 이미지 판단 강도
           </SectionHeader>
           <p className="text-xs text-muted-foreground select-none">
-            유사 이미지로 판단하는 강도를 설정합니다.
+            느슨할수록 더 많은 이미지가 비슷하다고 판단되고 엄격할수록 더 적은
+            이미지가 비슷하다고 판단됩니다.
           </p>
           <div className="rounded-md border border-border/60 p-3 space-y-3">
             <div className="space-y-2">
@@ -446,7 +487,7 @@ export function SettingsView({
             <div className="rounded-md border border-border/50 bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
               {settings.useAdvancedSimilarityThresholds
                 ? `현재 적용: Visual ${settings.visualSimilarityThreshold} (${similarityQualityLabel(settings.visualSimilarityThreshold)}) · Prompt ${settings.promptSimilarityThreshold.toFixed(2)} (${jaccardLabel(settings.promptSimilarityThreshold)})`
-                : `현재 적용: Visual ${settings.similarityThreshold} (${similarityQualityLabel(settings.similarityThreshold)}) · Prompt ${derivePromptThreshold(settings.similarityThreshold).toFixed(2)}`}
+                : `현재 적용: Visual ${settings.similarityThreshold} (${similarityQualityLabel(settings.similarityThreshold)}) · Prompt ${derivePromptThreshold(settings.similarityThreshold).toFixed(2)} (${jaccardLabel(settings.promptSimilarityThreshold)})`}
             </div>
 
             {!settings.useAdvancedSimilarityThresholds ? (
@@ -470,14 +511,16 @@ export function SettingsView({
             ) : (
               <div className="space-y-4 border-t border-border/50 pt-3">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center justify-center space-x-1 text-xs text-muted-foreground">
                     <span>
                       {`Visual (Perceptual Hash): ${settings.visualSimilarityThreshold}`}
                     </span>
                     <span>
+                      (
                       {similarityQualityLabel(
                         settings.visualSimilarityThreshold,
                       )}
+                      )
                     </span>
                   </div>
                   <input
@@ -502,13 +545,13 @@ export function SettingsView({
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center justify-center space-x-1 text-xs text-muted-foreground">
                     <span>
                       Prompt (Jaccard):{" "}
                       {settings.promptSimilarityThreshold.toFixed(2)}
                     </span>
                     <span>
-                      {jaccardLabel(settings.promptSimilarityThreshold)}
+                      ({jaccardLabel(settings.promptSimilarityThreshold)})
                     </span>
                   </div>
                   <input
