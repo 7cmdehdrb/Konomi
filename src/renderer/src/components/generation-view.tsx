@@ -720,7 +720,7 @@ function AdvancedParamsSection({
     <div className="overflow-hidden">
       {/* 헤더 */}
       <div className="flex">
-        <div className="flex items-center gap-3 flex-wrap px-4 py-3.5 min-w-0">
+        <div className="flex items-start gap-3 flex-wrap px-4 py-3.5 min-w-0">
           {/* Steps */}
           <span className="flex flex-col gap-0.5">
             <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
@@ -757,40 +757,41 @@ function AdvancedParamsSection({
             <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
               Seed
             </span>
-            {localSeed.trim() && !seedFocused ? (
-              <span
-                onClick={() => {
-                  setLocalSeed("");
-                  setSeedInput("");
-                }}
-                className="max-w-16 truncate text-sm font-semibold tabular-nums leading-none font-mono text-foreground cursor-pointer"
-              >
-                {localSeed.trim()}
-              </span>
-            ) : (
-              <input
-                type="text"
-                inputMode="numeric"
-                value={localSeed}
-                onChange={(e) => setLocalSeed(e.target.value)}
-                onFocus={() => setSeedFocused(true)}
-                onBlur={() => {
-                  setSeedFocused(false);
-                  setSeedInput(localSeed);
-                }}
-                placeholder="-"
-                className="w-16 max-w-16 text-sm font-semibold tabular-nums leading-none font-mono bg-transparent border-none outline-none text-foreground placeholder:text-foreground/30 p-0"
-              />
-            )}
+            <input
+              type="text"
+              inputMode="numeric"
+              value={localSeed}
+              readOnly={!!localSeed.trim() && !seedFocused}
+              onMouseDown={
+                localSeed.trim() && !seedFocused
+                  ? (e) => {
+                      e.preventDefault();
+                      setLocalSeed("");
+                      setSeedInput("");
+                    }
+                  : undefined
+              }
+              onChange={(e) => setLocalSeed(e.target.value)}
+              onFocus={() => setSeedFocused(true)}
+              onBlur={() => {
+                setSeedFocused(false);
+                setSeedInput(localSeed);
+              }}
+              placeholder="-"
+              className={cn(
+                "w-16 max-w-16 text-sm font-semibold tabular-nums leading-none font-mono bg-transparent border-none outline-none text-foreground placeholder:text-foreground/30 p-0",
+                localSeed.trim() && !seedFocused && "cursor-pointer truncate",
+              )}
+            />
           </span>
           <span className="w-px h-6 bg-border/50 shrink-0" />
           {/* Sampler */}
-          <span className="flex flex-col gap-0.5 min-w-0">
+          <span className="flex flex-col gap-0.5">
             <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
               Sampler
             </span>
             <RadixSelect value={sampler} onValueChange={setSampler}>
-              <SelectTrigger className="h-auto data-[size=default]:h-auto p-0 border-none bg-transparent shadow-none text-sm font-semibold leading-none text-foreground gap-1 focus-visible:ring-0 max-w-37.5 [&_svg]:size-3.5">
+              <SelectTrigger className="h-auto data-[size=default]:h-auto p-0 border-none bg-transparent dark:bg-transparent hover:bg-transparent dark:hover:bg-transparent shadow-none text-sm font-semibold text-foreground gap-1 focus-visible:ring-0 max-w-37.5 [&_svg]:size-3.5 cursor-pointer">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
