@@ -6,20 +6,21 @@ directories:
 
 files:
   - '!**/.vscode/*'
+  - '!**/.git/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md,README.dev.md,README.dev.ko.md,README.ko.md,CLAUDE.md,debug.ts}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{docs/**,examples/**,example_datas/**,.claude/**,scripts/**}'
+  - '!out/*.db'
+  - '!resources/prompts.db'
 
 extraResources:
   - from: resources
     to: .
     filter:
       - prompts.db
-
-asarUnpack:
-  - resources/**
 
 win:
   executableName: konomi
