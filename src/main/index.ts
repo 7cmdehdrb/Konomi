@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, protocol, session } from "electron";
+import { app, shell, BrowserWindow, protocol } from "electron";
 import { dirname, join } from "path";
 import fs from "fs";
 import { Readable } from "stream";
@@ -151,51 +151,6 @@ function saveBounds(win: BrowserWindow): void {
   }
 }
 
-async function installReactDevTools(): Promise<void> {
-  if (!is.dev || app.isPackaged) {
-    return;
-  }
-
-  try {
-    const { downloadChromeExtension } =
-      await import("electron-devtools-installer/dist/downloadChromeExtension");
-    const extensionPath = await downloadChromeExtension(
-      "fmkadmapgofadopljbjfkapdkoienihi",
-    );
-    const extensions = session.defaultSession.extensions;
-    const installedExtension = extensions
-      .getAllExtensions()
-      .find(
-        (extension) =>
-          extension.path === extensionPath ||
-          extension.name === "React Developer Tools",
-      );
-
-    if (installedExtension) {
-      log.info("React DevTools extension already loaded", {
-        id: installedExtension.id,
-        name: installedExtension.name,
-        path: installedExtension.path,
-      });
-      return;
-    }
-
-    const extension = await extensions.loadExtension(extensionPath, {
-      allowFileAccess: true,
-    });
-    log.info("Installed React DevTools extension", {
-      id: extension.id,
-      name: extension.name,
-      path: extension.path,
-      version: extension.version,
-    });
-  } catch (error) {
-    log.warn("Failed to install React DevTools extension", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
 function createWindow(): void {
   const bounds = loadBounds();
   log.info("Creating main window", { bounds });
@@ -311,10 +266,7 @@ app
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
 
-    return Promise.all([
-      installReactDevTools(),
-      warmManagedRootsCache(),
-    ]).finally(() => {
+    return warmManagedRootsCache().finally(() => {
       createWindow();
     });
   })

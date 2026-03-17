@@ -10,6 +10,34 @@ const externalPackages = [
   "@prisma/client",
   "@prisma/adapter-better-sqlite3",
 ];
+const useStandaloneReactDevTools = process.env.KONOMI_REACT_DEVTOOLS === "1";
+
+function standaloneReactDevToolsPlugin() {
+  return {
+    name: "konomi:standalone-react-devtools",
+    apply: "serve" as const,
+    transformIndexHtml: {
+      order: "pre" as const,
+      handler(html: string) {
+        if (!useStandaloneReactDevTools) return html;
+
+        return {
+          html: html.replace(
+            "script-src 'self';",
+            "script-src 'self' http://localhost:8097;",
+          ),
+          tags: [
+            {
+              tag: "script",
+              attrs: { src: "http://localhost:8097" },
+              injectTo: "head-prepend" as const,
+            },
+          ],
+        };
+      },
+    },
+  };
+}
 
 export default defineConfig({
   main: {
@@ -45,6 +73,11 @@ export default defineConfig({
         "@preload": resolve("src/preload"),
       },
     },
-    plugins: [tailwindcss(), react()],
+    server: useStandaloneReactDevTools
+      ? {
+          hmr: false,
+        }
+      : undefined,
+    plugins: [tailwindcss(), standaloneReactDevToolsPlugin(), react()],
   },
 });
