@@ -1,0 +1,701 @@
+const en = {
+  app: {
+    clipboardCopyFailed: "Failed to copy to clipboard",
+    dialog: {
+      imageDelete: {
+        title: "Delete Image",
+        description:
+          "Delete this image? The file will be moved to the recycle bin.",
+      },
+      scanCancel: {
+        title: "Cancel Scan",
+        description: "Cancel the folder scan currently in progress?",
+        continue: "Keep Scanning",
+        confirm: "Cancel Scan",
+      },
+    },
+    splash: {
+      title: "Preparing Library",
+      status: {
+        checkingFolders:
+          "Checking your folders and preparing the first screen.",
+        preparingOnboarding:
+          "Preparing the start screen so you can add a folder right away.",
+        syncingLibrary: "Scanning registered images and syncing library state.",
+        finalizing: "Finishing the library search screen.",
+      },
+      detail: {
+        scanFolders: "Scanning {{folderLabel}} {{done}}/{{total}}",
+        scanImages: "Scanning images {{done}}/{{total}}",
+        loadingFolders: "Loading folder list.",
+        preparingOnboarding: "Preparing onboarding screen.",
+        loadingLibraryState: "Loading initial library state.",
+      },
+    },
+  },
+  common: {
+    cancel: "Cancel",
+    delete: "Delete",
+    close: "Close",
+    loading: "Loading...",
+    none: "None",
+  },
+  header: {
+    searchPlaceholder: "Search images by prompt...",
+    tooltip: {
+      search: "Search",
+      advancedSearch: "Advanced Search",
+      generator: "Generator",
+      gallery: "Gallery",
+      settings: "Settings",
+      appInfo: "App Info",
+    },
+    progress: {
+      scanFolders: "Scanning {{names}} {{done}}/{{total}}",
+      scanImages: "Scanning images {{done}}/{{total}}",
+      hashes: "Computing hashes {{done}}/{{total}}",
+      similarity: "Computing similarity...",
+      searchStats: "Search stats {{done}}/{{total}}",
+      working: "Working...",
+    },
+  },
+  imageCard: {
+    previewAlt: "Image preview",
+    emptyPreview: "Image Preview",
+    menu: {
+      addFavorite: "Add to Favorites",
+      removeFavorite: "Remove from Favorites",
+      copyPrompt: "Copy Prompt",
+      sendToGenerator: "Send to Generator",
+      sendToSource: "Send as Reference",
+      revealOriginal: "Reveal Original",
+      changeCategory: "Change Category",
+      delete: "Delete",
+    },
+    moreTokens: "+{{count}} more",
+  },
+  imageDetail: {
+    actions: {
+      addFavorite: "Favorite",
+      removeFavorite: "Unfavorite",
+      copyPrompt: "Copy Prompt",
+      copied: "Copied",
+      actualSize: "Actual Size",
+      fitToScreen: "Fit to Screen",
+    },
+    similarImages: "Similar Images",
+    info: {
+      title: "Info",
+      model: "Model",
+      seed: "Seed",
+      size: "Size",
+      sampler: "Sampler",
+      steps: "Steps",
+      cfg: "CFG",
+      cfgRescale: "CFG Rescale",
+      noiseSchedule: "Noise Schedule",
+      varietyPlus: "Variety+",
+      date: "Date",
+      phash: "P-Hash",
+      unavailable: "-",
+    },
+  },
+  gallery: {
+    totalImages: "{{count}} images total",
+    resetSearch: "Reset",
+    selectedCount: "{{count}} selected",
+    sort: {
+      recent: "Newest",
+      oldest: "Oldest",
+      name: "Name",
+      favorites: "Favorites",
+    },
+    selectionMode: "Select",
+    exitSelectionMode: "Exit Selection",
+    selectCurrentPage: "Select Current Page",
+    deselectCurrentPage: "Deselect Current Page",
+    selectAllResults: "Select All Results ({{count}})",
+    deselectAllResults: "Deselect All Results",
+    clearSelection: "Clear Selection",
+    changeCategoryForSelection: "Change Category",
+    initializingTitle: "Preparing Library",
+    initializingDescription: "Checking registered folders and loading images.",
+    emptyTitle: "No images found",
+    emptyDescription: "Try changing the search or adjusting filters.",
+  },
+  promptInput: {
+    placeholder: "tag, tag, tag...",
+  },
+  advancedSearch: {
+    title: "Advanced Search",
+    resolution: "Resolution",
+    widthPlaceholder: "Width",
+    heightPlaceholder: "Height",
+    add: "Add",
+    model: "Model",
+    allModels: "(All models)",
+    modelPlaceholder: "Enter model name",
+  },
+  promptGroupPanel: {
+    title: "Prompt Groups",
+    dragGroupToPrompt: "Drag to add this group to the prompt",
+    groupNamePlaceholder: "Group name",
+    noTags: "No tags",
+    addTagPlaceholder: "Add tag...",
+    addTag: "Add tag",
+    addGroup: "Add group",
+    editGroup: "Edit group",
+    noGroups: "No groups yet",
+    newGroupPlaceholder: "Group name (= @{groupName})...",
+    resetDescription: "This will reset all group settings.",
+    resetToDefault: "Reset to default",
+    dragHint: "Drag chips into the prompt input to add them.",
+    noCategories: "No categories yet. Add one below.",
+    newCategoryPlaceholder: "New category name...",
+    createCategory: "Create category",
+    renameCategory: "Rename category",
+    expand: "Expand",
+    collapse: "Collapse",
+    builtinCategories: {
+      peopleCount: "People Count",
+      rating: "Rating/Censorship",
+      artStyle: "Art Style",
+      composition: "Composition",
+      location: "Location",
+      effects: "General Effects",
+      qualityTags: "Quality Tags",
+      characterGender: "Character - Gender/Non-human",
+      characterSpecific: "Character - Specific Character",
+      characterAge: "Character - Age",
+      characterHairEyes: "Character - Hair/Eyes",
+      characterOutfit: "Character - Outfit",
+      characterPose: "Character - Pose",
+      characterAction: "Character - Action",
+      characterBodyPart: "Character - Body Part",
+      characterFace: "Character - Face",
+      characterEffects: "Character - Other Effects",
+    },
+  },
+  promptSourcePanel: {
+    referenceImageAlt: "Reference image",
+    dragHint: "Drag chips into the prompt input to add them.",
+    sections: {
+      prompt: "Prompt",
+      negative: "Negative",
+      character: "Character",
+    },
+    empty: "No prompt information available",
+  },
+  wildcardChip: {
+    title: "Wildcard Options",
+    noOptions: "No options",
+    addOptionPlaceholder: "Add option...",
+    addOption: "Add option",
+    lastSelected: "Last selected:",
+    apply: "Apply",
+  },
+  tokenChip: {
+    editor: {
+      tag: "Tag",
+      tagPlaceholder: "tag",
+      emphasis: "Emphasis",
+      expression: "Expression",
+      numerical: "numerical",
+      keyword: "keyword",
+      rawToken: "Raw Token",
+      apply: "Apply",
+    },
+    context: {
+      addToSearch: "Add tag to search",
+      addToGeneration: "Add tag to generation",
+    },
+  },
+  groupChip: {
+    edited: "Edited",
+    noTags: "No tags",
+    deleteHint: "Delete with Delete/Backspace",
+    edit: "Edit",
+    groupName: "Group Name",
+    tags: "Tags",
+    resetTags: "Reset to original group tags",
+    addTagPlaceholder: "Add tag...",
+    note: "Changes apply only to this chip",
+    deleteConfirm: "Remove {{name}}?",
+    apply: "Apply",
+  },
+  onboarding: {
+    languageStep: {
+      title: "Choose Your Language",
+      description: "Select the language you'd like to use before continuing.",
+      continue: "Continue",
+      options: {
+        system: "Follow your system language",
+        ko: "Use Korean for the app UI",
+        en: "Use English for the app UI",
+      },
+    },
+    title: "Welcome",
+    descriptionLine1: "A simpler, more convenient way to work with",
+    descriptionLine2:
+      "AI-generated images through search, organization, and management.",
+    addFolder: "Add Image Folder",
+    addFolderDescription:
+      "Add a folder with images and scanning will start automatically.",
+    features: {
+      search: {
+        title: "Prompt Search",
+        description: "Search using prompts embedded in your images.",
+      },
+      similar: {
+        title: "Similar Image Discovery",
+        description:
+          "Find visually similar images and prompt-similar results together.",
+      },
+      categories: {
+        title: "Category Management",
+        description: "Organize images into categories your way.",
+      },
+    },
+  },
+  categoryDialog: {
+    title: {
+      single: "Change Category",
+      bulk: "Bulk Change Categories",
+    },
+    bulkDescription: "Apply categories to {{count}} selected images at once.",
+    empty: "No categories have been created yet.",
+    addFailed: "Failed to add category: {{message}}",
+    removeFailed: "Failed to remove category: {{message}}",
+  },
+  duplicateResolution: {
+    title: {
+      watch: "Duplicate Image Detected",
+      folderAdd: "Resolve Duplicate Images",
+    },
+    description: {
+      watch: "Some files need your attention.",
+      folderAdd:
+        "Found {{count}} duplicate images. Choose which files to keep before finishing folder import.",
+    },
+    bulkLabel: "Bulk Actions",
+    bulk: {
+      existing: "Keep all existing files",
+      incoming: "Keep all new files",
+      ignore: "Ignore all",
+      manual: "Review one by one",
+    },
+    listLabel: "Duplicate Files",
+    previous: "Previous",
+    next: "Next",
+    summary:
+      "{{existingCount}} existing file(s) / {{incomingCount}} new file(s)",
+    sample: "Sample: {{fileName}}",
+    choice: {
+      existing: "Keep existing",
+      incoming: "Keep new",
+      ignore: "Ignore",
+    },
+    manualEmpty: "Bulk actions do not show individual previews.",
+    applySelection: "Apply Selection",
+    resolveAndAddFolder: "Resolve and Add Folder",
+    confirmDelete: {
+      title: "Confirm File Deletion",
+      description:
+        "Your current selection includes deleting files. Do you want to continue?",
+      continue: "Continue",
+    },
+    previewSide: "Duplicate Sample",
+    previewTitle: "{{side}} Full Preview",
+    requiredError:
+      "Found {{count}} duplicate images. Choose how to resolve them before finishing folder import.",
+    pathAlreadyAdded: "This folder path has already been added.",
+    resolveFailed: "Failed to resolve duplicate images: {{message}}",
+  },
+  appInfoDialog: {
+    tagline: "Unified AI Image Management",
+    repository: "Repository",
+    author: "Author",
+    licenses: "Open Source Licenses",
+    featureTour: "Feature Tour",
+    loadingInfo: "Loading information...",
+    environment: "Environment",
+    loadingEnvironment: "Loading environment...",
+    licensesDescription: "Included open-source license information.",
+  },
+  error: {
+    scanInProgressForSimilarity:
+      "A scan is already running. Please wait until it completes before recalculating similarity.",
+    scanInProgressForHashReset:
+      "A scan is already running. Please wait until it completes before recalculating hashes.",
+    scanFailed: "Scan failed: {{message}}",
+    analysisFailed: "Image analysis failed: {{message}}",
+    imageListLoadFailed: "Failed to load image list: {{message}}",
+    folderListLoadFailed: "Failed to load folder list: {{message}}",
+    categoryLoadFailed: "Failed to load categories: {{message}}",
+    categoryCreateFailed: "Failed to create category: {{message}}",
+    categoryRenameFailed: "Failed to rename category: {{message}}",
+    categoryDeleteFailed: "Failed to delete category: {{message}}",
+    categoryAddImagesFailed: "Failed to add images: {{message}}",
+    favoriteSetFailed: "Failed to update favorite: {{message}}",
+    imageDeleteFailed: "Failed to delete image: {{message}}",
+    hashResetFailed: "Failed to reset hashes: {{message}}",
+  },
+  appStatus: {
+    folderSummary: "{{first}} and {{count}} more folders",
+  },
+  generation: {
+    sections: {
+      model: "Model",
+      prompt: "Prompt",
+      characters: "Characters",
+    },
+    advanced: {
+      sampler: "Sampler",
+      noise: "Noise",
+      seed: "Seed",
+      random: "Random",
+      randomSeed: "Random seed",
+      resetParameters: "Reset parameters",
+      count: "Count",
+      countUnit: "{{count}} images",
+      infinite: "Infinite",
+      delay: "Delay",
+      seedMode: "Seed mode",
+      seedModeRandom: "Random every time",
+      seedModeFixed: "Fixed",
+      warningTitle: "Warning",
+      warningTooltip: "View auto-generate warning",
+      warningRequired: "Confirmation required before using auto-generate",
+      warningDescription:
+        "Using the NovelAI API in a way that violates policy or creates abnormally high usage may lead to temporary or permanent restrictions, and responsibility lies with the user.",
+      warningConfirmed: "I understand",
+    },
+    state: {
+      configurationRequired: "Configuration required",
+      configurationMessage: "Please configure {{target}} first",
+      configurationApiKeyAndOutput: "your API key and output folder",
+      configurationApiKey: "your API key",
+      configurationOutputFolder: "your output folder",
+    },
+    promptMode: {
+      prompt: "Prompt",
+      negativePrompt: "Negative Prompt",
+    },
+    character: {
+      duplicatePosition: "Some characters share the same position",
+      empty: "No characters yet — add one with the + button",
+      promptLabel: "Character {{index}} Prompt",
+      negativePromptLabel: "Character {{index}} Negative Prompt",
+    },
+    actions: {
+      stopPending: "Stopping soon...",
+      stop: "Stop",
+      enterPrompt: "Please enter a prompt",
+      generating: "Generating...",
+      generate: "Generate",
+      autoGenerate: "Auto Generate",
+      autoGenerateNeedsWarning:
+        "You must acknowledge the auto-generate warning before using it",
+      collapsePanel: "Collapse panel",
+      openPanel: "Open panel",
+      promptGroup: "Prompt Groups",
+      referenceImage: "Reference Image",
+      removeReferenceImage: "Remove reference image",
+      apiKeyHelp: "View NovelAI API key setup help",
+      apiKeyHelpDescription:
+        "In the NovelAI website menu, go to Account Settings and click Get Persistent API Token to get your API token.",
+      replace: "Replace",
+      login: "Log In",
+      loginSuccess: "Logged In",
+      outputFolder: "Download Folder",
+      outputFolderPlaceholder: "Choose save path...",
+      save: "Save",
+      sendToReferenceHint:
+        "Right-click an image in the gallery and send it as a reference image",
+      dropHere: "Drop an image here",
+      generatingPreviewAlt: "Generation preview",
+      generatingNow: "Generating",
+      generatingWait: "Please wait...",
+      generationFailed: "Generation failed",
+      resultAlt: "Generation result",
+      seedCopied: "Seed copied to clipboard",
+      copyToClipboard: "Copy to clipboard",
+      importSeed: "Import",
+      emptyState: "Enter a prompt or drop an image",
+      recent: "Recent",
+      noRecent: "None",
+    },
+    size: {
+      title: "Size",
+      portrait: "Portrait",
+      landscape: "Landscape",
+      square: "Square",
+      custom: "Custom",
+      noSavedSizes: "No saved sizes",
+      deleteAria: "Delete",
+      addAria: "Add",
+      swapTitle: "Swap width and height",
+      swapAria: "Swap width and height values",
+    },
+    feedback: {
+      settingsSaved: "Saved",
+      settingsLoadFailed: "Failed to load settings: {{message}}",
+      settingsSaveFailed: "Failed to save settings: {{message}}",
+      autoGenerateWarning:
+        "Please acknowledge the warning before using auto-generate.",
+      legacyModelAdjusted:
+        "This image was made with a legacy model. Switched to V4.5 Full.",
+      invalidSeedRange:
+        "Seed must be an integer between {{min}} and {{max}}, so it was switched to random.",
+      metadataNotFound: "Could not find metadata",
+    },
+    dialogs: {
+      duplicateTitle: "This configuration was already generated",
+      duplicateDescription:
+        "All parameters match the previous generation. Generate anyway?",
+      continueGenerate: "Generate anyway",
+      validApiKey: "Valid API Key",
+      invalidApiKey: "Invalid API Key",
+      subscriptionTier: "Subscription tier: {{tier}}",
+      confirm: "Confirm",
+      imageAction: "Image Actions",
+      actionSelect: "Choose Action",
+      previewAlt: "Preview",
+      disabled: "Disabled",
+      preciseDisablesVibe:
+        "Precise Reference is active — Vibe Transfer disabled",
+      vibeDisablesPrecise:
+        "Vibe Transfer is active — Precise Reference disabled",
+      importMetadata: "Import Metadata",
+      importingMetadata: "Importing...",
+    },
+  },
+  featureTour: {
+    previous: "Previous",
+    next: "Next",
+    done: "Done",
+    reopenHint:
+      'You can reopen this tour from the top-right info button under "Feature Tour".',
+    steps: {
+      search: {
+        title: "Prompt Search",
+        description:
+          "Search prompts contained in images. Separate multiple tags with commas.",
+      },
+      panels: {
+        title: "Panel Switching",
+        description:
+          "Switch between the generator, gallery, settings, and app info panels.",
+      },
+      views: {
+        title: "View Modes",
+        description:
+          "See all images or filter down to only recently created images.",
+      },
+      folders: {
+        title: "Folder Management",
+        description:
+          "Add image folders and toggle visibility with the eye icon.",
+      },
+      categories: {
+        title: "Categories",
+        description:
+          "Organize images with categories like Favorites and Random Pick.",
+      },
+      galleryToolbar: {
+        title: "Gallery Tools",
+        description:
+          "Change sorting, switch view modes, and use selection mode.",
+      },
+      promptInput: {
+        title: "Prompt Input",
+        description:
+          "Separate tags with commas to turn them into token chips automatically. Double-click a chip to edit weight and expressions.",
+      },
+      promptCursor: {
+        title: "Prompt Cursor",
+        description:
+          "Click a token chip to move the input cursor and edit chips naturally like text.",
+      },
+      groupChip: {
+        title: "Group Chips",
+        description:
+          "Typing @{ opens prompt group autocomplete. Group chips insert predefined tag bundles at once.",
+      },
+      promptGroups: {
+        title: "Prompt Group Management",
+        description:
+          "Create prompt groups and edit tags here. Drag a group into the prompt input to insert it as a chip.",
+      },
+      wildcard: {
+        title: "Wildcards",
+        description:
+          "Typing a tag with | creates a wildcard chip like %{option1|option2}.",
+      },
+      autoGenerate: {
+        title: "Auto Generate",
+        description:
+          "Configure count, delay, and seed mode to generate multiple images in sequence.",
+      },
+      generate: {
+        title: "Generate Image",
+        description:
+          "Enter a prompt and press generate. Configure your API key and output folder first.",
+      },
+    },
+  },
+  settings: {
+    title: "Settings",
+    resetAll: "Reset All",
+    resetToDefault: "Reset to default",
+    language: {
+      title: "Language",
+      description: "Choose the language used for the app UI.",
+      system: "System",
+      ko: "한국어",
+      en: "English",
+    },
+    theme: {
+      title: "Theme",
+      description: "Choose the app color theme.",
+      options: {
+        auto: "System",
+        dark: "Dark",
+        white: "Light",
+      },
+    },
+    pageSize: {
+      title: "Images Per Page",
+      description: "How many images to show at once in the gallery.",
+      unit: "{{count}}",
+    },
+    recentRange: {
+      title: "Recent Range",
+      description: "The time range shown in the recent view.",
+      unit: "{{count}} days",
+    },
+    similarPageSize: {
+      title: "Similar Images Page Size",
+      description:
+        "How many images to show per page in the similar-images panel.",
+      unit: "{{count}}",
+    },
+    similarity: {
+      title: "Similarity Sensitivity",
+      description:
+        "Looser settings treat more images as similar, while stricter settings reduce the number of matches.",
+      tooltipAria: "View similarity sensitivity help",
+      tooltipDescription:
+        "Konomi App evaluates similar images using two signals. Perceptual Hash measures visual similarity and Jaccard similarity measures prompt similarity, and they complement each other. In the similar image list, V means Perceptual Hash, P means Jaccard, and B means both.",
+      modeAria: "Similarity settings mode",
+      mode: {
+        basic: {
+          title: "Basic Mode",
+          description: "A good default for most users",
+        },
+        advanced: {
+          title: "Advanced Mode",
+          description: "Adjust visual and prompt thresholds separately",
+        },
+      },
+      currentApplied:
+        "Current: Visual {{visual}} ({{visualLabel}}) · Prompt {{prompt}} ({{promptLabel}})",
+      quality: {
+        16: "Extremely Loose",
+        15: "Very Loose",
+        14: "Loose",
+        13: "Slightly Loose",
+        12: "Balanced",
+        11: "Slightly Strict",
+        10: "Strict",
+        9: "Very Strict",
+        8: "Extremely Strict",
+      },
+      jaccard: {
+        veryStrict: "Very Strict",
+        strict: "Strict",
+        balanced: "Balanced",
+        loose: "Loose",
+        veryLoose: "Very Loose",
+      },
+      visualRange: {
+        loose: "Loose (16)",
+        strict: "Strict (8)",
+      },
+      promptRange: {
+        loose: "Loose (0.50)",
+        strict: "Strict (0.70)",
+      },
+    },
+    hashReset: {
+      title: "Recalculate Hashes",
+      description:
+        "Reset and recalculate the Perceptual Hash values used for similar image detection.",
+      resetting: "Resetting...",
+      calculating: "Calculating...",
+      action: "Reset and Recalculate",
+    },
+    ignored: {
+      title: "Ignored Duplicates",
+      description:
+        'These are files marked as "Ignore" during duplicate handling. Clearing the list makes them eligible again in the next scan/watch cycle.',
+      refresh: "Refresh",
+      clearing: "Clearing...",
+      clear: "Clear List",
+      total: "{{count}} total",
+      empty: "Empty.",
+      loadError: "An error occurred while loading the ignored list.",
+      clearError: "An error occurred while clearing the ignored list.",
+    },
+    database: {
+      title: "Database Info",
+      imageSize: "Image database size",
+      tagSchemaVersion: "Tag database version",
+      unknown: "Unknown",
+    },
+  },
+  sidebar: {
+    views: {
+      all: "All Images",
+      recent: "Recent",
+    },
+    sections: {
+      folders: "Folders",
+      categories: "Categories",
+    },
+    categories: {
+      favorites: "Favorites",
+      randomPick: "Random Pick",
+      empty: "No categories",
+      reroll: "Pick Again",
+      addByPrompt: "Add by Prompt",
+    },
+    folders: {
+      empty: "No folders added",
+      addDisabled:
+        "You cannot add folders while similarity analysis is running",
+    },
+    dialog: {
+      newCategoryTitle: "New Category",
+      newCategoryPlaceholder: "Category name",
+      create: "Create",
+      addByPromptTitle: "Add Images by Prompt",
+      addByPromptDescription:
+        "Add every image whose prompt contains the keyword to this category.",
+      addByPromptPlaceholder: "Enter keyword...",
+      add: "Add",
+      deleteFolderTitle: "Delete Folder",
+      deleteFolderDescription: 'Delete folder "{{name}}"?',
+      deleting: "Deleting...",
+      newFolderTitle: "Add Folder",
+      name: "Name",
+      namePlaceholder: "Folder name",
+      path: "Path",
+      pathPlaceholder: "Choose folder path...",
+      browse: "Browse",
+      loadingFiles: "Loading file list...",
+    },
+  },
+} as const;
+
+export default en;

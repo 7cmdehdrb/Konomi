@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ThemeId } from "@/lib/themes";
+import { isAppLanguage, type AppLanguage } from "@/lib/language";
 
 export interface Settings {
   recentDays: number;
@@ -10,6 +11,7 @@ export interface Settings {
   promptSimilarityThreshold: number;
   similarPageSize: number;
   theme: ThemeId;
+  language: AppLanguage;
 }
 
 export const DEFAULTS: Settings = {
@@ -21,6 +23,7 @@ export const DEFAULTS: Settings = {
   promptSimilarityThreshold: 0.6,
   similarPageSize: 10,
   theme: "auto",
+  language: "system",
 };
 
 const KEY = "konomi-settings";
@@ -41,6 +44,9 @@ function migrateStoredSettings(raw: LegacyStoredSettings): Partial<Settings> {
     migrated.similarPageSize = raw.similarPageSize;
   }
   if (typeof raw.theme === "string") migrated.theme = raw.theme as ThemeId;
+  if (isAppLanguage((raw as { language?: unknown }).language)) {
+    migrated.language = raw.language;
+  }
 
   if (
     typeof raw.promptSimilarityThreshold !== "number" &&

@@ -14,8 +14,10 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { parsePromptTokens, isGroupRef, type PromptToken } from "@/lib/token";
+import { useLocaleFormatters } from "@/lib/formatters";
 import type { ImageData } from "./image-card";
 import { TokenContainer } from "./token-container";
+import { useTranslation } from "react-i18next";
 
 type SimilarityReason = "visual" | "prompt" | "both";
 
@@ -108,6 +110,8 @@ export function ImageDetail({
   onSimilarImageClick,
   similarPageSize = 10,
 }: ImageDetailProps) {
+  const { t } = useTranslation();
+  const { formatDate } = useLocaleFormatters();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [fitMode, setFitMode] = useState<"fit" | "actual">("fit");
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -208,7 +212,9 @@ export function ImageDetail({
                 image.isFavorite && "fill-favorite",
               )}
             />
-            {image.isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}
+            {image.isFavorite
+              ? t("imageDetail.actions.removeFavorite")
+              : t("imageDetail.actions.addFavorite")}
           </Button>
           <Button
             variant="ghost"
@@ -221,7 +227,9 @@ export function ImageDetail({
             ) : (
               <Copy className="h-4 w-4 mr-1.5" />
             )}
-            {copiedKey === "prompt" ? "복사됨" : "프롬프트 복사"}
+            {copiedKey === "prompt"
+              ? t("imageDetail.actions.copied")
+              : t("imageDetail.actions.copyPrompt")}
           </Button>
           <Button
             variant="ghost"
@@ -232,12 +240,12 @@ export function ImageDetail({
             {fitMode === "fit" ? (
               <>
                 <Maximize2 className="h-4 w-4 mr-1.5" />
-                원본 크기
+                {t("imageDetail.actions.actualSize")}
               </>
             ) : (
               <>
                 <Minimize2 className="h-4 w-4 mr-1.5" />
-                화면 맞춤
+                {t("imageDetail.actions.fitToScreen")}
               </>
             )}
           </Button>
@@ -266,7 +274,7 @@ export function ImageDetail({
         {/* Similar Images Panel */}
         <div className="flex w-24 shrink-0 flex-col border-r border-border/60 bg-card/70">
           <p className="shrink-0 pt-3 pb-1 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-            유사 이미지
+            {t("imageDetail.similarImages")}
           </p>
           <div className="flex-1 min-h-0 overflow-y-auto">
             {hasSimilar ? (
@@ -285,7 +293,7 @@ export function ImageDetail({
               </div>
             ) : (
               <p className="px-2 pt-4 text-center text-[10px] text-muted-foreground/70">
-                없음
+                {t("common.none")}
               </p>
             )}
           </div>
@@ -496,14 +504,18 @@ export function ImageDetail({
                   Info
                 </p>
                 <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-                  <span className="text-muted-foreground/70">Model</span>
-                  <span className="text-foreground/80 truncate">
-                    {image.model || "—"}
+                  <span className="text-muted-foreground/70">
+                    {t("imageDetail.info.model")}
                   </span>
-                  <span className="text-muted-foreground/70">Seed</span>
+                  <span className="text-foreground/80 truncate">
+                    {image.model || t("imageDetail.info.unavailable")}
+                  </span>
+                  <span className="text-muted-foreground/70">
+                    {t("imageDetail.info.seed")}
+                  </span>
                   <span className="flex items-center gap-1.5">
                     <span className="font-mono text-foreground/80">
-                      {hasSeed ? image.seed : "—"}
+                      {hasSeed ? image.seed : t("imageDetail.info.unavailable")}
                     </span>
                     {hasSeed ? (
                       <button
@@ -518,26 +530,34 @@ export function ImageDetail({
                       </button>
                     ) : null}
                   </span>
-                  <span className="text-muted-foreground/70">Size</span>
+                  <span className="text-muted-foreground/70">
+                    {t("imageDetail.info.size")}
+                  </span>
                   <span className="font-mono text-foreground/80">
                     {image.width}×{image.height}
                   </span>
-                  <span className="text-muted-foreground/70">Sampler</span>
+                  <span className="text-muted-foreground/70">
+                    {t("imageDetail.info.sampler")}
+                  </span>
                   <span className="text-foreground/80 truncate">
-                    {image.sampler || "—"}
+                    {image.sampler || t("imageDetail.info.unavailable")}
                   </span>
-                  <span className="text-muted-foreground/70">Steps</span>
-                  <span className="font-mono text-foreground/80">
-                    {image.steps || "—"}
+                  <span className="text-muted-foreground/70">
+                    {t("imageDetail.info.steps")}
                   </span>
-                  <span className="text-muted-foreground/70">CFG</span>
                   <span className="font-mono text-foreground/80">
-                    {image.cfgScale || "—"}
+                    {image.steps || t("imageDetail.info.unavailable")}
+                  </span>
+                  <span className="text-muted-foreground/70">
+                    {t("imageDetail.info.cfg")}
+                  </span>
+                  <span className="font-mono text-foreground/80">
+                    {image.cfgScale || t("imageDetail.info.unavailable")}
                   </span>
                   {image.cfgRescale ? (
                     <>
                       <span className="text-muted-foreground/70">
-                        CFG Rescale
+                        {t("imageDetail.info.cfgRescale")}
                       </span>
                       <span className="font-mono text-foreground/80">
                         {image.cfgRescale}
@@ -547,7 +567,7 @@ export function ImageDetail({
                   {image.noiseSchedule ? (
                     <>
                       <span className="text-muted-foreground/70">
-                        Noise Schedule
+                        {t("imageDetail.info.noiseSchedule")}
                       </span>
                       <span className="text-foreground/80 truncate">
                         {image.noiseSchedule}
@@ -556,17 +576,23 @@ export function ImageDetail({
                   ) : null}
                   {image.varietyPlus ? (
                     <>
-                      <span className="text-muted-foreground/70">Variety+</span>
+                      <span className="text-muted-foreground/70">
+                        {t("imageDetail.info.varietyPlus")}
+                      </span>
                       <span className="text-foreground/80">ON</span>
                     </>
                   ) : null}
-                  <span className="text-muted-foreground/70">Date</span>
+                  <span className="text-muted-foreground/70">
+                    {t("imageDetail.info.date")}
+                  </span>
                   <span className="text-foreground/80">
-                    {new Date(image.fileModifiedAt).toLocaleDateString("ko-KR")}
+                    {formatDate(image.fileModifiedAt)}
                   </span>
                   {image.pHash ? (
                     <>
-                      <span className="text-muted-foreground/70">P-Hash</span>
+                      <span className="text-muted-foreground/70">
+                        {t("imageDetail.info.phash")}
+                      </span>
                       <span className="font-mono text-muted-foreground/80 truncate">
                         {image.pHash}
                       </span>

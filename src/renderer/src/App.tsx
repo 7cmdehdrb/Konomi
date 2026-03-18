@@ -41,6 +41,8 @@ import type { AdvancedFilter } from "@/lib/advanced-filter";
 import { createLogger } from "@/lib/logger";
 import { rowToImageData } from "@/lib/image-utils";
 import { dispatchSearchInputAppendTag } from "@/lib/search-input-event";
+import { applyAppLanguagePreference } from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
 
 const log = createLogger("renderer/App");
 const CATEGORY_ORDER_STORAGE_KEY = "konomi-category-order";
@@ -119,6 +121,7 @@ function getBuiltinCategoryKind(
 
 export default function App() {
   const { settings, updateSettings, resetSettings } = useSettings();
+  const { t } = useTranslation();
   const { outputFolder, setOutputFolder } = useNaiGenSettings();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<number>>(
@@ -416,6 +419,10 @@ export default function App() {
   );
 
   useEffect(() => {
+    void applyAppLanguagePreference(settings.language);
+  }, [settings.language]);
+
+  useEffect(() => {
     const theme = settings.theme ?? "dark";
     const applyTheme = (isDark: boolean) => {
       document.documentElement.dataset.theme = isDark ? "dark" : "white";
@@ -444,9 +451,7 @@ export default function App() {
       }
 
       if (scanningRef.current) {
-        toast.error(
-          "스캔이 진행 중입니다. 유사도 재계산을 위해 스캔 완료 후 다시 시도해 주세요.",
-        );
+        toast.error(t("error.scanInProgressForSimilarity"));
         return;
       }
 
@@ -507,7 +512,9 @@ export default function App() {
       .then((loaded) => setCategories(applyCategoryOrder(loaded)))
       .catch((e: unknown) =>
         toast.error(
-          `카테고리 로드 실패: ${e instanceof Error ? e.message : String(e)}`,
+          t("error.categoryLoadFailed", {
+            message: e instanceof Error ? e.message : String(e),
+          }),
         ),
       );
 
@@ -704,7 +711,9 @@ export default function App() {
       )
       .catch((e: unknown) =>
         toast.error(
-          `카테고리 생성 실패: ${e instanceof Error ? e.message : String(e)}`,
+          t("error.categoryCreateFailed", {
+            message: e instanceof Error ? e.message : String(e),
+          }),
         ),
       );
   }, []);
@@ -718,7 +727,9 @@ export default function App() {
       )
       .catch((e: unknown) =>
         toast.error(
-          `카테고리 이름 변경 실패: ${e instanceof Error ? e.message : String(e)}`,
+          t("error.categoryRenameFailed", {
+            message: e instanceof Error ? e.message : String(e),
+          }),
         ),
       );
   }, []);
@@ -742,7 +753,9 @@ export default function App() {
         })
         .catch((e: unknown) =>
           toast.error(
-            `카테고리 삭제 실패: ${e instanceof Error ? e.message : String(e)}`,
+            t("error.categoryDeleteFailed", {
+              message: e instanceof Error ? e.message : String(e),
+            }),
           ),
         );
     },
@@ -759,7 +772,9 @@ export default function App() {
         })
         .catch((e: unknown) =>
           toast.error(
-            `이미지 추가 실패: ${e instanceof Error ? e.message : String(e)}`,
+            t("error.categoryAddImagesFailed", {
+              message: e instanceof Error ? e.message : String(e),
+            }),
           ),
         );
     },
@@ -782,7 +797,9 @@ export default function App() {
           })
           .catch((e: unknown) => {
             toast.error(
-              `즐겨찾기 설정 실패: ${e instanceof Error ? e.message : String(e)}`,
+              t("error.favoriteSetFailed", {
+                message: e instanceof Error ? e.message : String(e),
+              }),
             );
           });
         return prev.map((i) =>
@@ -799,8 +816,8 @@ export default function App() {
   const handleCopyPrompt = useCallback((prompt: string) => {
     navigator.clipboard
       .writeText(prompt)
-      .catch(() => toast.error("클립보드 복사 실패"));
-  }, []);
+      .catch(() => toast.error(t("app.clipboardCopyFailed")));
+  }, [t]);
 
   const handleAddTagToSearch = useCallback((tag: string) => {
     const normalizedTag = tag.trim();
@@ -841,7 +858,9 @@ export default function App() {
     if (img) {
       window.image.delete(img.path).catch((e: unknown) => {
         toast.error(
-          `이미지 삭제 실패: ${e instanceof Error ? e.message : String(e)}`,
+          t("error.imageDeleteFailed", {
+            message: e instanceof Error ? e.message : String(e),
+          }),
         );
       });
       if (selectedImage?.id === deleteConfirmId) {
@@ -995,16 +1014,16 @@ export default function App() {
 
   const splashStatusText = useMemo(() => {
     if (folderCount === null) {
-      return "등록된 폴더를 확인하고 첫 화면을 준비하고 있습니다.";
+      return t("app.splash.status.checkingFolders");
     }
     if (folderCount === 0) {
-      return "시작 화면을 구성하고 바로 폴더를 추가할 수 있게 준비하고 있습니다.";
+      return t("app.splash.status.preparingOnboarding");
     }
     if (startupScanPending) {
-      return "등록된 이미지를 스캔하고 라이브러리 상태를 동기화하고 있습니다.";
+      return t("app.splash.status.syncingLibrary");
     }
-    return "라이브러리와 검색 화면을 마무리하고 있습니다.";
-  }, [folderCount, startupScanPending]);
+    return t("app.splash.status.finalizing");
+  }, [folderCount, startupScanPending, t]);
 
   const splashDetailText = useMemo(() => {
     if (scanProgress && scanProgress.total > 0) {
@@ -1012,19 +1031,29 @@ export default function App() {
       const folderLabel =
         folderNames.length <= 1
           ? folderNames[0]
-          : `${folderNames[0]} 외 ${folderNames.length - 1}개 폴더`;
+          : t("appStatus.folderSummary", {
+              first: folderNames[0],
+              count: folderNames.length - 1,
+            });
       return folderLabel
-        ? `${folderLabel} 스캔 ${scanProgress.done}/${scanProgress.total}`
-        : `이미지 스캔 ${scanProgress.done}/${scanProgress.total}`;
+        ? t("app.splash.detail.scanFolders", {
+            folderLabel,
+            done: scanProgress.done,
+            total: scanProgress.total,
+          })
+        : t("app.splash.detail.scanImages", {
+            done: scanProgress.done,
+            total: scanProgress.total,
+          });
     }
     if (folderCount === null) {
-      return "폴더 목록을 불러오는 중입니다.";
+      return t("app.splash.detail.loadingFolders");
     }
     if (folderCount === 0) {
-      return "온보딩 화면을 준비하는 중입니다.";
+      return t("app.splash.detail.preparingOnboarding");
     }
-    return "첫 라이브러리 상태를 불러오는 중입니다.";
-  }, [folderCount, scanProgress, scanningFolderNames]);
+    return t("app.splash.detail.loadingLibraryState");
+  }, [folderCount, scanProgress, scanningFolderNames, t]);
 
   useEffect(() => {
     if (isAppInitializing) {
@@ -1149,9 +1178,7 @@ export default function App() {
               onResetHashes={async () => {
                 try {
                   if (scanningRef.current) {
-                    toast.error(
-                      "스캔이 진행 중입니다. 스캔 완료 후 해시 재계산을 실행해 주세요.",
-                    );
+                    toast.error(t("error.scanInProgressForHashReset"));
                     return;
                   }
                   suspendAutoAnalysisRef.current = true;
@@ -1164,7 +1191,9 @@ export default function App() {
                   await runAnalysisNow();
                 } catch (e: unknown) {
                   toast.error(
-                    `해시 초기화 실패: ${e instanceof Error ? e.message : String(e)}`,
+                    t("error.hashResetFailed", {
+                      message: e instanceof Error ? e.message : String(e),
+                    }),
                   );
                 } finally {
                   suspendAutoAnalysisRef.current = false;
@@ -1208,6 +1237,8 @@ export default function App() {
               hasFolders={folderCount === null || folderCount > 0}
               onAddFolder={() => setFolderDialogRequest((n) => n + 1)}
               isInitializing={isAppInitializing}
+              language={settings.language}
+              onLanguageChange={(language) => handleSettingsUpdate({ language })}
             />
           </div>
         </div>
@@ -1228,17 +1259,19 @@ export default function App() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>스캔 취소</DialogTitle>
+            <DialogTitle>{t("app.dialog.scanCancel.title")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            진행 중인 폴더 스캔을 취소할까요?
+            {t("app.dialog.scanCancel.description")}
           </p>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">계속 스캔</Button>
+              <Button variant="ghost">
+                {t("app.dialog.scanCancel.continue")}
+              </Button>
             </DialogClose>
             <Button variant="destructive" onClick={confirmCancelScan}>
-              취소
+              {t("app.dialog.scanCancel.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1252,17 +1285,17 @@ export default function App() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>이미지 삭제</DialogTitle>
+            <DialogTitle>{t("app.dialog.imageDelete.title")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            정말로 이 이미지를 삭제할까요? 파일은 휴지통으로 이동됩니다.
+            {t("app.dialog.imageDelete.description")}
           </p>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">취소</Button>
+              <Button variant="ghost">{t("common.cancel")}</Button>
             </DialogClose>
             <Button variant="destructive" onClick={handleConfirmDelete}>
-              삭제
+              {t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

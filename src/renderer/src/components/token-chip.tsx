@@ -12,6 +12,7 @@ import { Copy, ImagePlus, Minus, Plus, Search, Trash2 } from "lucide-react";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useTranslation } from "react-i18next";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -157,6 +158,7 @@ function TokenChipCore({
 }: Omit<TokenChipProps, "isSortable" | "sortableId" | "sortableDisabled"> & {
   sortable?: SortableBindings;
 }) {
+  const { t } = useTranslation();
   const radioName = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLDivElement | null>(null);
@@ -901,7 +903,7 @@ function TokenChipCore({
           >
             <div className="space-y-2">
               <label className="block text-[10px] uppercase tracking-wider text-muted-foreground">
-                Tag
+                {t("tokenChip.editor.tag")}
               </label>
               <div className="relative">
                 <input
@@ -909,7 +911,7 @@ function TokenChipCore({
                   value={draftText}
                   onChange={(e) => setDraftText(e.target.value)}
                   onKeyDown={handleTagInputKeyDown}
-                  placeholder="tag"
+                  placeholder={t("tokenChip.editor.tagPlaceholder")}
                   className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary/60"
                 />
                 {tagSuggestionOpen && tagSuggestions.length > 0 ? (
@@ -944,7 +946,7 @@ function TokenChipCore({
             <div className="mt-2.5 space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Emphasis
+                  {t("tokenChip.editor.emphasis")}
                 </label>
                 <div className="flex items-center gap-1">
                   <button
@@ -983,7 +985,7 @@ function TokenChipCore({
 
             <div className="mt-2.5">
               <p className="mb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                Expression
+                {t("tokenChip.editor.expression")}
               </p>
               <div className="flex items-center gap-3">
                 <label className="inline-flex items-center gap-1.5 text-xs text-foreground/80">
@@ -993,7 +995,7 @@ function TokenChipCore({
                     checked={draftExpression === "numerical"}
                     onChange={() => setDraftExpression("numerical")}
                   />
-                  numerical
+                  {t("tokenChip.editor.numerical")}
                 </label>
                 <label className="inline-flex items-center gap-1.5 text-xs text-foreground/80">
                   <input
@@ -1002,14 +1004,14 @@ function TokenChipCore({
                     checked={draftExpression === "keyword"}
                     onChange={() => setDraftExpression("keyword")}
                   />
-                  keyword
+                  {t("tokenChip.editor.keyword")}
                 </label>
               </div>
             </div>
 
             <div className="mt-2.5 space-y-1.5">
               <label className="block text-[10px] uppercase tracking-wider text-muted-foreground">
-                Raw Token
+                {t("tokenChip.editor.rawToken")}
               </label>
               <input
                 value={previewRawToken}
@@ -1027,7 +1029,8 @@ function TokenChipCore({
                     setEditorOpenState(false);
                     onDelete();
                   }}
-                  title="삭제"
+                  title={t("common.delete")}
+                  aria-label={t("common.delete")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -1040,14 +1043,14 @@ function TokenChipCore({
                   className="h-7 rounded border border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
                   onClick={cancelEditing}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button
                   type="button"
                   className="h-7 rounded border border-primary/50 bg-primary/10 px-2 text-[11px] text-primary hover:bg-primary/20"
                   onClick={() => applyEditing(false)}
                 >
-                  Apply
+                  {t("tokenChip.editor.apply")}
                 </button>
               </div>
             </div>
@@ -1067,14 +1070,14 @@ function TokenChipCore({
               disabled={!onAddTagToSearch}
             >
               <Search className="h-4 w-4" />
-              검색어에 태그 추가
+              {t("tokenChip.context.addToSearch")}
             </ContextMenuItem>
             <ContextMenuItem
               onSelect={() => onAddTagToGeneration?.(contextMenuTag)}
               disabled={!onAddTagToGeneration}
             >
               <ImagePlus className="h-4 w-4" />
-              생성모드에 태그 추가
+              {t("tokenChip.context.addToGeneration")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>

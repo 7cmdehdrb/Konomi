@@ -39,6 +39,7 @@ import { TokenChip } from "./token-chip";
 import { GroupChip } from "./group-chip";
 import { WildcardChip } from "./wildcard-chip";
 import { PromptTagSuggestionIndicator } from "./prompt-tag-suggestion-indicator";
+import { useTranslation } from "react-i18next";
 
 type EditableToken = AnyToken & { id: string };
 const INPUT_WRAP_SPACE_THRESHOLD_PX = 120;
@@ -100,7 +101,7 @@ function serializePrompt(tokens: EditableToken[], draft: string): string {
 export function PromptInput({
   value,
   onChange,
-  placeholder = "tag, tag, tag...",
+  placeholder,
   className,
   resizable = true,
   minHeight = 112,
@@ -108,6 +109,8 @@ export function PromptInput({
   groups: groupsProp,
   allowExternalDrop = false,
 }: PromptInputProps) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t("promptInput.placeholder");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const inputAnchorRef = useRef<HTMLDivElement | null>(null);
   const measureCanvasContextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -906,8 +909,8 @@ export function PromptInput({
               setTagSuggestionOpen(false);
             }, 150);
           }}
-          aria-label={placeholder}
-          placeholder={tokens.length === 0 ? placeholder : ""}
+          aria-label={resolvedPlaceholder}
+          placeholder={tokens.length === 0 ? resolvedPlaceholder : ""}
           className="h-7 w-full bg-transparent px-1 text-sm leading-7 outline-none placeholder:text-muted-foreground/40"
           style={{
             color: "transparent",

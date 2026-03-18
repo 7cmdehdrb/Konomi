@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GripVertical } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { PromptToken } from "@/lib/token";
 import { tokenToRawString } from "@/lib/token";
@@ -26,18 +27,20 @@ function DraggableTokenChip({ token }: DraggableTokenChipProps) {
       }}
       onDragEnd={() => setDragging(false)}
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border border-border/60 bg-secondary px-2 py-0.5 text-xs cursor-grab active:cursor-grabbing select-none transition-opacity",
+        "inline-flex cursor-grab select-none items-center gap-1 rounded-md border border-border/60 bg-secondary px-2 py-0.5 text-xs transition-opacity active:cursor-grabbing",
         dragging && "opacity-40",
       )}
       title={raw}
     >
-      <GripVertical className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0 -ml-0.5" />
-      <span className="text-foreground/90 max-w-[140px] truncate">{token.text}</span>
-      {hasWeight && (
-        <span className="text-[10px] text-primary/70 font-mono shrink-0">
+      <GripVertical className="h-2.5 w-2.5 shrink-0 -ml-0.5 text-muted-foreground/50" />
+      <span className="max-w-[140px] truncate text-foreground/90">
+        {token.text}
+      </span>
+      {hasWeight ? (
+        <span className="shrink-0 text-[10px] font-mono text-primary/70">
           {token.weight.toFixed(2)}
         </span>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -49,17 +52,18 @@ interface TokenSectionProps {
 
 function TokenSection({ label, tokens }: TokenSectionProps) {
   if (tokens.length === 0) return null;
+
   return (
     <div className="mb-3">
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50 shrink-0">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="shrink-0 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">
           {label}
         </span>
-        <div className="flex-1 h-px bg-border/40" />
+        <div className="h-px flex-1 bg-border/40" />
       </div>
       <div className="flex flex-wrap gap-1">
-        {tokens.map((token, i) => (
-          <DraggableTokenChip key={i} token={token} />
+        {tokens.map((token, index) => (
+          <DraggableTokenChip key={index} token={token} />
         ))}
       </div>
     </div>
@@ -71,42 +75,51 @@ interface PromptSourcePanelProps {
 }
 
 export function PromptSourcePanel({ image }: PromptSourcePanelProps) {
+  const { t } = useTranslation();
+
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Thumbnail */}
-      {image.src && (
+    <div className="flex h-full flex-col overflow-hidden">
+      {image.src ? (
         <div className="shrink-0 px-3 pt-2.5 pb-2">
           <div
-            className="w-full rounded-md overflow-hidden border border-border/40 bg-secondary/30"
+            className="w-full overflow-hidden rounded-md border border-border/40 bg-secondary/30"
             style={{ maxHeight: 140 }}
           >
             <img
               src={image.src}
-              alt="참고 이미지"
-              className="w-full h-full object-contain"
+              alt={t("promptSourcePanel.referenceImageAlt")}
+              className="h-full w-full object-contain"
               style={{ maxHeight: 140 }}
             />
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Tokens - scrollable */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 min-h-0">
-        <p className="text-[9px] text-muted-foreground/40 mb-2">
-          칩을 드래그해서 프롬프트 입력란에 추가하세요
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-2">
+        <p className="mb-2 text-[9px] text-muted-foreground/40">
+          {t("promptSourcePanel.dragHint")}
         </p>
-        <TokenSection label="프롬프트" tokens={image.tokens} />
-        <TokenSection label="네거티브" tokens={image.negativeTokens} />
-        {image.characterTokens.length > 0 && (
-          <TokenSection label="캐릭터" tokens={image.characterTokens} />
-        )}
+        <TokenSection
+          label={t("promptSourcePanel.sections.prompt")}
+          tokens={image.tokens}
+        />
+        <TokenSection
+          label={t("promptSourcePanel.sections.negative")}
+          tokens={image.negativeTokens}
+        />
+        {image.characterTokens.length > 0 ? (
+          <TokenSection
+            label={t("promptSourcePanel.sections.character")}
+            tokens={image.characterTokens}
+          />
+        ) : null}
         {image.tokens.length === 0 &&
-          image.negativeTokens.length === 0 &&
-          image.characterTokens.length === 0 && (
-            <p className="text-xs text-muted-foreground/40 text-center py-4">
-              프롬프트 정보가 없습니다
-            </p>
-          )}
+        image.negativeTokens.length === 0 &&
+        image.characterTokens.length === 0 ? (
+          <p className="py-4 text-center text-xs text-muted-foreground/40">
+            {t("promptSourcePanel.empty")}
+          </p>
+        ) : null}
       </div>
     </div>
   );

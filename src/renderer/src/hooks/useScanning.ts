@@ -6,6 +6,7 @@ import {
   startTransition,
 } from "react";
 import { toast } from "sonner";
+import i18n from "@/lib/i18n";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("renderer/useScanning");
@@ -121,7 +122,9 @@ export function useScanning({
             error: e instanceof Error ? e.message : String(e),
           });
           toast.error(
-            `스캔 실패: ${e instanceof Error ? e.message : String(e)}`,
+            i18n.t("error.scanFailed", {
+              message: e instanceof Error ? e.message : String(e),
+            }),
           );
           return false;
         })

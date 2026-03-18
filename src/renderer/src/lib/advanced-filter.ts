@@ -1,15 +1,20 @@
+import i18n from "@/lib/i18n";
+
 export type AdvancedFilter =
   | { type: "resolution"; width: number; height: number }
   | { type: "model"; value: string };
 
-export function filterLabel(f: AdvancedFilter): string {
-  if (f.type === "resolution") return `${f.width}×${f.height}`;
-  return f.value || "(모델 없음)";
+export function filterLabel(filter: AdvancedFilter): string {
+  if (filter.type === "resolution") {
+    return `${filter.width}x${filter.height}`;
+  }
+
+  return filter.value || `(${i18n.t("common.none")})`;
 }
 
-export function filterKey(f: AdvancedFilter): string {
-  if (f.type === "resolution") return `res:${f.width}x${f.height}`;
-  return `model:${f.value}`;
+export function filterKey(filter: AdvancedFilter): string {
+  if (filter.type === "resolution") return `res:${filter.width}x${filter.height}`;
+  return `model:${filter.value}`;
 }
 
 export function filtersEqual(a: AdvancedFilter, b: AdvancedFilter): boolean {

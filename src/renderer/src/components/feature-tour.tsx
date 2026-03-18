@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,114 +14,115 @@ interface TourStep {
   action?: string;
 }
 
-const TOUR_STEPS: TourStep[] = [
+type TourStepKey =
+  | "search"
+  | "panels"
+  | "views"
+  | "folders"
+  | "categories"
+  | "galleryToolbar"
+  | "promptInput"
+  | "promptCursor"
+  | "groupChip"
+  | "promptGroups"
+  | "wildcard"
+  | "autoGenerate"
+  | "generate";
+
+type TourStepTemplate = Omit<TourStep, "title" | "description"> & {
+  key: TourStepKey;
+};
+
+const TOUR_STEP_TEMPLATES: TourStepTemplate[] = [
   {
+    key: "search",
     targetSelector: '[data-tour="search"]',
-    title: "프롬프트 검색",
-    description:
-      "이미지에 포함된 프롬프트를 검색할 수 있습니다. 쉼표로 여러 태그를 입력하세요.",
     placement: "bottom",
     panel: "gallery",
   },
   {
+    key: "panels",
     targetSelector: '[data-tour="panel-buttons"]',
-    title: "패널 전환",
-    description:
-      "이미지 생성, 갤러리, 설정, 앱 정보 패널을 전환할 수 있습니다.",
     placement: "bottom",
     panel: "gallery",
   },
   {
+    key: "views",
     targetSelector: '[data-tour="sidebar-views"]',
-    title: "보기 모드",
-    description:
-      "모든 이미지를 보거나 최근 생성된 이미지만 필터링할 수 있습니다.",
     placement: "right",
     panel: "gallery",
   },
   {
+    key: "folders",
     targetSelector: '[data-tour="sidebar-folders"]',
-    title: "폴더 관리",
-    description:
-      "이미지 폴더를 추가하고, 눈 아이콘으로 표시 여부를 전환하세요.",
     placement: "right",
     panel: "gallery",
   },
   {
+    key: "categories",
     targetSelector: '[data-tour="sidebar-categories"]',
-    title: "카테고리",
-    description: "즐겨찾기, 랜덤 픽 등 카테고리로 이미지를 분류할 수 있습니다.",
     placement: "right",
     panel: "gallery",
   },
   {
+    key: "galleryToolbar",
     targetSelector: '[data-tour="gallery-toolbar"]',
-    title: "갤러리 도구",
-    description:
-      "정렬 방식 변경, 뷰 모드 전환, 선택 모드를 사용할 수 있습니다.",
     placement: "bottom",
     panel: "gallery",
   },
-  // GenerationView steps
   {
+    key: "promptInput",
     targetSelector: '[data-tour="gen-prompt-input"]',
-    title: "프롬프트 입력",
-    description:
-      "쉼표(,)로 태그를 구분하면 자동으로 토큰 칩으로 변환됩니다. 각 칩을 더블클릭하면 가중치와 표현식을 편집할 수 있습니다.",
     placement: "bottom",
     panel: "generator",
   },
   {
+    key: "promptCursor",
     targetSelector: '[data-tour="gen-prompt-input"]',
-    title: "PromptInput 커서",
-    description:
-      "토큰 칩을 클릭하면 입력 커서가 이동합니다. 이질감 없이 텍스트를 수정하는 것처럼 토큰 칩을 수정할 수 있습니다.",
     placement: "bottom",
     panel: "generator",
   },
   {
+    key: "groupChip",
     targetSelector: '[data-tour="gen-prompt-input"]',
-    title: "그룹 칩",
-    description:
-      "@{를 입력하면 프롬프트 그룹 자동완성이 나타납니다. 그룹 칩은 보라색으로 표시되며, 미리 정의한 태그 묶음을 한 번에 삽입합니다. 우측 패널의 그룹 프롬프트 탭에서 그룹을 생성하고 관리할 수 있습니다.",
     placement: "bottom",
     panel: "generator",
   },
   {
+    key: "promptGroups",
     targetSelector: '[data-tour="gen-prompt-group-panel"]',
-    title: "그룹 프롬프트 관리",
-    description:
-      "이 패널에서 프롬프트 그룹을 생성하고 태그를 편집할 수 있습니다. 그룹을 프롬프트 입력 영역으로 드래그하면 그룹 칩으로 삽입됩니다.",
     placement: "left",
     panel: "generator",
     action: "open-prompt-group-panel",
   },
   {
+    key: "wildcard",
     targetSelector: '[data-tour="gen-prompt-input"]',
-    title: "와일드카드",
-    description:
-      "파이프(|)를 포함한 태그를 입력하면 %{옵션1|옵션2} 형태의 와일드카드 칩이 생성됩니다. 생성할 때마다 옵션 중 하나가 랜덤으로 선택됩니다.",
     placement: "bottom",
     panel: "generator",
   },
   {
+    key: "autoGenerate",
     targetSelector: '[data-tour="gen-auto-gen"]',
-    title: "자동 생성",
-    description:
-      "횟수, 딜레이, 시드 모드를 설정하여 여러 장의 이미지를 자동으로 연속 생성할 수 있습니다. 무한 모드로 수동 중지 전까지 생성을 계속할 수도 있습니다.",
     placement: "top",
     panel: "generator",
   },
   {
+    key: "generate",
     targetSelector: '[data-tour="gen-generate-button"]',
-    title: "이미지 생성",
-    description:
-      "프롬프트를 입력한 후 생성 버튼을 눌러 이미지를 생성하세요. 우측 패널에서 API 키와 출력 폴더를 먼저 설정해야 합니다.",
-    action: "open-settings-panel",
     placement: "top",
     panel: "generator",
+    action: "open-settings-panel",
   },
 ];
+
+function buildTourSteps(t: TFunction): TourStep[] {
+  return TOUR_STEP_TEMPLATES.map(({ key, ...step }) => ({
+    ...step,
+    title: t(`featureTour.steps.${key}.title`),
+    description: t(`featureTour.steps.${key}.description`),
+  }));
+}
 
 interface FeatureTourProps {
   open: boolean;
@@ -182,7 +185,6 @@ function computePopoverPosition(
       break;
   }
 
-  // Viewport clamping
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   if (left < 8) left = 8;
@@ -193,7 +195,13 @@ function computePopoverPosition(
   return { top, left };
 }
 
-export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureTourProps) {
+export function FeatureTour({
+  open,
+  onClose,
+  onPanelChange,
+  onAction,
+}: FeatureTourProps) {
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -202,7 +210,8 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
     left: number;
   } | null>(null);
 
-  const currentStep = TOUR_STEPS[step];
+  const tourSteps = useMemo(() => buildTourSteps(t), [t]);
+  const currentStep = tourSteps[step];
 
   const updateRect = useCallback(() => {
     if (!currentStep) return;
@@ -215,14 +224,13 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
     setTargetRect({ top: r.top, left: r.left, width: r.width, height: r.height });
   }, [currentStep]);
 
-  // Switch panel / fire action if needed, then recalculate target rect
   useEffect(() => {
     if (!open || !currentStep) return undefined;
     let cancelled = false;
     if (currentStep.panel || currentStep.action) {
       if (currentStep.panel) onPanelChange?.(currentStep.panel);
       if (currentStep.action) onAction?.(currentStep.action);
-      // Retry until element appears (action may need multiple render cycles)
+
       const tryFind = (attempt: number) => {
         if (cancelled) return;
         const el = document.querySelector(currentStep.targetSelector);
@@ -232,25 +240,25 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
           setTimeout(() => tryFind(attempt + 1), 50);
         }
       };
+
       requestAnimationFrame(() => {
         requestAnimationFrame(() => tryFind(0));
       });
     } else {
       updateRect();
     }
+
     return () => {
       cancelled = true;
     };
   }, [open, currentStep, onPanelChange, onAction, updateRect]);
 
-  // Recalculate on resize
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     window.addEventListener("resize", updateRect);
     return () => window.removeEventListener("resize", updateRect);
   }, [open, updateRect]);
 
-  // Recalculate popover position after rect or popover height changes
   useEffect(() => {
     if (!targetRect || !currentStep) {
       setPopoverPos(null);
@@ -262,21 +270,19 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
     );
   }, [targetRect, currentStep]);
 
-  // Keyboard navigation
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight") {
-        setStep((s) => Math.min(s + 1, TOUR_STEPS.length - 1));
+        setStep((s) => Math.min(s + 1, tourSteps.length - 1));
       } else if (e.key === "ArrowLeft") {
         setStep((s) => Math.max(s - 1, 0));
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+  }, [open, tourSteps.length]);
 
-  // Reset step when opening
   useEffect(() => {
     if (open) setStep(0);
   }, [open]);
@@ -284,14 +290,12 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
   if (!open || !currentStep) return null;
 
   const isFirst = step === 0;
-  const isLast = step === TOUR_STEPS.length - 1;
+  const isLast = step === tourSteps.length - 1;
 
   const overlay = (
     <div className="fixed inset-0 z-[9999]">
-      {/* Backdrop - no click to close */}
       <div className="absolute inset-0" />
 
-      {/* Spotlight */}
       {targetRect && (
         <div
           className="absolute rounded-lg pointer-events-none"
@@ -306,7 +310,6 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
         />
       )}
 
-      {/* Popover card */}
       {popoverPos && (
         <div
           ref={popoverRef}
@@ -328,7 +331,7 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
           </p>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
-              {step + 1} / {TOUR_STEPS.length}
+              {step + 1} / {tourSteps.length}
             </span>
             <div className="flex items-center gap-1.5">
               {!isFirst && (
@@ -339,12 +342,12 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
                   onClick={() => setStep((s) => s - 1)}
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  이전
+                  {t("featureTour.previous")}
                 </Button>
               )}
               {isLast ? (
                 <Button size="sm" className="h-7 px-3" onClick={onClose}>
-                  완료
+                  {t("featureTour.done")}
                 </Button>
               ) : (
                 <Button
@@ -352,7 +355,7 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
                   className="h-7 px-2"
                   onClick={() => setStep((s) => s + 1)}
                 >
-                  다음
+                  {t("featureTour.next")}
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               )}
@@ -360,8 +363,7 @@ export function FeatureTour({ open, onClose, onPanelChange, onAction }: FeatureT
           </div>
           {isLast && (
             <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border">
-              우측 상단 ℹ 버튼 → &quot;기능 둘러보기&quot;에서 다시 볼 수
-              있습니다
+              {t("featureTour.reopenHint")}
             </p>
           )}
         </div>

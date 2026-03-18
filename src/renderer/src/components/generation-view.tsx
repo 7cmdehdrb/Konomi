@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -276,10 +277,10 @@ const MODELS = [
 ];
 
 const SIZE_PRESETS = [
-  { label: "세로", width: 832, height: 1216 },
-  { label: "가로", width: 1216, height: 832 },
-  { label: "정방", width: 1024, height: 1024 },
-];
+  { key: "portrait", width: 832, height: 1216 },
+  { key: "landscape", width: 1216, height: 832 },
+  { key: "square", width: 1024, height: 1024 },
+] as const;
 
 const CUSTOM_SIZES_KEY = "konomi-custom-sizes";
 
@@ -707,6 +708,7 @@ function AdvancedParamsSection({
   setSeedInput: (v: string) => void;
   onReset: () => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [localSeed, setLocalSeed] = useState(seedInput);
   const [seedFocused, setSeedFocused] = useState(false);
@@ -863,7 +865,7 @@ function AdvancedParamsSection({
           </button>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <FieldLabel label="샘플러" />
+              <FieldLabel label={t("generation.advanced.sampler")} />
               <Select
                 value={sampler}
                 onChange={setSampler}
@@ -871,7 +873,7 @@ function AdvancedParamsSection({
               />
             </div>
             <div>
-              <FieldLabel label="노이즈" />
+              <FieldLabel label={t("generation.advanced.noise")} />
               <Select
                 value={noiseSchedule}
                 onChange={setNoiseSchedule}
@@ -880,18 +882,18 @@ function AdvancedParamsSection({
             </div>
           </div>
           <div>
-            <FieldLabel label="시드" />
+            <FieldLabel label={t("generation.advanced.seed")} />
             <div className="flex gap-1.5">
               <input
                 type="number"
                 value={seedInput}
                 onChange={(e) => setSeedInput(e.target.value)}
-                placeholder="랜덤"
+                placeholder={t("generation.advanced.random")}
                 className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono")}
               />
               <button
                 onClick={() => setSeedInput("")}
-                title="랜덤 시드"
+                title={t("generation.advanced.randomSeed")}
                 className="shrink-0 px-2.5 rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
               >
                 <Shuffle className="h-3.5 w-3.5" />
@@ -903,7 +905,7 @@ function AdvancedParamsSection({
             onClick={onReset}
             className="w-full text-[11px] text-muted-foreground hover:text-foreground border border-border/40 hover:border-border rounded-lg py-1.5 transition-colors"
           >
-            파라미터 초기화
+            {t("generation.advanced.resetParameters")}
           </button>
         </div>
       )}
@@ -934,6 +936,7 @@ function AutoGenSection({
   policyAgreed: boolean;
   setPolicyAgreed: (v: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [warningOpen, setWarningOpen] = useState(false);
   const warningButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -1003,11 +1006,13 @@ function AutoGenSection({
         <div className="px-4 pb-4 space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-muted-foreground">생성 횟수</span>
+              <span className="text-xs text-muted-foreground">
+                {t("generation.advanced.count")}
+              </span>
               <div className="flex items-center gap-2">
                 {!infinite && (
                   <span className="text-xs font-mono text-foreground/80 bg-secondary px-1.5 py-0.5 rounded">
-                    {count}장
+                    {t("generation.advanced.countUnit", { count })}
                   </span>
                 )}
                 <button
@@ -1020,7 +1025,8 @@ function AutoGenSection({
                       : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
                   )}
                 >
-                  {infinite && <Check className="h-2.5 w-2.5" />}∞ 무한
+                  {infinite && <Check className="h-2.5 w-2.5" />}∞{" "}
+                  {t("generation.advanced.infinite")}
                 </button>
               </div>
             </div>
@@ -1033,7 +1039,10 @@ function AutoGenSection({
             />
           </div>
           <div>
-            <FieldLabel label="딜레이" value={`${delay.toFixed(1)}s`} />
+            <FieldLabel
+              label={t("generation.advanced.delay")}
+              value={`${delay.toFixed(1)}s`}
+            />
             <Slider
               min={3}
               max={60}
@@ -1044,7 +1053,7 @@ function AutoGenSection({
           </div>
           <div>
             <span className="text-xs text-muted-foreground block mb-2">
-              Seed 모드
+              {t("generation.advanced.seedMode")}
             </span>
             <div className="flex items-center justify-between gap-3">
               <div className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1">
@@ -1060,7 +1069,9 @@ function AutoGenSection({
                         : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
                     )}
                   >
-                    {mode === "random" ? "매번 랜덤" : "고정"}
+                    {mode === "random"
+                      ? t("generation.advanced.seedModeRandom")
+                      : t("generation.advanced.seedModeFixed")}
                   </button>
                 ))}
               </div>
@@ -1072,8 +1083,8 @@ function AutoGenSection({
                         ref={warningButtonRef}
                         type="button"
                         onClick={() => setWarningOpen((prev) => !prev)}
-                        title="자동 생성 경고"
-                        aria-label="자동 생성 경고 보기"
+                        title={t("generation.advanced.warningTitle")}
+                        aria-label={t("generation.advanced.warningTooltip")}
                         className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-warning/30 bg-warning/12 text-warning transition-colors hover:border-warning/50 hover:bg-warning/16"
                       >
                         <TriangleAlert className="h-4 w-4" />
@@ -1084,7 +1095,7 @@ function AutoGenSection({
                       sideOffset={8}
                       className="select-none text-foreground/85"
                     >
-                      자동 생성 사용하려면 확인 필요
+                      {t("generation.advanced.warningRequired")}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -1094,19 +1105,16 @@ function AutoGenSection({
                     className="absolute bottom-full right-0 z-20 mb-2 w-80 rounded-xl border border-border/60 bg-popover p-3 shadow-xl"
                   >
                     <p className="text-sm font-semibold text-foreground">
-                      경고
+                      {t("generation.advanced.warningTitle")}
                     </p>
                     <p className="mt-2 text-xs leading-relaxed text-foreground/85">
-                      NovelAI API를 통한 사용이 정책을 위반하거나 혹은 사용량이
-                      비정상적으로 많은 경우 일시적이거나 영구적인 이용 제한
-                      조치를 받으실 수 있으며 이에 대한 책임은 전적으로 사용자
-                      책임입니다.
+                      {t("generation.advanced.warningDescription")}
                     </p>
                     <div className="mt-3 border-t border-border/40 pt-3">
                       <Checkbox
                         checked={policyAgreed}
                         onChange={setPolicyAgreed}
-                        label="확인했습니다"
+                        label={t("generation.advanced.warningConfirmed")}
                       />
                     </div>
                   </div>
@@ -1131,6 +1139,7 @@ export function GenerationView({
   tourActive,
   tourAction,
 }: GenerationViewProps) {
+  const { t } = useTranslation();
   const [config, setConfig] = useState<NaiConfig | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [configSaving, setConfigSaving] = useState(false);
@@ -1504,7 +1513,9 @@ export function GenerationView({
       })
       .catch((e: unknown) => {
         toast.error(
-          `설정 로드 실패: ${e instanceof Error ? e.message : String(e)}`,
+          t("generation.feedback.settingsLoadFailed", {
+            message: e instanceof Error ? e.message : String(e),
+          }),
         );
         setRightPanelTab("settings");
         setRightPanelVisible(true);
@@ -1636,10 +1647,12 @@ export function GenerationView({
     try {
       const updated = await window.nai.updateConfig({ apiKey: apiKeyInput });
       setConfig(updated);
-      toast.success("저장되었습니다");
+      toast.success(t("generation.feedback.settingsSaved"));
     } catch (e: unknown) {
       toast.error(
-        `설정 저장 실패: ${e instanceof Error ? e.message : String(e)}`,
+        t("generation.feedback.settingsSaveFailed", {
+          message: e instanceof Error ? e.message : String(e),
+        }),
       );
     } finally {
       setConfigSaving(false);
@@ -1694,7 +1707,10 @@ export function GenerationView({
       }
 
       toast.warning(
-        `Seed는 ${NAI_SEED_MIN}부터 ${NAI_SEED_MAX} 사이의 정수만 사용할 수 있어 랜덤으로 전환합니다.`,
+        t("generation.feedback.invalidSeedRange", {
+          min: NAI_SEED_MIN,
+          max: NAI_SEED_MAX,
+        }),
       );
       setSeedInput("");
       if (options?.switchAutoSeedModeToRandom) {
@@ -1810,7 +1826,7 @@ export function GenerationView({
 
   const handleAutoGenerate = async () => {
     if (!autoGenPolicyAgreed) {
-      toast.error("자동 생성을 사용하려면 경고를 확인해 주세요.");
+      toast.error(t("generation.feedback.autoGenerateWarning"));
       return;
     }
     if (!prompt.trim() || !config?.apiKey || !outputFolder) return;
@@ -2029,7 +2045,7 @@ export function GenerationView({
           : await window.image.readNaiMeta(
               dropItem.kind === "image" ? dropItem.image.path : dropItem.path,
             );
-      if (!meta) throw new Error("메타데이터를 찾을 수 없습니다");
+      if (!meta) throw new Error(t("generation.feedback.metadataNotFound"));
 
       if (importChecks.prompt && meta.prompt) setPrompt(meta.prompt);
       if (importChecks.negativePrompt && meta.negativePrompt)
@@ -2059,7 +2075,7 @@ export function GenerationView({
         if (meta.model && MODELS.some((m) => m.value === meta.model)) {
           setModel(meta.model);
         } else if (meta.source === "nai") {
-          toast.info("레거시 모델 이미지입니다. V4.5 Full로 설정합니다.");
+          toast.info(t("generation.feedback.legacyModelAdjusted"));
           setModel("nai-diffusion-4-5-full");
         }
         if (meta.sampler && SAMPLERS.includes(meta.sampler))
@@ -2136,15 +2152,17 @@ export function GenerationView({
             <Settings className="h-8 w-8 text-muted-foreground/60" />
             <div className="flex flex-col items-center gap-1">
               <span className="text-sm font-medium text-foreground/80">
-                설정이 필요합니다
+                {t("generation.state.configurationRequired")}
               </span>
               <span className="text-[11px] text-muted-foreground text-center leading-relaxed">
-                {!config?.apiKey && !outputFolder
-                  ? "API 키와 출력 폴더를"
-                  : !config?.apiKey
-                    ? "API 키를"
-                    : "출력 폴더를"}
-                {" 먼저 설정해 주세요"}
+                {t("generation.state.configurationMessage", {
+                  target:
+                    !config?.apiKey && !outputFolder
+                      ? t("generation.state.configurationApiKeyAndOutput")
+                      : !config?.apiKey
+                        ? t("generation.state.configurationApiKey")
+                        : t("generation.state.configurationOutputFolder"),
+                })}
               </span>
             </div>
           </div>
@@ -2168,13 +2186,13 @@ export function GenerationView({
           <div className="p-4 space-y-5 w-full">
             {/* 모델 */}
             <div>
-              <SectionHeader label="모델" />
+              <SectionHeader label={t("generation.sections.model")} />
               <Select value={model} onChange={setModel} options={MODELS} />
             </div>
 
             {/* 프롬프트 */}
             <div data-tour="gen-prompt-input">
-              <SectionHeader label="프롬프트" />
+              <SectionHeader label={t("generation.sections.prompt")} />
               <div
                 className="mb-2 inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1"
                 role="radiogroup"
@@ -2232,7 +2250,7 @@ export function GenerationView({
             {/* 캐릭터 프롬프트 */}
             <div>
               <SectionHeader
-                label="캐릭터"
+                label={t("generation.sections.characters")}
                 action={
                   <div className="relative">
                     <button
@@ -2295,14 +2313,14 @@ export function GenerationView({
                   {duplicatePositions.size > 0 && (
                     <div className="flex items-center gap-1 text-[11px] text-warning">
                       <TriangleAlert className="h-3 w-3 shrink-0" />
-                      <span>동일한 포지션을 가진 캐릭터가 있습니다</span>
+                      <span>{t("generation.character.duplicatePosition")}</span>
                     </div>
                   )}
                 </div>
               )}
               {characterPrompts.length === 0 ? (
                 <p className="text-xs text-muted-foreground/40 text-center py-2">
-                  캐릭터 없음 — + 버튼으로 추가
+                  {t("generation.character.empty")}
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -2410,11 +2428,15 @@ export function GenerationView({
                             }),
                           )
                         }
-                        placeholder={
-                          character.inputMode === "prompt"
-                            ? `캐릭터 ${i + 1} 프롬프트`
-                            : `캐릭터 ${i + 1} 네거티브 프롬프트`
-                        }
+                          placeholder={
+                            character.inputMode === "prompt"
+                              ? t("generation.character.promptLabel", {
+                                  index: i + 1,
+                                })
+                              : t("generation.character.negativePromptLabel", {
+                                  index: i + 1,
+                                })
+                          }
                         minHeight={110}
                         maxHeight={300}
                         className="min-w-0"
@@ -2573,23 +2595,23 @@ export function GenerationView({
 
             {/* 크기 */}
             <div>
-              <SectionHeader label="크기" />
+              <SectionHeader label={t("generation.size.title")} />
               <div className="flex gap-1.5">
                 {SIZE_PRESETS.map((p) => (
                   <button
-                    key={p.label}
+                    key={p.key}
                     onClick={() => {
                       setWidth(p.width);
                       setHeight(p.height);
                     }}
                     className={cn(
                       "flex-1 py-1.5 text-xs rounded-lg border transition-colors",
-                      selectedPreset?.label === p.label
+                      selectedPreset?.key === p.key
                         ? "bg-primary/20 text-primary border-primary/50 font-medium"
                         : "bg-secondary/60 text-muted-foreground border-border/60 hover:text-foreground hover:border-border",
                     )}
                   >
-                    {p.label}
+                    {t(`generation.size.${p.key}`)}
                   </button>
                 ))}
                 <div className="relative">
@@ -2602,13 +2624,13 @@ export function GenerationView({
                         : "bg-secondary/60 text-muted-foreground border-border/60 hover:text-foreground hover:border-border",
                     )}
                   >
-                    커스텀
+                    {t("generation.size.custom")}
                   </button>
                   {customSizesOpen && (
                     <div className="absolute right-0 bottom-full mb-1 w-52 rounded-lg border border-border/60 bg-popover shadow-lg z-10 overflow-hidden">
                       {customSizes.length === 0 ? (
                         <p className="px-3 py-8 text-xs text-muted-foreground text-center">
-                          저장된 크기 없음
+                          {t("generation.size.noSavedSizes")}
                         </p>
                       ) : (
                         customSizes.map((s, i) => (
@@ -2635,7 +2657,7 @@ export function GenerationView({
                                 saveCustomSizes(next);
                               }}
                               className="text-muted-foreground/60 hover:text-destructive transition-colors"
-                              aria-label="삭제"
+                              aria-label={t("generation.size.deleteAria")}
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -2682,7 +2704,7 @@ export function GenerationView({
                             setCustomSizeAddH("");
                           }}
                           className="shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer"
-                          aria-label="추가"
+                          aria-label={t("generation.size.addAria")}
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
@@ -2703,8 +2725,8 @@ export function GenerationView({
                 <button
                   type="button"
                   onClick={handleSwapDimensions}
-                  title="가로/세로 바꾸기"
-                  aria-label="가로와 세로 값 바꾸기"
+                  title={t("generation.size.swapTitle")}
+                  aria-label={t("generation.size.swapAria")}
                   className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground transition-colors hover:border-border hover:bg-secondary hover:text-foreground"
                 >
                   <ArrowRightLeft className="h-3.5 w-3.5" />
@@ -2808,7 +2830,9 @@ export function GenerationView({
                   )}
                 >
                   <X className="h-3 w-3" />
-                  {autoCancelPending ? "중지 예정..." : "중지"}
+                  {autoCancelPending
+                    ? t("generation.actions.stopPending")
+                    : t("generation.actions.stop")}
                 </button>
               </div>
             </div>
@@ -2826,7 +2850,7 @@ export function GenerationView({
                   !prompt.trim() && (
                     <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden -translate-x-1/2 rounded-lg border border-border/60 bg-popover px-2.5 py-1.5 shadow-lg group-hover/gen:block">
                       <p className="whitespace-nowrap text-[11px] text-foreground/85">
-                        프롬프트를 입력해 주세요
+                        {t("generation.actions.enterPrompt")}
                       </p>
                     </div>
                   )}
@@ -2845,7 +2869,9 @@ export function GenerationView({
                   ) : (
                     <Wand2 className="h-4 w-4" />
                   )}
-                  {generating ? "생성 중..." : "생성하기"}
+                  {generating
+                    ? t("generation.actions.generating")
+                    : t("generation.actions.generate")}
                 </button>
               </div>
               <button
@@ -2854,8 +2880,8 @@ export function GenerationView({
                 disabled={!canAutoGenerate}
                 title={
                   autoGenPolicyAgreed
-                    ? "자동 생성"
-                    : "자동 생성 기능 경고를 확인해야 사용할 수 있습니다"
+                    ? t("generation.actions.autoGenerate")
+                    : t("generation.actions.autoGenerateNeedsWarning")
                 }
                 className={cn(
                   "h-10 px-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-center",
@@ -2888,7 +2914,7 @@ export function GenerationView({
             <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border/40 shrink-0">
               <button
                 onClick={() => setRightPanelVisible(false)}
-                title="패널 접기"
+                title={t("generation.actions.collapsePanel")}
                 className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -2896,13 +2922,17 @@ export function GenerationView({
               <div className="flex-1" />
               {(
                 [
-                  { id: "settings", icon: Settings, title: "설정" },
+                  { id: "settings", icon: Settings, title: t("settings.title") },
                   {
                     id: "prompt-group",
                     icon: LayoutList,
-                    title: "그룹 프롬프트",
+                    title: t("generation.actions.promptGroup"),
                   },
-                  { id: "reference", icon: ImageIcon, title: "참고 이미지" },
+                  {
+                    id: "reference",
+                    icon: ImageIcon,
+                    title: t("generation.actions.referenceImage"),
+                  },
                 ] as const
               ).map(({ id, icon: Icon, title }) => (
                 <button
@@ -2922,7 +2952,7 @@ export function GenerationView({
               {rightPanelTab === "reference" && sourceImage && (
                 <button
                   onClick={() => setSourceImage(null)}
-                  title="참고 이미지 제거"
+                  title={t("generation.actions.removeReferenceImage")}
                   className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0 ml-0.5"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -2956,7 +2986,7 @@ export function GenerationView({
                             <button
                               type="button"
                               // title="NovelAI API Key 안내"
-                              aria-label="NovelAI API Key 설정 안내 보기"
+                              aria-label={t("generation.actions.apiKeyHelp")}
                               className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-transparent text-muted-foreground transition-colors hover:border-border hover:bg-secondary/40 hover:text-foreground"
                             >
                               <Info className="h-3 w-3" />
@@ -2967,11 +2997,7 @@ export function GenerationView({
                             sideOffset={8}
                             className="max-w-80 text-foreground/85 p-2"
                           >
-                            NovelAI 웹페이지 메뉴에서 Account Settings →{" "}
-                            <span className="font-medium text-foreground">
-                              Get Persistent API Token
-                            </span>{" "}
-                            버튼을 클릭하면 API Token을 얻을 수 있습니다.
+                            {t("generation.actions.apiKeyHelpDescription")}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -2991,7 +3017,7 @@ export function GenerationView({
                           }}
                           className="shrink-0 h-8 px-2.5 rounded-lg border border-border/60 bg-secondary/60 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors"
                         >
-                          교체
+                          {t("generation.actions.replace")}
                         </button>
                       </div>
                     ) : (
@@ -3020,19 +3046,21 @@ export function GenerationView({
                       ) : apiKeyValidated ? (
                         <Check className="h-3.5 w-3.5" />
                       ) : null}
-                      {apiKeyValidated ? "로그인 성공" : "로그인"}
+                      {apiKeyValidated
+                        ? t("generation.actions.loginSuccess")
+                        : t("generation.actions.login")}
                     </button>
                   </div>
 
                   {/* 다운로드 폴더 */}
                   <div className="px-4 py-3 space-y-1.5">
                     <span className="text-xs text-muted-foreground select-none">
-                      다운로드 폴더
+                      {t("generation.actions.outputFolder")}
                     </span>
                     <div className="flex gap-1.5">
                       <input
                         value={outputFolder}
-                        placeholder="저장 경로 선택..."
+                        placeholder={t("generation.actions.outputFolderPlaceholder")}
                         className={cn(INPUT_CLS, "flex-1 min-w-0")}
                         readOnly
                       />
@@ -3061,7 +3089,7 @@ export function GenerationView({
                     ) : (
                       <Save className="h-4 w-4" />
                     )}
-                    저장
+                    {t("generation.actions.save")}
                   </button>
                 </div>
               </div>
@@ -3075,9 +3103,7 @@ export function GenerationView({
                     <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
                   </div>
                   <p className="text-xs text-muted-foreground/40 text-center px-4">
-                    갤러리에서 이미지를 우클릭해
-                    <br />
-                    참고 이미지로 보내세요
+                    {t("generation.actions.sendToReferenceHint")}
                   </p>
                 </div>
               ))}
@@ -3086,7 +3112,7 @@ export function GenerationView({
       ) : (
         <button
           onClick={() => setRightPanelVisible(true)}
-          title="패널 열기"
+          title={t("generation.actions.openPanel")}
           className="shrink-0 w-5 h-full flex items-center justify-center border-r border-border/40 bg-sidebar text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
         >
           <ChevronRight className="h-3.5 w-3.5" />
@@ -3125,8 +3151,8 @@ export function GenerationView({
             <div className="h-14 w-14 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center mb-3">
               <ImagePlus className="h-7 w-7 text-primary/70" />
             </div>
-            <p className="text-sm font-medium text-primary/70">
-              이미지를 놓아주세요
+          <p className="text-sm font-medium text-primary/70">
+              {t("generation.actions.dropHere")}
             </p>
           </div>
         )}
@@ -3138,13 +3164,13 @@ export function GenerationView({
               <div className="relative w-full h-full flex items-center justify-center">
                 <img
                   src={previewSrc}
-                  alt="생성 중 프리뷰"
+                  alt={t("generation.actions.generatingPreviewAlt")}
                   className="w-full h-full object-contain rounded-sm"
                 />
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/70 backdrop-blur-sm border border-border/40">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                   <span className="text-xs text-muted-foreground">
-                    생성 중...
+                    {t("generation.actions.generating")}
                   </span>
                 </div>
               </div>
@@ -3154,9 +3180,11 @@ export function GenerationView({
                   <Loader2 className="h-7 w-7 text-primary animate-spin" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium text-foreground">생성 중</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {t("generation.actions.generatingNow")}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    잠시 기다려 주세요...
+                    {t("generation.actions.generatingWait")}
                   </p>
                 </div>
               </div>
@@ -3164,7 +3192,7 @@ export function GenerationView({
           ) : error ? (
             <div className="max-w-sm w-full mx-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-center">
               <p className="text-sm font-medium text-destructive mb-1.5">
-                생성 실패
+                {t("generation.actions.generationFailed")}
               </p>
               <p className="text-xs text-muted-foreground break-all leading-relaxed">
                 {error}
@@ -3174,7 +3202,7 @@ export function GenerationView({
             <>
               <img
                 src={resultSrc}
-                alt="생성 결과"
+                alt={t("generation.actions.resultAlt")}
                 className="max-w-full max-h-full object-contain rounded-sm"
               />
               {recentSeeds.get(resultSrc) != null && (
@@ -3197,12 +3225,12 @@ export function GenerationView({
                             String(recentSeeds.get(resultSrc)),
                           );
                           setSeedDropdownOpen(false);
-                          toast.success("시드가 클립보드에 복사됐습니다");
+                          toast.success(t("generation.actions.seedCopied"));
                         }}
                         className="flex items-center gap-2 w-full px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors"
                       >
                         <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        클립보드에 복사
+                        {t("generation.actions.copyToClipboard")}
                       </button>
                       <button
                         onClick={() => {
@@ -3212,7 +3240,7 @@ export function GenerationView({
                         className="flex items-center gap-2 w-full px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors"
                       >
                         <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        가져오기
+                        {t("generation.actions.importSeed")}
                       </button>
                     </div>
                   )}
@@ -3225,7 +3253,7 @@ export function GenerationView({
                 <Wand2 className="h-7 w-7 text-muted-foreground/80" />
               </div>
               <p className="text-xs text-muted-foreground/80">
-                프롬프트를 입력하거나 이미지를 드롭하세요
+                {t("generation.actions.emptyState")}
               </p>
             </div>
           )}
@@ -3235,7 +3263,7 @@ export function GenerationView({
       {/* Recent images panel */}
       <div className="w-24 shrink-0 border-l border-border/60 bg-card/70 flex flex-col">
         <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest text-center pt-3 pb-1 shrink-0">
-          최근 생성
+          {t("generation.actions.recent")}
         </p>
         <div className="flex-1 min-h-0 overflow-y-auto">
           {recentImages.length > 0 ? (
@@ -3251,7 +3279,7 @@ export function GenerationView({
             </div>
           ) : (
             <p className="text-[10px] text-muted-foreground/40 text-center px-2 pt-4">
-              없음
+              {t("generation.actions.noRecent")}
             </p>
           )}
         </div>
@@ -3263,10 +3291,10 @@ export function GenerationView({
           <div className="w-80 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-border">
               <p className="text-sm font-semibold text-foreground">
-                동일한 설정으로 이미 생성했습니다
+                {t("generation.dialogs.duplicateTitle")}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                직전과 모든 파라미터가 동일합니다. 그래도 생성하시겠습니까?
+                {t("generation.dialogs.duplicateDescription")}
               </p>
             </div>
             <div className="flex gap-2 p-3">
@@ -3274,7 +3302,7 @@ export function GenerationView({
                 onClick={() => setDupAlert(false)}
                 className="flex-1 h-9 rounded-lg border border-border/60 bg-secondary/60 text-sm text-foreground hover:bg-secondary transition-colors"
               >
-                취소
+                {t("common.cancel")}
               </button>
               <button
                 onClick={() => {
@@ -3283,7 +3311,7 @@ export function GenerationView({
                 }}
                 className="flex-1 h-9 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
               >
-                그래도 생성
+                {t("generation.dialogs.continueGenerate")}
               </button>
             </div>
           </div>
@@ -3312,12 +3340,14 @@ export function GenerationView({
               <div>
                 <p className="text-sm font-semibold text-foreground">
                   {validateResult.valid
-                    ? "유효한 API 키"
-                    : "유효하지 않은 API 키"}
+                    ? t("generation.dialogs.validApiKey")
+                    : t("generation.dialogs.invalidApiKey")}
                 </p>
                 {validateResult.valid && validateResult.tier && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    구독 플랜: {validateResult.tier}
+                    {t("generation.dialogs.subscriptionTier", {
+                      tier: validateResult.tier,
+                    })}
                   </p>
                 )}
                 {!validateResult.valid && validateResult.error && (
@@ -3332,7 +3362,7 @@ export function GenerationView({
                 onClick={() => setValidateResult(null)}
                 className="px-4 h-8 rounded-lg bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors"
               >
-                확인
+                {t("generation.dialogs.confirm")}
               </button>
             </div>
           </div>
@@ -3347,7 +3377,7 @@ export function GenerationView({
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  이미지 작업
+                  {t("generation.dialogs.imageAction")}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-70">
                   {dropItem.name}
@@ -3369,7 +3399,7 @@ export function GenerationView({
               >
                 <img
                   src={previewUrl}
-                  alt="미리보기"
+                  alt={t("generation.dialogs.previewAlt")}
                   className="max-w-full object-contain"
                   style={{ maxHeight: 220 }}
                 />
@@ -3379,7 +3409,7 @@ export function GenerationView({
             {/* Action buttons */}
             <div className="px-5 py-4 border-b border-border/50">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-3">
-                작업 선택
+                {t("generation.dialogs.actionSelect")}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 {(
@@ -3426,7 +3456,7 @@ export function GenerationView({
                     <span className="text-[10px] font-medium">{label}</span>
                     {disabled && (
                       <span className="absolute top-1 right-1 text-[8px] bg-border/60 text-muted-foreground/60 px-1 py-0.5 rounded font-medium leading-none">
-                        비활성
+                        {t("generation.dialogs.disabled")}
                       </span>
                     )}
                   </button>
@@ -3434,12 +3464,12 @@ export function GenerationView({
               </div>
               {vibeDisabled && (
                 <p className="text-[10px] text-muted-foreground/50 mt-2">
-                  Precise Reference 사용 중 — Vibe Transfer 비활성
+                  {t("generation.dialogs.preciseDisablesVibe")}
                 </p>
               )}
               {preciseDisabled && (
                 <p className="text-[10px] text-muted-foreground/50 mt-2">
-                  Vibe Transfer 사용 중 — Precise Reference 비활성
+                  {t("generation.dialogs.vibeDisablesPrecise")}
                 </p>
               )}
             </div>
@@ -3447,7 +3477,7 @@ export function GenerationView({
             {/* Import metadata */}
             <div className="px-5 py-4">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-3">
-                메타데이터 가져오기
+                {t("generation.dialogs.importMetadata")}
               </p>
               <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 mb-4">
                 <Checkbox
@@ -3497,7 +3527,9 @@ export function GenerationView({
                 {importing ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : null}
-                {importing ? "가져오는 중..." : "메타데이터 가져오기"}
+                {importing
+                  ? t("generation.dialogs.importingMetadata")
+                  : t("generation.dialogs.importMetadata")}
               </button>
             </div>
           </div>

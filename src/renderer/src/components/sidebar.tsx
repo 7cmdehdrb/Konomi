@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Category } from "@preload/index.d";
+import { useTranslation } from "react-i18next";
 
 interface SidebarProps {
   activeView: string;
@@ -58,9 +59,9 @@ interface SidebarProps {
 }
 
 const views = [
-  { id: "all", label: "모든 이미지", icon: Folder },
-  { id: "recent", label: "최근", icon: Clock },
-];
+  { id: "all", icon: Folder },
+  { id: "recent", icon: Clock },
+] as const;
 
 export function Sidebar({
   activeView,
@@ -86,6 +87,7 @@ export function Sidebar({
   onFolderCountChange,
   folderDialogRequest,
 }: SidebarProps) {
+  const { t } = useTranslation();
   const {
     folders,
     hasLoaded,
@@ -163,7 +165,9 @@ export function Sidebar({
       return true;
     } catch (e: unknown) {
       toast.error(
-        `폴더 삭제 실패: ${e instanceof Error ? e.message : String(e)}`,
+        t("sidebar.errors.folderDeleteFailed", {
+          message: e instanceof Error ? e.message : String(e),
+        }),
       );
       return false;
     }
@@ -192,11 +196,13 @@ export function Sidebar({
         onFolderCancelled?.(id);
       } catch (e: unknown) {
         toast.error(
-          `폴더 취소 실패: ${e instanceof Error ? e.message : String(e)}`,
+          t("sidebar.errors.folderCancelFailed", {
+            message: e instanceof Error ? e.message : String(e),
+          }),
         );
       }
     },
-    [onFolderCancelled, removeFolder],
+    [onFolderCancelled, removeFolder, t],
   );
 
   useEffect(() => {
@@ -305,7 +311,7 @@ export function Sidebar({
                     }}
                   >
                     <Icon className="h-4 w-4" />
-                    {view.label}
+                    {t(`sidebar.views.${view.id}`)}
                   </Button>
                 );
               })}
@@ -319,7 +325,7 @@ export function Sidebar({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground select-none">
                   <FolderPlus className="h-4 w-4" />
-                  폴더
+                  {t("sidebar.sections.folders")}
                 </div>
                 <Button
                   variant="ghost"
@@ -329,7 +335,7 @@ export function Sidebar({
                   disabled={scanning || isAnalyzing}
                   title={
                     isAnalyzing
-                      ? "유사 이미지 분석 중에는 폴더를 추가할 수 없습니다"
+                      ? t("sidebar.folders.addDisabled")
                       : undefined
                   }
                 >
@@ -342,7 +348,7 @@ export function Sidebar({
               </div>
               {folders.length === 0 ? (
                 <p className="text-xs text-muted-foreground px-8 select-none">
-                  추가된 폴더가 없습니다
+                  {t("sidebar.folders.empty")}
                 </p>
               ) : (
                 <div className="space-y-1">
@@ -402,7 +408,12 @@ export function Sidebar({
                                   await renameFolder(f.id, editingName.trim());
                                 } catch (e: unknown) {
                                   toast.error(
-                                    `폴더 이름 변경 실패: ${e instanceof Error ? e.message : String(e)}`,
+                                    t("sidebar.errors.folderRenameFailed", {
+                                      message:
+                                        e instanceof Error
+                                          ? e.message
+                                          : String(e),
+                                    }),
                                   );
                                   setEditingName(f.name);
                                 }
@@ -478,7 +489,7 @@ export function Sidebar({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground select-none">
                   <Tag className="h-4 w-4" />
-                  카테고리
+                  {t("sidebar.sections.categories")}
                 </div>
                 <Button
                   variant="ghost"
@@ -552,7 +563,7 @@ export function Sidebar({
                       ) : (
                         <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
                       )}
-                      {cat.isBuiltin && cat.name === "랜덤 픽" ? (
+                      {cat.isBuiltin && cat.order === 1 ? (
                         <Shuffle className="h-3.5 w-3.5 shrink-0" />
                       ) : cat.isBuiltin ? (
                         <Star
@@ -609,17 +620,23 @@ export function Sidebar({
                             }
                           }}
                         >
-                          {cat.name}
+                          {cat.isBuiltin
+                            ? t(
+                                cat.order === 1
+                                  ? "sidebar.categories.randomPick"
+                                  : "sidebar.categories.favorites",
+                              )
+                            : cat.name}
                         </span>
                       )}
                       {cat.isBuiltin &&
-                        cat.name === "랜덤 픽" &&
+                        cat.order === 1 &&
                         isSelected && (
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                            title="다시 뽑기"
+                            title={t("sidebar.categories.reroll")}
                             onClick={(e) => {
                               e.stopPropagation();
                               onRandomRefresh();
@@ -634,7 +651,7 @@ export function Sidebar({
                             variant="ghost"
                             size="icon"
                             className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                            title="프롬프트로 추가"
+                            title={t("sidebar.categories.addByPrompt")}
                             onClick={(e) => {
                               e.stopPropagation();
                               setAddByPromptCategoryId(cat.id);
@@ -661,7 +678,7 @@ export function Sidebar({
                 })}
                 {categories.length === 0 && (
                   <p className="text-xs text-muted-foreground px-1">
-                    카테고리가 없습니다
+                    {t("sidebar.categories.empty")}
                   </p>
                 )}
               </div>
@@ -674,10 +691,10 @@ export function Sidebar({
       <Dialog open={isNewCategoryOpen} onOpenChange={setIsNewCategoryOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>새 카테고리</DialogTitle>
+            <DialogTitle>{t("sidebar.dialog.newCategoryTitle")}</DialogTitle>
           </DialogHeader>
           <Input
-            placeholder="카테고리 이름"
+            placeholder={t("sidebar.dialog.newCategoryPlaceholder")}
             value={newCategoryName}
             onChange={(e) => setNewCategoryName(e.target.value)}
             autoFocus
@@ -687,13 +704,13 @@ export function Sidebar({
           />
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">취소</Button>
+              <Button variant="ghost">{t("common.cancel")}</Button>
             </DialogClose>
             <Button
               onClick={handleCreateCategory}
               disabled={!newCategoryName.trim()}
             >
-              만들기
+              {t("sidebar.dialog.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -708,15 +725,14 @@ export function Sidebar({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>프롬프트로 이미지 추가</DialogTitle>
+            <DialogTitle>{t("sidebar.dialog.addByPromptTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5">
             <p className="text-sm text-muted-foreground">
-              입력한 키워드를 프롬프트에 포함하는 이미지를 모두 카테고리에
-              추가합니다.
+              {t("sidebar.dialog.addByPromptDescription")}
             </p>
             <Input
-              placeholder="키워드 입력..."
+              placeholder={t("sidebar.dialog.addByPromptPlaceholder")}
               value={addByPromptQuery}
               onChange={(e) => setAddByPromptQuery(e.target.value)}
               autoFocus
@@ -727,13 +743,13 @@ export function Sidebar({
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">취소</Button>
+              <Button variant="ghost">{t("common.cancel")}</Button>
             </DialogClose>
             <Button
               onClick={handleAddByPromptSubmit}
               disabled={!addByPromptQuery.trim()}
             >
-              추가
+              {t("sidebar.dialog.add")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -747,15 +763,17 @@ export function Sidebar({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>폴더 삭제 확인</DialogTitle>
+            <DialogTitle>{t("sidebar.dialog.deleteFolderTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            &quot;{deleteFolderTarget?.name}&quot; 폴더를 정말 삭제할까요?
+            {t("sidebar.dialog.deleteFolderDescription", {
+              name: deleteFolderTarget?.name ?? "",
+            })}
           </p>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="ghost" disabled={deleteFolderPending}>
-                취소
+                {t("common.cancel")}
               </Button>
             </DialogClose>
             <Button
@@ -766,7 +784,9 @@ export function Sidebar({
               {deleteFolderPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
               ) : null}
-              {deleteFolderPending ? "삭제 중..." : "삭제"}
+              {deleteFolderPending
+                ? t("sidebar.dialog.deleting")
+                : t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -779,23 +799,27 @@ export function Sidebar({
       >
         <DialogContent closeDisabled={folder.isSubmitting}>
           <DialogHeader>
-            <DialogTitle>새 폴더 추가</DialogTitle>
+            <DialogTitle>{t("sidebar.dialog.newFolderTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-sm text-muted-foreground">이름</label>
+              <label className="text-sm text-muted-foreground">
+                {t("sidebar.dialog.name")}
+              </label>
               <Input
-                placeholder="폴더 이름"
+                placeholder={t("sidebar.dialog.namePlaceholder")}
                 value={folder.name}
                 onChange={(e) => folder.setName(e.target.value)}
                 autoFocus
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm text-muted-foreground">경로</label>
+              <label className="text-sm text-muted-foreground">
+                {t("sidebar.dialog.path")}
+              </label>
               <div className="flex gap-2">
                 <Input
-                  placeholder="폴더 경로 선택..."
+                  placeholder={t("sidebar.dialog.pathPlaceholder")}
                   value={folder.path}
                   className="flex-1 font-mono text-xs"
                   readOnly
@@ -805,7 +829,7 @@ export function Sidebar({
                   onClick={folder.handleBrowse}
                   disabled={folder.isSubmitting}
                 >
-                  탐색
+                  {t("sidebar.dialog.browse")}
                 </Button>
               </div>
             </div>
@@ -818,14 +842,16 @@ export function Sidebar({
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="ghost" disabled={folder.isSubmitting}>
-                취소
+                {t("common.cancel")}
               </Button>
             </DialogClose>
             <Button onClick={folder.handleSubmit} disabled={!folder.canSubmit}>
               {folder.isSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
               ) : null}
-              {folder.isSubmitting ? "파일 목록 로드 중..." : "추가"}
+              {folder.isSubmitting
+                ? t("sidebar.dialog.loadingFiles")
+                : t("sidebar.dialog.add")}
             </Button>
           </DialogFooter>
         </DialogContent>

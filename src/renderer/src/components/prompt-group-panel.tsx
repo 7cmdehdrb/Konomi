@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { PromptCategory, PromptGroup } from "@preload/index.d";
 
@@ -18,9 +19,10 @@ interface PromptGroupPanelProps {
   onCategoriesChange: (categories: PromptCategory[]) => void;
 }
 
-// Draggable chip shown inside the panel (not in prompt input)
 function DraggableGroupChip({ groupName }: { groupName: string }) {
+  const { t } = useTranslation();
   const [dragging, setDragging] = useState(false);
+
   return (
     <div
       draggable
@@ -39,7 +41,7 @@ function DraggableGroupChip({ groupName }: { groupName: string }) {
         "bg-group/14 text-group border-group/35",
         dragging && "opacity-40",
       )}
-      title="드래그해서 프롬프트에 추가"
+      title={t("promptGroupPanel.dragGroupToPrompt")}
     >
       <GripVertical className="h-2.5 w-2.5 text-group/70 shrink-0 -ml-0.5" />
       <span className="font-semibold text-group">@</span>
@@ -48,7 +50,6 @@ function DraggableGroupChip({ groupName }: { groupName: string }) {
   );
 }
 
-// Inline edit area for a single group's name + tokens
 interface GroupEditAreaProps {
   group: PromptGroup;
   onRename: (name: string) => void;
@@ -64,6 +65,7 @@ function GroupEditArea({
   onDeleteToken,
   onClose,
 }: GroupEditAreaProps) {
+  const { t } = useTranslation();
   const [nameDraft, setNameDraft] = useState(group.name);
   const [newTokenDraft, setNewTokenDraft] = useState("");
   const newTokenInputRef = useRef<HTMLInputElement | null>(null);
@@ -87,8 +89,7 @@ function GroupEditArea({
 
   return (
     <div className="mx-2 mb-2 rounded border border-border/40 bg-secondary/30 p-2">
-      {/* Group name */}
-      <div className="flex items-center gap-1 mb-2">
+      <div className="mb-2 flex items-center gap-1">
         <input
           value={nameDraft}
           onChange={(e) => setNameDraft(e.target.value)}
@@ -100,35 +101,38 @@ function GroupEditArea({
             if (e.key === "Escape") onClose();
           }}
           onBlur={commitRename}
-          placeholder="그룹명"
-          className="flex-1 min-w-0 h-6 px-1.5 text-xs bg-background border border-border/60 rounded outline-none focus:border-primary/60 text-foreground"
+          placeholder={t("promptGroupPanel.groupNamePlaceholder")}
+          className="flex-1 min-w-0 h-6 rounded border border-border/60 bg-background px-1.5 text-xs text-foreground outline-none focus:border-primary/60"
         />
         <button
           type="button"
           onClick={onClose}
-          className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors text-xs"
+          title={t("common.close")}
+          aria-label={t("common.close")}
+          className="flex h-5 w-5 items-center justify-center rounded text-xs text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-foreground"
         >
-          ×
+          x
         </button>
       </div>
 
-      {/* Token list */}
       {group.tokens.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground/40 py-1 text-center">
-          태그 없음
+        <p className="py-1 text-center text-[11px] text-muted-foreground/40">
+          {t("promptGroupPanel.noTags")}
         </p>
       ) : (
-        <div className="flex flex-wrap gap-1 mb-1.5">
+        <div className="mb-1.5 flex flex-wrap gap-1">
           {group.tokens.map((token) => (
             <div
               key={token.id}
-              className="group/token inline-flex items-center gap-0.5 bg-muted border border-border/40 rounded px-1.5 py-0.5 text-xs text-foreground/80"
+              className="group/token inline-flex items-center gap-0.5 rounded border border-border/40 bg-muted px-1.5 py-0.5 text-xs text-foreground/80"
             >
               <span>{token.label}</span>
               <button
                 type="button"
                 onClick={() => onDeleteToken(token.id)}
-                className="opacity-0 group-hover/token:opacity-100 transition-opacity h-3.5 w-3.5 flex items-center justify-center rounded text-muted-foreground/50 hover:text-destructive"
+                className="flex h-3.5 w-3.5 items-center justify-center rounded text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover/token:opacity-100"
+                title={t("common.delete")}
+                aria-label={t("common.delete")}
               >
                 <Trash2 className="h-2 w-2" />
               </button>
@@ -137,7 +141,6 @@ function GroupEditArea({
         </div>
       )}
 
-      {/* Add token */}
       <div className="flex gap-1">
         <input
           ref={newTokenInputRef}
@@ -149,14 +152,16 @@ function GroupEditArea({
               handleAddToken();
             }
           }}
-          placeholder="태그 추가..."
-          className="flex-1 min-w-0 h-6 px-2 text-[11px] bg-background border border-border/60 rounded outline-none focus:border-primary/60 text-foreground placeholder:text-muted-foreground/40"
+          placeholder={t("promptGroupPanel.addTagPlaceholder")}
+          className="flex-1 min-w-0 h-6 rounded border border-border/60 bg-background px-2 text-[11px] text-foreground outline-none focus:border-primary/60 placeholder:text-muted-foreground/40"
         />
         <button
           type="button"
           onClick={handleAddToken}
           disabled={!newTokenDraft.trim()}
-          className="h-6 w-6 flex items-center justify-center rounded bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25 transition-colors disabled:opacity-40"
+          className="flex h-6 w-6 items-center justify-center rounded border border-primary/30 bg-primary/15 text-primary transition-colors hover:bg-primary/25 disabled:opacity-40"
+          title={t("promptGroupPanel.addTag")}
+          aria-label={t("promptGroupPanel.addTag")}
         >
           <Plus className="h-3 w-3" />
         </button>
@@ -165,7 +170,6 @@ function GroupEditArea({
   );
 }
 
-// Single group row inside a category
 interface GroupRowProps {
   group: PromptGroup;
   onRename: (name: string) => void;
@@ -181,33 +185,38 @@ function GroupRow({
   onAddToken,
   onDeleteToken,
 }: GroupRowProps) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div>
-      <div className="flex items-center gap-1 px-2 py-0.5 group/grow">
+      <div className="group/grow flex items-center gap-1 px-2 py-0.5">
         <DraggableGroupChip groupName={group.name} />
 
-        <span className="flex-1 min-w-0 text-[11px] text-muted-foreground/50 truncate select-none">
+        <span className="flex-1 min-w-0 truncate select-none text-[11px] text-muted-foreground/50">
           {group.tokens.length > 0
-            ? group.tokens.map((t) => t.label).join(", ")
+            ? group.tokens.map((token) => token.label).join(", ")
             : ""}
         </span>
 
         {!editing && !confirmDelete && (
-          <div className="flex items-center gap-0.5 opacity-0 group-hover/grow:opacity-100 transition-opacity shrink-0">
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/grow:opacity-100">
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors"
+              title={t("promptGroupPanel.editGroup")}
+              aria-label={t("promptGroupPanel.editGroup")}
+              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-foreground"
             >
               <Pencil className="h-2.5 w-2.5" />
             </button>
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+              title={t("common.delete")}
+              aria-label={t("common.delete")}
+              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-2.5 w-2.5" />
             </button>
@@ -215,20 +224,22 @@ function GroupRow({
         )}
 
         {confirmDelete && (
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={onDelete}
-              className="h-5 px-1.5 text-[10px] rounded bg-destructive/15 border border-destructive/30 text-destructive hover:bg-destructive/25 transition-colors"
+              className="h-5 rounded border border-destructive/30 bg-destructive/15 px-1.5 text-[10px] text-destructive transition-colors hover:bg-destructive/25"
             >
-              삭제
+              {t("common.delete")}
             </button>
             <button
               type="button"
               onClick={() => setConfirmDelete(false)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors text-xs"
+              title={t("common.close")}
+              aria-label={t("common.close")}
+              className="flex h-5 w-5 items-center justify-center rounded text-xs text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-foreground"
             >
-              ×
+              x
             </button>
           </div>
         )}
@@ -247,7 +258,6 @@ function GroupRow({
   );
 }
 
-// Category section
 interface CategoryItemProps {
   category: PromptCategory;
   onRename: (name: string) => void;
@@ -257,6 +267,38 @@ interface CategoryItemProps {
   onRenameGroup: (groupId: number, name: string) => void;
   onAddToken: (groupId: number, label: string) => void;
   onDeleteToken: (groupId: number, tokenId: number) => void;
+}
+
+const BUILTIN_PROMPT_CATEGORY_KEYS = [
+  "peopleCount",
+  "rating",
+  "artStyle",
+  "composition",
+  "location",
+  "effects",
+  "qualityTags",
+  "characterGender",
+  "characterSpecific",
+  "characterAge",
+  "characterHairEyes",
+  "characterOutfit",
+  "characterPose",
+  "characterAction",
+  "characterBodyPart",
+  "characterFace",
+  "characterEffects",
+] as const;
+
+function getDisplayCategoryName(
+  category: PromptCategory,
+  t: ReturnType<typeof useTranslation>["t"],
+): string {
+  if (!category.isBuiltin) return category.name;
+
+  const builtinKey = BUILTIN_PROMPT_CATEGORY_KEYS[category.order];
+  if (!builtinKey) return category.name;
+
+  return t(`promptGroupPanel.builtinCategories.${builtinKey}`);
 }
 
 function CategoryItem({
@@ -269,6 +311,8 @@ function CategoryItem({
   onAddToken,
   onDeleteToken,
 }: CategoryItemProps) {
+  const { t } = useTranslation();
+  const displayName = getDisplayCategoryName(category, t);
   const [expanded, setExpanded] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(category.name);
@@ -307,12 +351,13 @@ function CategoryItem({
 
   return (
     <div className="border-b border-border/20 last:border-b-0">
-      {/* Category header */}
-      <div className="flex items-center gap-1 px-2 py-1.5 group/cat">
+      <div className="group/cat flex items-center gap-1 px-2 py-1.5">
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="h-4 w-4 flex items-center justify-center text-muted-foreground/80 hover:text-foreground shrink-0"
+          onClick={() => setExpanded((value) => !value)}
+          className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground/80 hover:text-foreground"
+          title={expanded ? t("promptGroupPanel.collapse") : t("promptGroupPanel.expand")}
+          aria-label={expanded ? t("promptGroupPanel.collapse") : t("promptGroupPanel.expand")}
         >
           {expanded ? (
             <ChevronDown className="h-3 w-3" />
@@ -334,46 +379,53 @@ function CategoryItem({
               if (e.key === "Escape") setRenaming(false);
             }}
             onBlur={commitRename}
-            className="flex-1 min-w-0 h-5 px-1.5 text-xs bg-background border border-primary/60 rounded outline-none text-foreground"
+            className="flex-1 min-w-0 h-5 rounded border border-primary/60 bg-background px-1.5 text-xs text-foreground outline-none"
           />
         ) : (
           <span
-            className="flex-1 min-w-0 text-xs font-medium text-foreground/80 truncate select-none cursor-pointer"
-            onClick={() => setExpanded((v) => !v)}
+            className="flex-1 min-w-0 cursor-pointer truncate select-none text-xs font-medium text-foreground/80"
+            onClick={() => setExpanded((value) => !value)}
           >
-            {category.name}
+            {displayName}
           </span>
         )}
 
-        <span className="text-[10px] text-muted-foreground/80 shrink-0 tabular-nums">
+        <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground/80">
           {category.groups.length}
         </span>
 
         {!renaming && !confirmDelete && (
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
               onClick={() => {
                 setExpanded(true);
                 setAddingGroup(true);
               }}
-              title="그룹 추가"
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-foreground hover:bg-secondary transition-colors"
+              title={t("promptGroupPanel.addGroup")}
+              aria-label={t("promptGroupPanel.addGroup")}
+              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/80 transition-colors hover:bg-secondary hover:text-foreground"
             >
               <Plus className="h-2.5 w-2.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setRenaming(true)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-foreground hover:bg-secondary transition-colors"
-            >
-              <Pencil className="h-2.5 w-2.5" />
             </button>
             {!category.isBuiltin && (
               <button
                 type="button"
+                onClick={() => setRenaming(true)}
+                title={t("promptGroupPanel.renameCategory")}
+                aria-label={t("promptGroupPanel.renameCategory")}
+                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/80 transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <Pencil className="h-2.5 w-2.5" />
+              </button>
+            )}
+            {!category.isBuiltin && (
+              <button
+                type="button"
                 onClick={() => setConfirmDelete(true)}
-                className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title={t("common.delete")}
+                aria-label={t("common.delete")}
+                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/80 transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 className="h-2.5 w-2.5" />
               </button>
@@ -382,31 +434,32 @@ function CategoryItem({
         )}
 
         {confirmDelete && (
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={onDelete}
-              className="h-5 px-1.5 text-[10px] rounded bg-destructive/15 border border-destructive/30 text-destructive hover:bg-destructive/25 transition-colors"
+              className="h-5 rounded border border-destructive/30 bg-destructive/15 px-1.5 text-[10px] text-destructive transition-colors hover:bg-destructive/25"
             >
-              삭제
+              {t("common.delete")}
             </button>
             <button
               type="button"
               onClick={() => setConfirmDelete(false)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors text-xs"
+              title={t("common.close")}
+              aria-label={t("common.close")}
+              className="flex h-5 w-5 items-center justify-center rounded text-xs text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-foreground"
             >
-              ×
+              x
             </button>
           </div>
         )}
       </div>
 
-      {/* Expanded: groups + add group input */}
       {expanded && (
         <div className="bg-secondary/10">
           {category.groups.length === 0 && !addingGroup ? (
-            <p className="text-[11px] text-muted-foreground/60 py-1.5 text-center">
-              생성된 그룹 없음
+            <p className="py-1.5 text-center text-[11px] text-muted-foreground/60">
+              {t("promptGroupPanel.noGroups")}
             </p>
           ) : (
             <div className="py-0.5">
@@ -423,7 +476,6 @@ function CategoryItem({
             </div>
           )}
 
-          {/* Add group input */}
           {addingGroup ? (
             <div className="flex gap-1 px-2 pb-2">
               <input
@@ -440,14 +492,16 @@ function CategoryItem({
                     setNewGroupDraft("");
                   }
                 }}
-                placeholder="그룹명 (= @{그룹명})..."
-                className="flex-1 min-w-0 h-6 px-2 text-[11px] bg-background border border-border/60 rounded outline-none focus:border-primary/60 text-foreground placeholder:text-muted-foreground/40"
+                placeholder={t("promptGroupPanel.newGroupPlaceholder")}
+                className="flex-1 min-w-0 h-6 rounded border border-border/60 bg-background px-2 text-[11px] text-foreground outline-none focus:border-primary/60 placeholder:text-muted-foreground/40"
               />
               <button
                 type="button"
                 onClick={handleAddGroup}
                 disabled={!newGroupDraft.trim()}
-                className="h-6 w-6 flex items-center justify-center rounded bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25 transition-colors disabled:opacity-40"
+                title={t("promptGroupPanel.addGroup")}
+                aria-label={t("promptGroupPanel.addGroup")}
+                className="flex h-6 w-6 items-center justify-center rounded border border-primary/30 bg-primary/15 text-primary transition-colors hover:bg-primary/25 disabled:opacity-40"
               >
                 <Plus className="h-3 w-3" />
               </button>
@@ -457,22 +511,14 @@ function CategoryItem({
                   setAddingGroup(false);
                   setNewGroupDraft("");
                 }}
-                className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-secondary transition-colors text-xs"
+                title={t("common.close")}
+                aria-label={t("common.close")}
+                className="flex h-6 w-6 items-center justify-center rounded text-xs text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-foreground"
               >
-                ×
+                x
               </button>
             </div>
-          ) : (
-            // <button
-            //   type="button"
-            //   onClick={() => setAddingGroup(true)}
-            //   className="w-full text-left px-3 pb-1.5 text-[11px] text-muted-foreground/80 hover:text-muted-foreground transition-colors flex items-center gap-1"
-            // >
-            //   <Plus className="h-2.5 w-2.5" />
-            //   그룹 추가
-            // </button>
-            <></>
-          )}
+          ) : null}
         </div>
       )}
     </div>
@@ -483,6 +529,7 @@ export function PromptGroupPanel({
   categories,
   onCategoriesChange,
 }: PromptGroupPanelProps) {
+  const { t } = useTranslation();
   const [newCategoryName, setNewCategoryName] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -497,20 +544,24 @@ export function PromptGroupPanel({
   const handleRenameCategory = async (id: number, name: string) => {
     await window.promptBuilder.renameCategory(id, name);
     onCategoriesChange(
-      categories.map((c) => (c.id === id ? { ...c, name } : c)),
+      categories.map((category) =>
+        category.id === id ? { ...category, name } : category,
+      ),
     );
   };
 
   const handleDeleteCategory = async (id: number) => {
     await window.promptBuilder.deleteCategory(id);
-    onCategoriesChange(categories.filter((c) => c.id !== id));
+    onCategoriesChange(categories.filter((category) => category.id !== id));
   };
 
   const handleAddGroup = async (categoryId: number, name: string) => {
     const group = await window.promptBuilder.createGroup(categoryId, name);
     onCategoriesChange(
-      categories.map((c) =>
-        c.id === categoryId ? { ...c, groups: [...c.groups, group] } : c,
+      categories.map((category) =>
+        category.id === categoryId
+          ? { ...category, groups: [...category.groups, group] }
+          : category,
       ),
     );
   };
@@ -518,10 +569,13 @@ export function PromptGroupPanel({
   const handleDeleteGroup = async (categoryId: number, groupId: number) => {
     await window.promptBuilder.deleteGroup(groupId);
     onCategoriesChange(
-      categories.map((c) =>
-        c.id === categoryId
-          ? { ...c, groups: c.groups.filter((g) => g.id !== groupId) }
-          : c,
+      categories.map((category) =>
+        category.id === categoryId
+          ? {
+              ...category,
+              groups: category.groups.filter((group) => group.id !== groupId),
+            }
+          : category,
       ),
     );
   };
@@ -533,15 +587,15 @@ export function PromptGroupPanel({
   ) => {
     await window.promptBuilder.renameGroup(groupId, name);
     onCategoriesChange(
-      categories.map((c) =>
-        c.id === categoryId
+      categories.map((category) =>
+        category.id === categoryId
           ? {
-              ...c,
-              groups: c.groups.map((g) =>
-                g.id === groupId ? { ...g, name } : g,
+              ...category,
+              groups: category.groups.map((group) =>
+                group.id === groupId ? { ...group, name } : group,
               ),
             }
-          : c,
+          : category,
       ),
     );
   };
@@ -553,15 +607,17 @@ export function PromptGroupPanel({
   ) => {
     const token = await window.promptBuilder.createToken(groupId, label);
     onCategoriesChange(
-      categories.map((c) =>
-        c.id === categoryId
+      categories.map((category) =>
+        category.id === categoryId
           ? {
-              ...c,
-              groups: c.groups.map((g) =>
-                g.id === groupId ? { ...g, tokens: [...g.tokens, token] } : g,
+              ...category,
+              groups: category.groups.map((group) =>
+                group.id === groupId
+                  ? { ...group, tokens: [...group.tokens, token] }
+                  : group,
               ),
             }
-          : c,
+          : category,
       ),
     );
   };
@@ -573,86 +629,88 @@ export function PromptGroupPanel({
   ) => {
     await window.promptBuilder.deleteToken(tokenId);
     onCategoriesChange(
-      categories.map((c) =>
-        c.id === categoryId
+      categories.map((category) =>
+        category.id === categoryId
           ? {
-              ...c,
-              groups: c.groups.map((g) =>
-                g.id === groupId
-                  ? { ...g, tokens: g.tokens.filter((t) => t.id !== tokenId) }
-                  : g,
+              ...category,
+              groups: category.groups.map((group) =>
+                group.id === groupId
+                  ? {
+                      ...group,
+                      tokens: group.tokens.filter((token) => token.id !== tokenId),
+                    }
+                  : group,
               ),
             }
-          : c,
+          : category,
       ),
     );
   };
 
   const handleResetCategories = async () => {
     await window.promptBuilder.resetCategories();
-    const cs = await window.promptBuilder.listCategories();
-    onCategoriesChange(cs);
+    const nextCategories = await window.promptBuilder.listCategories();
+    onCategoriesChange(nextCategories);
     setConfirmReset(false);
   };
 
-  // Load on mount if empty
   useEffect(() => {
     if (categories.length > 0) return;
     window.promptBuilder
       .listCategories()
-      .then((cs) => onCategoriesChange(cs))
+      .then((nextCategories) => onCategoriesChange(nextCategories))
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="shrink-0 px-3 pt-2.5 pb-1.5 flex items-center justify-between border-b border-border/30">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">
-          그룹 프롬프트
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between border-b border-border/30 px-3 pt-2.5 pb-1.5">
+        <p className="select-none text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          {t("promptGroupPanel.title")}
         </p>
         {confirmReset ? (
           <div className="flex items-center gap-1">
             <span className="text-[10px] text-destructive">
-              모든 설정을 초기화합니다.
+              {t("promptGroupPanel.resetDescription")}
             </span>
             <button
               type="button"
               onClick={() => void handleResetCategories()}
-              className="h-5 px-1.5 text-[10px] rounded bg-destructive/15 border border-destructive/30 text-destructive hover:bg-destructive/25 transition-colors"
+              className="h-5 rounded border border-destructive/30 bg-destructive/15 px-1.5 text-[10px] text-destructive transition-colors hover:bg-destructive/25"
             >
-              확인
+              {t("generation.dialogs.confirm")}
             </button>
             <button
               type="button"
               onClick={() => setConfirmReset(false)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-foreground hover:bg-secondary transition-colors text-xs"
+              title={t("common.close")}
+              aria-label={t("common.close")}
+              className="flex h-5 w-5 items-center justify-center rounded text-xs text-muted-foreground/80 transition-colors hover:bg-secondary hover:text-foreground"
             >
-              ×
+              x
             </button>
           </div>
         ) : (
           <button
             type="button"
             onClick={() => setConfirmReset(true)}
-            title="기본값으로 초기화"
-            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/80 hover:text-muted-foreground hover:bg-secondary transition-colors"
+            title={t("promptGroupPanel.resetToDefault")}
+            aria-label={t("promptGroupPanel.resetToDefault")}
+            className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/80 transition-colors hover:bg-secondary hover:text-muted-foreground"
           >
             <RotateCcw className="h-3 w-3" />
           </button>
         )}
       </div>
 
-      {/* Hint */}
-      <p className="text-xs text-muted-foreground/80 px-3 py-1.5 shrink-0 border-b border-border/20 select-none">
-        칩을 드래그해서 프롬프트 입력란에 추가하세요
+      <p className="shrink-0 border-b border-border/20 px-3 py-1.5 text-xs text-muted-foreground/80 select-none">
+        {t("promptGroupPanel.dragHint")}
       </p>
 
-      {/* Category list */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {categories.length === 0 ? (
-          <p className="text-xs text-muted-foreground/40 text-center py-6">
-            카테고리 없음 — 아래에서 추가하세요
+          <p className="py-6 text-center text-xs text-muted-foreground/40">
+            {t("promptGroupPanel.noCategories")}
           </p>
         ) : (
           categories.map((category) => (
@@ -679,7 +737,6 @@ export function PromptGroupPanel({
         )}
       </div>
 
-      {/* New category input */}
       <div className="shrink-0 border-t border-border/40 p-2">
         <div className="flex gap-1">
           <input
@@ -691,14 +748,16 @@ export function PromptGroupPanel({
                 void handleCreateCategory();
               }
             }}
-            placeholder="새 카테고리 이름..."
-            className="flex-1 min-w-0 h-7 px-2 text-xs bg-secondary/60 border border-border/60 rounded outline-none focus:border-primary/60 text-foreground placeholder:text-muted-foreground/40"
+            placeholder={t("promptGroupPanel.newCategoryPlaceholder")}
+            className="flex-1 min-w-0 h-7 rounded border border-border/60 bg-secondary/60 px-2 text-xs text-foreground outline-none focus:border-primary/60 placeholder:text-muted-foreground/40"
           />
           <button
             type="button"
             onClick={() => void handleCreateCategory()}
             disabled={!newCategoryName.trim()}
-            className="h-7 w-7 flex items-center justify-center rounded bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25 transition-colors disabled:opacity-40"
+            title={t("promptGroupPanel.createCategory")}
+            aria-label={t("promptGroupPanel.createCategory")}
+            className="flex h-7 w-7 items-center justify-center rounded border border-primary/30 bg-primary/15 text-primary transition-colors hover:bg-primary/25 disabled:opacity-40"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>

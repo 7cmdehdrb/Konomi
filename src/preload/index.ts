@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("appInfo", {
   get: () => ipcRenderer.invoke("app:getInfo"),
+  getLocale: () => ipcRenderer.invoke("app:getLocale"),
   getDbFileSize: () => ipcRenderer.invoke("app:getDbFileSize"),
   getPromptsDbSchemaVersion: () =>
     ipcRenderer.invoke("app:getPromptsDbSchemaVersion"),

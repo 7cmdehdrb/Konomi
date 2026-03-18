@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import type { Folder } from "@preload/index.d";
+import i18n from "@/lib/i18n";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("renderer/useFolders");
@@ -62,7 +63,9 @@ export function useFolders() {
         error: e instanceof Error ? e.message : String(e),
       });
       toast.error(
-        `폴더 목록 로드 실패: ${e instanceof Error ? e.message : String(e)}`,
+        i18n.t("error.folderListLoadFailed", {
+          message: e instanceof Error ? e.message : String(e),
+        }),
       );
     } finally {
       setHasLoaded(true);

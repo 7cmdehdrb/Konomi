@@ -10,6 +10,7 @@ import { Dices, Plus, Trash2 } from "lucide-react";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { WildcardToken } from "@/lib/token";
 
@@ -48,6 +49,7 @@ function WildcardChipCore({
 }: Omit<WildcardChipProps, "isSortable" | "sortableId" | "sortableDisabled"> & {
   sortable?: SortableBindings;
 }) {
+  const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -59,7 +61,9 @@ function WildcardChipCore({
   const [newOptionDraft, setNewOptionDraft] = useState("");
 
   const previewText =
-    token.options.length > 0 ? token.options.join("|") : "옵션 없음";
+    token.options.length > 0
+      ? token.options.join("|")
+      : t("wildcardChip.noOptions");
 
   const openPopover = () => {
     setDraftOptions([...token.options]);
@@ -68,7 +72,7 @@ function WildcardChipCore({
   };
 
   const handleApply = () => {
-    onChange?.({ ...token, options: draftOptions.filter((o) => o.trim()) });
+    onChange?.({ ...token, options: draftOptions.filter((option) => option.trim()) });
     setPopoverOpen(false);
   };
 
@@ -77,15 +81,15 @@ function WildcardChipCore({
   };
 
   const handleAddOption = () => {
-    const opt = newOptionDraft.trim();
-    if (!opt) return;
-    setDraftOptions((prev) => [...prev, opt]);
+    const option = newOptionDraft.trim();
+    if (!option) return;
+    setDraftOptions((previous) => [...previous, option]);
     setNewOptionDraft("");
     requestAnimationFrame(() => newOptionInputRef.current?.focus());
   };
 
   const handleDeleteOption = (index: number) => {
-    setDraftOptions((prev) => prev.filter((_, i) => i !== index));
+    setDraftOptions((previous) => previous.filter((_, i) => i !== index));
   };
 
   useEffect(() => {
@@ -102,6 +106,7 @@ function WildcardChipCore({
     const updatePosition = () => {
       const triggerNode = triggerRef.current;
       if (!triggerNode) return;
+
       const rect = triggerNode.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
@@ -137,9 +142,9 @@ function WildcardChipCore({
       });
     };
 
-    const onPointerDown = (e: MouseEvent) => {
-      if (rootRef.current?.contains(e.target as Node)) return;
-      if (popoverRef.current?.contains(e.target as Node)) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      if (popoverRef.current?.contains(event.target as Node)) return;
       setPopoverOpen(false);
     };
 
@@ -147,6 +152,7 @@ function WildcardChipCore({
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     window.addEventListener("mousedown", onPointerDown);
+
     return () => {
       window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", updatePosition);
@@ -159,6 +165,7 @@ function WildcardChipCore({
     rootRef.current = node;
     sortable?.setNodeRef(node);
   };
+
   const setTriggerRef = (node: HTMLDivElement | null) => {
     triggerRef.current = node;
     chipRef?.(node);
@@ -201,8 +208,8 @@ function WildcardChipCore({
         {...sortable?.attributes}
         {...(!popoverOpen ? sortable?.listeners : {})}
         className={cn(
-          "inline-flex items-center gap-1 px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer touch-none select-none",
-          "bg-wildcard/14 text-wildcard border-wildcard/35",
+          "inline-flex cursor-pointer touch-none select-none items-center gap-1 rounded border px-1.5 py-1 text-xs transition-colors",
+          "border-wildcard/35 bg-wildcard/14 text-wildcard",
           "hover:brightness-105",
           sortable?.isDragging && "opacity-70",
         )}
@@ -211,7 +218,7 @@ function WildcardChipCore({
         <span
           className={cn(
             "max-w-[120px] truncate",
-            token.resolved ? "text-wildcard font-medium" : "text-wildcard/70",
+            token.resolved ? "font-medium text-wildcard" : "text-wildcard/70",
           )}
         >
           {token.resolved ?? previewText}
@@ -220,33 +227,34 @@ function WildcardChipCore({
     </div>
   );
 
-  const popover = popoverOpen && (
+  const popover = popoverOpen ? (
     <div
       ref={popoverRef}
       style={popoverStyle ?? hiddenStyle}
       className="rounded-md border border-border bg-popover p-2.5 shadow-lg"
       onClick={(e) => e.stopPropagation()}
     >
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-        와일드카드 옵션
+      <p className="mb-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+        {t("wildcardChip.title")}
       </p>
 
-      {/* Option list */}
-      <div className="space-y-1 max-h-36 overflow-y-auto mb-2">
+      <div className="mb-2 max-h-36 space-y-1 overflow-y-auto">
         {draftOptions.length === 0 ? (
-          <p className="text-xs text-muted-foreground/40 text-center py-2">
-            옵션 없음
+          <p className="py-2 text-center text-xs text-muted-foreground/40">
+            {t("wildcardChip.noOptions")}
           </p>
         ) : (
-          draftOptions.map((opt, i) => (
-            <div key={i} className="flex items-center gap-1.5 group/opt">
-              <span className="flex-1 min-w-0 text-xs text-foreground/80 truncate px-1.5 py-0.5 rounded bg-muted border border-border/40">
-                {opt}
+          draftOptions.map((option, index) => (
+            <div key={index} className="group/opt flex items-center gap-1.5">
+              <span className="flex-1 min-w-0 truncate rounded border border-border/40 bg-muted px-1.5 py-0.5 text-xs text-foreground/80">
+                {option}
               </span>
               <button
                 type="button"
-                onClick={() => handleDeleteOption(i)}
-                className="opacity-0 group-hover/opt:opacity-100 transition-opacity h-5 w-5 flex items-center justify-center rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 shrink-0"
+                onClick={() => handleDeleteOption(index)}
+                title={t("common.delete")}
+                aria-label={t("common.delete")}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/opt:opacity-100"
               >
                 <Trash2 className="h-3 w-3" />
               </button>
@@ -255,8 +263,7 @@ function WildcardChipCore({
         )}
       </div>
 
-      {/* Add option */}
-      <div className="flex gap-1 mb-2.5">
+      <div className="mb-2.5 flex gap-1">
         <input
           ref={newOptionInputRef}
           value={newOptionDraft}
@@ -271,24 +278,27 @@ function WildcardChipCore({
               handleCancel();
             }
           }}
-          placeholder="옵션 추가..."
-          className="flex-1 min-w-0 h-7 px-2 text-xs bg-background border border-border/60 rounded outline-none focus:border-primary/60 text-foreground placeholder:text-muted-foreground/40"
+          placeholder={t("wildcardChip.addOptionPlaceholder")}
+          className="flex-1 min-w-0 h-7 rounded border border-border/60 bg-background px-2 text-xs text-foreground outline-none focus:border-primary/60 placeholder:text-muted-foreground/40"
         />
         <button
           type="button"
           onClick={handleAddOption}
           disabled={!newOptionDraft.trim()}
-          className="h-7 w-7 flex items-center justify-center rounded bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25 transition-colors disabled:opacity-40"
+          title={t("wildcardChip.addOption")}
+          aria-label={t("wildcardChip.addOption")}
+          className="flex h-7 w-7 items-center justify-center rounded border border-primary/30 bg-primary/15 text-primary transition-colors hover:bg-primary/25 disabled:opacity-40"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {token.resolved && (
+      {token.resolved ? (
         <p className="mb-2 text-[10px] text-wildcard/85">
-          마지막 선택: <span className="font-medium">{token.resolved}</span>
+          {t("wildcardChip.lastSelected")}{" "}
+          <span className="font-medium">{token.resolved}</span>
         </p>
-      )}
+      ) : null}
 
       <div className="flex items-center justify-between">
         {onDelete ? (
@@ -298,10 +308,10 @@ function WildcardChipCore({
               setPopoverOpen(false);
               onDelete();
             }}
-            className="h-7 rounded border border-destructive/40 px-2 text-[11px] text-destructive/80 hover:bg-destructive/10 flex items-center gap-1"
+            className="flex h-7 items-center gap-1 rounded border border-destructive/40 px-2 text-[11px] text-destructive/80 hover:bg-destructive/10"
           >
             <Trash2 className="h-3 w-3" />
-            삭제
+            {t("common.delete")}
           </button>
         ) : (
           <span />
@@ -312,19 +322,19 @@ function WildcardChipCore({
             onClick={handleCancel}
             className="h-7 rounded border border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
             onClick={handleApply}
             className="h-7 rounded border border-primary/50 bg-primary/10 px-2 text-[11px] text-primary hover:bg-primary/20"
           >
-            Apply
+            {t("wildcardChip.apply")}
           </button>
         </div>
       </div>
     </div>
-  );
+  ) : null;
 
   return (
     <>
@@ -379,5 +389,6 @@ export function WildcardChip({
       />
     );
   }
+
   return <WildcardChipCore {...props} />;
 }

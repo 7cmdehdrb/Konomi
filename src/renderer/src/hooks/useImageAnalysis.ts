@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, startTransition } from "react
 import { toast } from "sonner";
 import type { SimilarGroup } from "@preload/index.d";
 import type { Settings } from "@/hooks/useSettings";
+import i18n from "@/lib/i18n";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("renderer/useImageAnalysis");
@@ -103,7 +104,9 @@ export function useImageAnalysis({
           error: e instanceof Error ? e.message : String(e),
         });
         toast.error(
-          `이미지 분석 실패: ${e instanceof Error ? e.message : String(e)}`,
+          i18n.t("error.analysisFailed", {
+            message: e instanceof Error ? e.message : String(e),
+          }),
         );
         return false;
       } finally {

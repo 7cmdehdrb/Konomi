@@ -18,6 +18,9 @@ import {
 import { cn } from "@/lib/utils";
 import { DEFAULTS, type Settings } from "@/hooks/useSettings";
 import { THEMES } from "@/lib/themes";
+import { SUPPORTED_APP_LANGUAGES } from "@/lib/language";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 
 interface SettingsViewProps {
   settings: Settings;
@@ -33,7 +36,7 @@ function ResetButton({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       className="text-muted-foreground hover:text-foreground transition-colors"
-      title="기본값으로 초기화"
+      title={i18n.t("settings.resetToDefault")}
     >
       <RotateCcw className="h-3.5 w-3.5" />
     </button>
@@ -94,26 +97,14 @@ function OptionGroup<T extends number>({
 }
 
 const similarityQualityLabel = (value: number): string =>
-  (
-    ({
-      16: "극단적 느슨함",
-      15: "매우 느슨함",
-      14: "느슨함",
-      13: "조금 느슨함",
-      12: "균형",
-      11: "조금 엄격함",
-      10: "엄격함",
-      9: "매우 엄격함",
-      8: "극단적 엄격함",
-    }) as Record<number, string>
-  )[value] ?? String(value);
+  i18n.t(`settings.similarity.quality.${value}`, { defaultValue: String(value) });
 
 const jaccardLabel = (value: number): string => {
-  if (value >= 0.68) return "매우 엄격";
-  if (value >= 0.64) return "엄격";
-  if (value >= 0.58) return "균형";
-  if (value >= 0.54) return "느슨";
-  return "매우 느슨";
+  if (value >= 0.68) return i18n.t("settings.similarity.jaccard.veryStrict");
+  if (value >= 0.64) return i18n.t("settings.similarity.jaccard.strict");
+  if (value >= 0.58) return i18n.t("settings.similarity.jaccard.balanced");
+  if (value >= 0.54) return i18n.t("settings.similarity.jaccard.loose");
+  return i18n.t("settings.similarity.jaccard.veryLoose");
 };
 
 const SIMILARITY_MIN = 8;
@@ -125,7 +116,7 @@ const JACCARD_MIN = 0.5;
 const JACCARD_MAX = 0.7;
 
 function formatBytes(bytes: number | null): string {
-  if (bytes === null) return "알 수 없음";
+  if (bytes === null) return i18n.t("settings.database.unknown");
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) {
@@ -153,6 +144,7 @@ export function SettingsView({
   onResetHashes,
   isAnalyzing,
 }: SettingsViewProps) {
+  const { t } = useTranslation();
   const [resetting, setResetting] = useState(false);
   const [ignoredDuplicates, setIgnoredDuplicates] = useState<string[]>([]);
   const [ignoredLoading, setIgnoredLoading] = useState(false);
@@ -220,7 +212,7 @@ export function SettingsView({
       setIgnoredError(
         e instanceof Error
           ? e.message
-          : "무시 목록을 불러오는 중 오류가 발생했습니다.",
+          : t("settings.ignored.loadError"),
       );
     } finally {
       setIgnoredLoading(false);
@@ -247,7 +239,7 @@ export function SettingsView({
       setIgnoredError(
         e instanceof Error
           ? e.message
-          : "무시 목록 초기화 중 오류가 발생했습니다.",
+          : t("settings.ignored.clearError"),
       );
     } finally {
       setIgnoredClearing(false);
@@ -277,7 +269,7 @@ export function SettingsView({
           <div className="flex items-center gap-3">
             <SettingsIcon className="h-5 w-5 text-primary" />
             <h1 className="text-xl font-bold text-foreground select-none">
-              설정
+              {t("settings.title")}
             </h1>
           </div>
           <div className="flex items-center gap-1">
@@ -288,7 +280,7 @@ export function SettingsView({
               className="text-xs h-8 gap-1.5 text-muted-foreground"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              모든 설정 초기화
+              {t("settings.resetAll")}
             </Button>
             <Button
               variant="ghost"
@@ -302,9 +294,38 @@ export function SettingsView({
         </div>
 
         <div className="space-y-2">
-          <SectionHeader onReset={() => onReset(["theme"])}>테마</SectionHeader>
+          <SectionHeader onReset={() => onReset(["language"])}>
+            {t("settings.language.title")}
+          </SectionHeader>
           <p className="text-xs text-muted-foreground select-none">
-            앱의 색상 테마를 선택합니다.
+            {t("settings.language.description")}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {SUPPORTED_APP_LANGUAGES.map((language) => (
+              <button
+                key={language}
+                onClick={() => onUpdate({ language })}
+                className={cn(
+                  "px-3 py-1.5 text-sm rounded-md border transition-colors",
+                  settings.language === language
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-secondary text-muted-foreground border-border hover:text-foreground hover:border-foreground/30",
+                )}
+              >
+                {t(`settings.language.${language}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Separator className="bg-border" />
+
+        <div className="space-y-2">
+          <SectionHeader onReset={() => onReset(["theme"])}>
+            {t("settings.theme.title")}
+          </SectionHeader>
+          <p className="text-xs text-muted-foreground select-none">
+            {t("settings.theme.description")}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {THEMES.map((theme) => (
@@ -318,7 +339,7 @@ export function SettingsView({
                     : "bg-secondary text-muted-foreground border-border hover:text-foreground hover:border-foreground/30",
                 )}
               >
-                {theme.label}
+                {t(`settings.theme.options.${theme.id}`)}
               </button>
             ))}
           </div>
@@ -328,15 +349,15 @@ export function SettingsView({
 
         <div className="space-y-2">
           <SectionHeader onReset={() => onReset(["pageSize"])}>
-            페이지당 이미지 수
+            {t("settings.pageSize.title")}
           </SectionHeader>
           <p className="text-xs text-muted-foreground select-none">
-            갤러리에서 한 번에 표시할 이미지 수입니다.
+            {t("settings.pageSize.description")}
           </p>
           <OptionGroup
             value={settings.pageSize}
             options={[10, 20, 50, 100] as number[]}
-            label={(v) => `${v}개`}
+            label={(v) => t("settings.pageSize.unit", { count: v })}
             onChange={(v) => onUpdate({ pageSize: v })}
           />
         </div>
@@ -345,15 +366,15 @@ export function SettingsView({
 
         <div className="space-y-2">
           <SectionHeader onReset={() => onReset(["recentDays"])}>
-            최근 생성 범위
+            {t("settings.recentRange.title")}
           </SectionHeader>
           <p className="text-xs text-muted-foreground select-none">
-            최근 생성 뷰에서 표시할 기간입니다.
+            {t("settings.recentRange.description")}
           </p>
           <OptionGroup
             value={settings.recentDays}
             options={[1, 3, 7, 14, 30, 60, 90] as number[]}
-            label={(v) => `${v}일`}
+            label={(v) => t("settings.recentRange.unit", { count: v })}
             onChange={(v) => onUpdate({ recentDays: v })}
           />
         </div>
@@ -362,16 +383,15 @@ export function SettingsView({
 
         <div className="space-y-2">
           <SectionHeader onReset={() => onReset(["similarPageSize"])}>
-            유사 이미지 패널 페이지 크기
+            {t("settings.similarPageSize.title")}
           </SectionHeader>
           <p className="text-xs text-muted-foreground select-none">
-            이미지 상세 화면의 유사 이미지 패널에서 한 페이지에 표시할 이미지
-            수입니다.
+            {t("settings.similarPageSize.description")}
           </p>
           <OptionGroup
             value={settings.similarPageSize}
             options={[5, 10, 20, 50] as number[]}
-            label={(v) => `${v}개`}
+            label={(v) => t("settings.similarPageSize.unit", { count: v })}
             onChange={(v) => onUpdate({ similarPageSize: v })}
           />
         </div>
@@ -394,7 +414,7 @@ export function SettingsView({
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      aria-label="유사 이미지 판단 강도 안내 보기"
+                      aria-label={t("settings.similarity.tooltipAria")}
                       className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-transparent text-muted-foreground transition-colors hover:border-border hover:bg-secondary/40 hover:text-foreground"
                     >
                       <Info className="h-3 w-3" />
@@ -405,30 +425,23 @@ export function SettingsView({
                     sideOffset={8}
                     className="max-w-80 text-foreground/85 p-2"
                   >
-                    Konomi App은 두 가지 로직으로 유사 이미지를 판별합니다.
-                    Perceptual Hash, Jaccard 유사도. 두 알고리즘은 각각 실제로
-                    이미지의 유사도, 그리고 프롬프트의 유사도를 판별합니다. 이
-                    두 가지 알고리즘은 상호 보완적으로 작동합니다. 유사 이미지
-                    목록에서 V로 마킹된 이미지는 Perceptual Hash로 판별된
-                    이미지고, P로 마킹된 이미지는 Jaccard 유사도로 판별된
-                    이미지, B로 마킹된 이미지는 둘 다 해당됨을 의미합니다.
+                    {t("settings.similarity.tooltipDescription")}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             }
           >
-            유사 이미지 판단 강도
+            {t("settings.similarity.title")}
           </SectionHeader>
           <p className="text-xs text-muted-foreground select-none">
-            느슨할수록 더 많은 이미지가 비슷하다고 판단되고 엄격할수록 더 적은
-            이미지가 비슷하다고 판단됩니다.
+            {t("settings.similarity.description")}
           </p>
           <div className="rounded-md border border-border/60 p-3 space-y-3">
             <div className="space-y-2">
               <div
                 className="grid grid-cols-1 gap-2 sm:grid-cols-2"
                 role="radiogroup"
-                aria-label="유사도 설정 모드"
+                aria-label={t("settings.similarity.modeAria")}
               >
                 <button
                   type="button"
@@ -452,11 +465,11 @@ export function SettingsView({
                       )}
                     />
                     <p className="text-sm font-medium text-foreground">
-                      기본 모드
+                      {t("settings.similarity.mode.basic.title")}
                     </p>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    대부분의 사용자에게 적합
+                    {t("settings.similarity.mode.basic.description")}
                   </p>
                 </button>
 
@@ -482,11 +495,11 @@ export function SettingsView({
                       )}
                     />
                     <p className="text-sm font-medium text-foreground">
-                      고급 모드
+                      {t("settings.similarity.mode.advanced.title")}
                     </p>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Visual/Prompt 기준 개별 조정
+                    {t("settings.similarity.mode.advanced.description")}
                   </p>
                 </button>
               </div>
@@ -494,8 +507,24 @@ export function SettingsView({
 
             <div className="rounded-md border border-border/50 bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
               {settings.useAdvancedSimilarityThresholds
-                ? `현재 적용: Visual ${settings.visualSimilarityThreshold} (${similarityQualityLabel(settings.visualSimilarityThreshold)}) · Prompt ${settings.promptSimilarityThreshold.toFixed(2)} (${jaccardLabel(settings.promptSimilarityThreshold)})`
-                : `현재 적용: Visual ${settings.similarityThreshold} (${similarityQualityLabel(settings.similarityThreshold)}) · Prompt ${derivePromptThreshold(settings.similarityThreshold).toFixed(2)} (${jaccardLabel(settings.promptSimilarityThreshold)})`}
+                ? t("settings.similarity.currentApplied", {
+                    visual: settings.visualSimilarityThreshold,
+                    visualLabel: similarityQualityLabel(
+                      settings.visualSimilarityThreshold,
+                    ),
+                    prompt: settings.promptSimilarityThreshold.toFixed(2),
+                    promptLabel: jaccardLabel(settings.promptSimilarityThreshold),
+                  })
+                : t("settings.similarity.currentApplied", {
+                    visual: settings.similarityThreshold,
+                    visualLabel: similarityQualityLabel(
+                      settings.similarityThreshold,
+                    ),
+                    prompt: derivePromptThreshold(
+                      settings.similarityThreshold,
+                    ).toFixed(2),
+                    promptLabel: jaccardLabel(settings.promptSimilarityThreshold),
+                  })}
             </div>
 
             {!settings.useAdvancedSimilarityThresholds ? (
@@ -547,8 +576,8 @@ export function SettingsView({
                     className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-primary bg-secondary"
                   />
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground/80">
-                    <span>느슨 (16)</span>
-                    <span>엄격 (8)</span>
+                    <span>{t("settings.similarity.visualRange.loose")}</span>
+                    <span>{t("settings.similarity.visualRange.strict")}</span>
                   </div>
                 </div>
 
@@ -578,8 +607,8 @@ export function SettingsView({
                     className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-primary bg-secondary"
                   />
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground/80">
-                    <span>느슨 (0.50)</span>
-                    <span>엄격 (0.70)</span>
+                    <span>{t("settings.similarity.promptRange.loose")}</span>
+                    <span>{t("settings.similarity.promptRange.strict")}</span>
                   </div>
                 </div>
               </div>
@@ -591,11 +620,10 @@ export function SettingsView({
 
         <div className="space-y-2">
           <h2 className="text-sm font-medium text-foreground select-none">
-            해시 재계산
+            {t("settings.hashReset.title")}
           </h2>
           <p className="text-xs text-muted-foreground select-none">
-            유사 이미지 판별에 사용되는 Perceptual Hash를 초기화하고 다시
-            계산합니다.
+            {t("settings.hashReset.description")}
           </p>
           <Button
             variant="outline"
@@ -603,10 +631,10 @@ export function SettingsView({
             disabled={resetting || isAnalyzing}
           >
             {resetting
-              ? "초기화 중..."
+              ? t("settings.hashReset.resetting")
               : isAnalyzing
-                ? "계산 중..."
-                : "초기화 및 재계산"}
+                ? t("settings.hashReset.calculating")
+                : t("settings.hashReset.action")}
           </Button>
         </div>
 
@@ -614,11 +642,10 @@ export function SettingsView({
 
         <div className="space-y-2">
           <h2 className="text-sm font-medium text-foreground select-none">
-            중복 무시 목록
+            {t("settings.ignored.title")}
           </h2>
           <p className="text-xs text-muted-foreground select-none">
-            중복 처리에서 &quot;무시&quot;를 선택한 파일 목록입니다. 목록을
-            초기화하면 다음 스캔/감시부터 다시 수집 대상이 됩니다.
+            {t("settings.ignored.description")}
           </p>
           <div className="flex gap-2">
             <Button
@@ -633,7 +660,7 @@ export function SettingsView({
                   ignoredLoading && "animate-spin",
                 )}
               />
-              새로고침
+              {t("settings.ignored.refresh")}
             </Button>
             <Button
               variant="destructive"
@@ -642,7 +669,9 @@ export function SettingsView({
               disabled={ignoredClearing || ignoredLoading}
             >
               <Trash2 className="h-4 w-4 mr-1.5" />
-              {ignoredClearing ? "초기화 중..." : "목록 초기화"}
+              {ignoredClearing
+                ? t("settings.ignored.clearing")
+                : t("settings.ignored.clear")}
             </Button>
           </div>
           {ignoredError && (
@@ -652,11 +681,13 @@ export function SettingsView({
           )}
           <div className="rounded-md border border-border/60 bg-secondary/10">
             <div className="px-3 py-2 border-b border-border/60 text-xs text-muted-foreground">
-              총 {ignoredDuplicates.length}개
+              {t("settings.ignored.total", { count: ignoredDuplicates.length })}
             </div>
             <div className="max-h-40 overflow-auto px-3 py-2">
               {ignoredDuplicates.length === 0 ? (
-                <p className="text-xs text-muted-foreground">비어 있습니다.</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("settings.ignored.empty")}
+                </p>
               ) : (
                 <ul className="space-y-1">
                   {ignoredDuplicates.map((filePath) => (
@@ -677,12 +708,12 @@ export function SettingsView({
 
         <div className="space-y-2">
           <h2 className="text-sm font-medium text-foreground select-none">
-            데이터베이스 정보
+            {t("settings.database.title")}
           </h2>
           <div className="rounded-md border border-border/60 bg-secondary/10">
             <div className="flex items-center justify-between px-3 py-2">
               <span className="text-xs text-muted-foreground select-none">
-                이미지 데이터베이스 용량
+                {t("settings.database.imageSize")}
               </span>
               <span className="text-xs font-mono text-foreground">
                 {formatBytes(dbFileSize)}
@@ -690,7 +721,7 @@ export function SettingsView({
             </div>
             <div className="flex items-center justify-between border-t border-border/60 px-3 py-2">
               <span className="text-xs text-muted-foreground select-none">
-                태그 데이터베이스 버전
+                {t("settings.database.tagSchemaVersion")}
               </span>
               <span className="text-xs font-mono text-foreground">
                 {promptsDbSchemaVersion ?? "-"}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Compass, FolderGit2, Github, Loader2, Sparkles } from "lucide-react";
 import {
   Dialog,
@@ -205,7 +206,12 @@ accepting any such warranty or additional liability.
 
 END OF TERMS AND CONDITIONS`;
 
-export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialogProps) {
+export function AppInfoDialog({
+  open,
+  onOpenChange,
+  onStartTour,
+}: AppInfoDialogProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [licenseOpen, setLicenseOpen] = useState(false);
@@ -235,7 +241,7 @@ export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialog
                     Konomi
                   </DialogTitle>
                   <DialogDescription className="text-sm leading-relaxed">
-                    AI 생성 이미지 통합관리
+                    {t("appInfoDialog.tagline")}
                   </DialogDescription>
                 </div>
               </div>
@@ -252,7 +258,9 @@ export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialog
                   className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-foreground transition-colors hover:border-primary/50 hover:text-primary"
                 >
                   <FolderGit2 className="h-5 w-5" />
-                  <span className="text-sm font-medium">Repository</span>
+                  <span className="text-sm font-medium">
+                    {t("appInfoDialog.repository")}
+                  </span>
                 </a>
                 <a
                   href={CREATOR_GITHUB_URL}
@@ -263,7 +271,9 @@ export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialog
                   className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-foreground transition-colors hover:border-primary/50 hover:text-primary"
                 >
                   <Github className="h-5 w-5" />
-                  <span className="text-sm font-medium">Author</span>
+                  <span className="text-sm font-medium">
+                    {t("appInfoDialog.author")}
+                  </span>
                 </a>
                 <button
                   type="button"
@@ -272,7 +282,7 @@ export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialog
                 >
                   <FolderGit2 className="h-5 w-5" />
                   <span className="text-sm font-medium">
-                    Open Source Licenses
+                    {t("appInfoDialog.licenses")}
                   </span>
                 </button>
                 {onStartTour && (
@@ -286,7 +296,7 @@ export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialog
                   >
                     <Compass className="h-5 w-5" />
                     <span className="text-sm font-medium">
-                      기능 둘러보기
+                      {t("appInfoDialog.featureTour")}
                     </span>
                   </button>
                 )}
@@ -294,7 +304,7 @@ export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialog
               {loading && (
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Loading information...</span>
+                  <span>{t("appInfoDialog.loadingInfo")}</span>
                 </div>
               )}
             </div>
@@ -302,12 +312,12 @@ export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialog
 
           <section className="border-t border-border/60 bg-background/95 px-8 py-5 sm:px-10">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground select-none">
-              Environment
+              {t("appInfoDialog.environment")}
             </p>
             {loading ? (
               <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Loading environment...</span>
+                <span>{t("appInfoDialog.loadingEnvironment")}</span>
               </div>
             ) : (
               <p className="mt-2 overflow-x-auto whitespace-nowrap font-mono text-sm text-foreground">
@@ -321,9 +331,9 @@ export function AppInfoDialog({ open, onOpenChange, onStartTour }: AppInfoDialog
       <Dialog open={licenseOpen} onOpenChange={setLicenseOpen}>
         <DialogContent className="w-[min(92vw,56rem)] max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Open Source Licenses</DialogTitle>
+            <DialogTitle>{t("appInfoDialog.licenses")}</DialogTitle>
             <DialogDescription>
-              Included open-source license information.
+              {t("appInfoDialog.licensesDescription")}
             </DialogDescription>
           </DialogHeader>
           <textarea

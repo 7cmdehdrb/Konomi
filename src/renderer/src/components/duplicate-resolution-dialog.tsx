@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,6 +34,7 @@ export function DuplicateResolutionDialog({
   onOpenPreview,
   onPreviewOpenChange,
 }: DuplicateResolutionDialogProps) {
+  const { t } = useTranslation();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const currentItem = items[pageIndex] ?? null;
   const showItems = Boolean(
@@ -40,6 +42,14 @@ export function DuplicateResolutionDialog({
   );
   const sectionMinHeightClass = "min-h-[30rem]";
   const sectionMessageMinHeightClass = "min-h-[calc(30rem-1.5rem)]";
+  const previewSide = t("duplicateResolution.previewSide");
+  const currentPreview = currentItem
+    ? toDuplicatePreview(
+        previewSide,
+        currentItem.previewFileName,
+        currentItem.previewPath,
+      )
+    : null;
 
   const hasDestructiveAction = useMemo(
     () =>
@@ -79,19 +89,23 @@ export function DuplicateResolutionDialog({
         >
           <DialogHeader>
             <DialogTitle className="-mb-6">
-              {mode === "watch" ? "중복 이미지 감지" : "중복 이미지 처리"}
+              {mode === "watch"
+                ? t("duplicateResolution.title.watch")
+                : t("duplicateResolution.title.folderAdd")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground select-none">
               {mode === "watch"
-                ? "작업이 필요한 파일이 있습니다."
-                : `중복 이미지 ${items.length}개를 찾았습니다. 폴더 추가를 완료하려면 어떤 파일을 남길지 선택해 주세요.`}
+                ? t("duplicateResolution.description.watch")
+                : t("duplicateResolution.description.folderAdd", {
+                    count: items.length,
+                  })}
             </p>
             {items.length > 1 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-foreground/80 select-none">
-                  일괄 처리
+                  {t("duplicateResolution.bulkLabel")}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -102,7 +116,7 @@ export function DuplicateResolutionDialog({
                     onClick={() => onApplyAll("existing")}
                     disabled={resolving}
                   >
-                    기존 파일 모두 유지 (새 파일 제거)
+                    {t("duplicateResolution.bulk.existing")}
                   </Button>
                   <Button
                     variant={
@@ -112,7 +126,7 @@ export function DuplicateResolutionDialog({
                     onClick={() => onApplyAll("incoming")}
                     disabled={resolving}
                   >
-                    새 파일 모두 유지 (기존 파일 제거)
+                    {t("duplicateResolution.bulk.incoming")}
                   </Button>
                   <Button
                     variant={bulkDecision === "ignore" ? "default" : "outline"}
@@ -120,7 +134,7 @@ export function DuplicateResolutionDialog({
                     onClick={() => onApplyAll("ignore")}
                     disabled={resolving}
                   >
-                    모두 무시 (파일 유지, DB 미반영)
+                    {t("duplicateResolution.bulk.ignore")}
                   </Button>
                   <Button
                     variant={bulkDecision === "manual" ? "default" : "outline"}
@@ -128,19 +142,19 @@ export function DuplicateResolutionDialog({
                     onClick={() => onSelectBulkDecision("manual")}
                     disabled={resolving}
                   >
-                    직접 보고 결정하기
+                    {t("duplicateResolution.bulk.manual")}
                   </Button>
                 </div>
               </div>
             )}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-foreground/80 select-none">
-                중복 파일 리스트
+                {t("duplicateResolution.listLabel")}
               </p>
               <div
                 className={`rounded-lg border border-border/60 bg-card p-3 ${sectionMinHeightClass}`}
               >
-                {showItems && currentItem ? (
+                {showItems && currentItem && currentPreview ? (
                   <div className="h-full space-y-3">
                     <div className="flex items-center justify-between">
                       <Button
@@ -150,7 +164,7 @@ export function DuplicateResolutionDialog({
                         disabled={resolving || pageIndex === 0}
                       >
                         <ChevronLeft className="h-4 w-4" />
-                        이전
+                        {t("duplicateResolution.previous")}
                       </Button>
                       <p className="text-sm text-muted-foreground tabular-nums">
                         {pageIndex + 1} / {items.length}
@@ -161,37 +175,20 @@ export function DuplicateResolutionDialog({
                         onClick={onNextPage}
                         disabled={resolving || pageIndex >= items.length - 1}
                       >
-                        다음
+                        {t("duplicateResolution.next")}
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
 
                     <div className="space-y-3">
-                      {/* <p className="text-xs text-muted-foreground">
-                        중복 그룹 {pageIndex + 1}
-                      </p> */}
                       <button
                         type="button"
                         className="w-full rounded-md border border-border/50 bg-secondary/20 overflow-hidden"
-                        onClick={() =>
-                          onOpenPreview(
-                            toDuplicatePreview(
-                              "중복 샘플",
-                              currentItem.previewFileName,
-                              currentItem.previewPath,
-                            ),
-                          )
-                        }
+                        onClick={() => onOpenPreview(currentPreview)}
                         disabled={resolving}
                       >
                         <img
-                          src={
-                            toDuplicatePreview(
-                              "중복 샘플",
-                              currentItem.previewFileName,
-                              currentItem.previewPath,
-                            ).src
-                          }
+                          src={currentPreview.src}
                           alt={currentItem.previewFileName}
                           className="w-full h-56 object-contain bg-black/10 cursor-zoom-in"
                         />
@@ -199,11 +196,15 @@ export function DuplicateResolutionDialog({
 
                       <div className="rounded-md border border-border/60 bg-secondary/10 px-3 py-2 text-xs text-muted-foreground space-y-1">
                         <p>
-                          기존 파일 {currentItem.existingEntries.length}개 / 새
-                          파일 {currentItem.incomingEntries.length}개
+                          {t("duplicateResolution.summary", {
+                            existingCount: currentItem.existingEntries.length,
+                            incomingCount: currentItem.incomingEntries.length,
+                          })}
                         </p>
                         <p className="break-all">
-                          샘플: {currentItem.previewFileName}
+                          {t("duplicateResolution.sample", {
+                            fileName: currentItem.previewFileName,
+                          })}
                           <br />
                           {currentItem.previewPath}
                         </p>
@@ -218,15 +219,13 @@ export function DuplicateResolutionDialog({
                               : "outline"
                           }
                           size="sm"
-                          onClick={() =>
-                            onSetChoice(currentItem.id, "existing")
-                          }
+                          onClick={() => onSetChoice(currentItem.id, "existing")}
                           disabled={
                             resolving ||
                             currentItem.existingEntries.length === 0
                           }
                         >
-                          기존 유지 (새 파일 제거)
+                          {t("duplicateResolution.choice.existing")}
                         </Button>
                         <Button
                           variant={
@@ -236,15 +235,13 @@ export function DuplicateResolutionDialog({
                               : "outline"
                           }
                           size="sm"
-                          onClick={() =>
-                            onSetChoice(currentItem.id, "incoming")
-                          }
+                          onClick={() => onSetChoice(currentItem.id, "incoming")}
                           disabled={
                             resolving ||
                             currentItem.incomingEntries.length === 0
                           }
                         >
-                          새 파일 유지 (기존 파일 제거)
+                          {t("duplicateResolution.choice.incoming")}
                         </Button>
                         <Button
                           variant={
@@ -256,7 +253,7 @@ export function DuplicateResolutionDialog({
                           onClick={() => onSetChoice(currentItem.id, "ignore")}
                           disabled={resolving}
                         >
-                          무시 (파일 유지, DB 미반영)
+                          {t("duplicateResolution.choice.ignore")}
                         </Button>
                       </div>
                     </div>
@@ -266,7 +263,7 @@ export function DuplicateResolutionDialog({
                     className={`flex items-center justify-center px-4 ${sectionMessageMinHeightClass}`}
                   >
                     <p className="text-center text-xl text-muted-foreground select-none">
-                      일괄 작업에서는 개별 파일을 미리 볼 수 없습니다.
+                      {t("duplicateResolution.manualEmpty")}
                     </p>
                   </div>
                 )}
@@ -280,7 +277,7 @@ export function DuplicateResolutionDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={resolving}
               >
-                취소
+                {t("common.cancel")}
               </Button>
             )}
             <Button
@@ -290,7 +287,9 @@ export function DuplicateResolutionDialog({
               {resolving ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
               ) : null}
-              {mode === "watch" ? "선택 적용" : "중복 처리 후 폴더 추가"}
+              {mode === "watch"
+                ? t("duplicateResolution.applySelection")
+                : t("duplicateResolution.resolveAndAddFolder")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -304,15 +303,17 @@ export function DuplicateResolutionDialog({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>삭제 포함 작업 확인</DialogTitle>
+            <DialogTitle>
+              {t("duplicateResolution.confirmDelete.title")}
+            </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            현재 선택에는 파일 삭제가 포함되어 있습니다. 계속 진행할까요?
+            {t("duplicateResolution.confirmDelete.description")}
           </p>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="ghost" disabled={resolving}>
-                취소
+                {t("common.cancel")}
               </Button>
             </DialogClose>
             <Button
@@ -320,7 +321,7 @@ export function DuplicateResolutionDialog({
               onClick={handleConfirmResolve}
               disabled={resolving}
             >
-              계속 진행
+              {t("duplicateResolution.confirmDelete.continue")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -333,7 +334,11 @@ export function DuplicateResolutionDialog({
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>{preview?.side ?? ""} 이미지 전체보기</DialogTitle>
+            <DialogTitle>
+              {t("duplicateResolution.previewTitle", {
+                side: preview?.side ?? "",
+              })}
+            </DialogTitle>
           </DialogHeader>
           {preview && (
             <div className="space-y-3">
@@ -353,7 +358,7 @@ export function DuplicateResolutionDialog({
           )}
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">닫기</Button>
+              <Button variant="ghost">{t("common.close")}</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>

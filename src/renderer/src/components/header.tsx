@@ -23,10 +23,12 @@ import { AdvancedSearchModal } from "@/components/advanced-search-modal";
 import { AppInfoDialog } from "@/components/app-info-dialog";
 import type { AdvancedFilter } from "@/lib/advanced-filter";
 import { filterLabel, filterKey } from "@/lib/advanced-filter";
+import { useLocaleFormatters } from "@/lib/formatters";
 import {
   SEARCH_INPUT_APPEND_TAG_EVENT,
   type SearchInputAppendTagDetail,
 } from "@/lib/search-input-event";
+import { useTranslation } from "react-i18next";
 
 const SEARCH_TERM_SPLIT_RE = /[,\n\uFF0C|\uFF5C]+/;
 
@@ -139,6 +141,8 @@ export function Header({
   availableModels,
   onStartTour,
 }: HeaderProps) {
+  const { t } = useTranslation();
+  const { formatNumber } = useLocaleFormatters();
   const hasSearchStatsProgress =
     !!searchStatsProgress &&
     searchStatsProgress.total > 0 &&
@@ -374,16 +378,29 @@ export function Header({
                               )
                             : null;
                         return names
-                          ? `${names} 스캔 ${scanProgress.done}/${scanProgress.total}`
-                          : `이미지 스캔 ${scanProgress.done}/${scanProgress.total}`;
+                          ? t("header.progress.scanFolders", {
+                              names,
+                              done: scanProgress.done,
+                              total: scanProgress.total,
+                            })
+                          : t("header.progress.scanImages", {
+                              done: scanProgress.done,
+                              total: scanProgress.total,
+                            });
                       })()
                     : hashProgress && hashProgress.total > 0
-                      ? `해시 계산 ${hashProgress.done}/${hashProgress.total}`
+                      ? t("header.progress.hashes", {
+                          done: hashProgress.done,
+                          total: hashProgress.total,
+                        })
                       : hasSimilarityProgress && similarityProgress
-                        ? "유사도 계산 중..."
+                        ? t("header.progress.similarity")
                         : hasSearchStatsProgress && searchStatsProgress
-                          ? `검색 통계 ${searchStatsProgress.done}/${searchStatsProgress.total}`
-                          : "작업 중..."}
+                          ? t("header.progress.searchStats", {
+                              done: searchStatsProgress.done,
+                              total: searchStatsProgress.total,
+                            })
+                          : t("header.progress.working")}
                 </span>
                 {scanning && onCancelScan && (
                   <button
@@ -404,7 +421,7 @@ export function Header({
                 <Input
                   ref={inputRef}
                   type="text"
-                  placeholder="프롬프트로 이미지 검색..."
+                  placeholder={t("header.searchPlaceholder")}
                   value={inputValue}
                   onChange={(e) => {
                     setInputValue(e.target.value);
@@ -486,7 +503,7 @@ export function Header({
                       >
                         <span className="truncate">{item.tag}</span>
                         <span className="shrink-0 font-mono text-[11px] text-foreground">
-                          {item.count.toLocaleString()}
+                          {formatNumber(item.count)}
                         </span>
                       </button>
                     ))}
@@ -512,7 +529,7 @@ export function Header({
                     <Search className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>검색</TooltipContent>
+                <TooltipContent>{t("header.tooltip.search")}</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -537,7 +554,9 @@ export function Header({
                     </div>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>고급 검색</TooltipContent>
+                <TooltipContent>
+                  {t("header.tooltip.advancedSearch")}
+                </TooltipContent>
               </Tooltip>
             </div>
             {advancedFilters.length > 0 && (
@@ -577,7 +596,7 @@ export function Header({
                   <ImagePlus className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>이미지 생성</TooltipContent>
+              <TooltipContent>{t("header.tooltip.generator")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -595,7 +614,7 @@ export function Header({
                   <Images className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>갤러리</TooltipContent>
+              <TooltipContent>{t("header.tooltip.gallery")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -613,7 +632,7 @@ export function Header({
                   <Settings className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>설정</TooltipContent>
+              <TooltipContent>{t("header.tooltip.settings")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -626,7 +645,7 @@ export function Header({
                   <Info className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>프로그램 정보</TooltipContent>
+              <TooltipContent>{t("header.tooltip.appInfo")}</TooltipContent>
             </Tooltip>
           </div>
         </div>

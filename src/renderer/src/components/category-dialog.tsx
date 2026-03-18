@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -23,6 +24,7 @@ export function CategoryDialog({
   categories,
   onClose,
 }: CategoryDialogProps) {
+  const { t } = useTranslation();
   const targetImages = useMemo(() => {
     if (images && images.length > 0) return images;
     return image ? [image] : [];
@@ -80,7 +82,9 @@ export function CategoryDialog({
       setCheckedIds((prev) => new Set([...prev, categoryId]));
       applyPromise.catch((e: unknown) => {
         toast.error(
-          `카테고리 추가 실패: ${e instanceof Error ? e.message : String(e)}`,
+          t("categoryDialog.addFailed", {
+            message: e instanceof Error ? e.message : String(e),
+          }),
         );
         setCheckedIds((prev) => {
           const next = new Set(prev);
@@ -99,7 +103,9 @@ export function CategoryDialog({
 
     applyPromise.catch((e: unknown) => {
       toast.error(
-        `카테고리 제거 실패: ${e instanceof Error ? e.message : String(e)}`,
+        t("categoryDialog.removeFailed", {
+          message: e instanceof Error ? e.message : String(e),
+        }),
       );
       setCheckedIds((prev) => new Set([...prev, categoryId]));
     });
@@ -115,25 +121,27 @@ export function CategoryDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {isBulk ? "카테고리 일괄 변경" : "카테고리 변경"}
+            {isBulk
+              ? t("categoryDialog.title.bulk")
+              : t("categoryDialog.title.single")}
           </DialogTitle>
         </DialogHeader>
 
         {isBulk && (
           <p className="text-sm text-muted-foreground">
-            선택된 {targetImages.length}개 이미지에 카테고리를 일괄 적용합니다.
+            {t("categoryDialog.bulkDescription", { count: targetImages.length })}
           </p>
         )}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">로딩 중...</p>
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : loadError ? (
           <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2">
             {loadError}
           </p>
         ) : userCategories.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            생성된 카테고리가 없습니다.
+            {t("categoryDialog.empty")}
           </p>
         ) : (
           <div className="space-y-3">

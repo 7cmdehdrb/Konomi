@@ -1,5 +1,6 @@
 import { Images, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface AppSplashProps {
   fadingOut?: boolean;
@@ -12,6 +13,8 @@ export function AppSplash({
   statusText,
   detailText,
 }: AppSplashProps) {
+  const { t } = useTranslation();
+
   return (
     <div
       className={cn(
@@ -40,7 +43,7 @@ export function AppSplash({
             </p>
             <div className="space-y-2">
               <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-                라이브러리 준비 중
+                {t("app.splash.title")}
               </h1>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {statusText}

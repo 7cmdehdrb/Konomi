@@ -6,10 +6,11 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Plus, Trash2, RotateCcw } from "lucide-react";
+import { ChevronDown, Plus, RotateCcw, Trash2 } from "lucide-react";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { GroupRefToken } from "@/lib/token";
 import type { PromptGroup } from "@preload/index.d";
@@ -30,7 +31,7 @@ interface GroupChipProps {
   token: GroupRefToken;
   groups: PromptGroup[];
   isEditable?: boolean;
-  readOnly?: boolean; // if true, disables all popups (preview + editor)
+  readOnly?: boolean;
   onChange?: (token: GroupRefToken) => void;
   onDelete?: () => void;
   chipRef?: (node: HTMLDivElement | null) => void;
@@ -55,32 +56,30 @@ function GroupChipCore({
 }: Omit<GroupChipProps, "isSortable" | "sortableId" | "sortableDisabled"> & {
   sortable?: SortableBindings;
 }) {
+  const { t } = useTranslation();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const newTagInputRef = useRef<HTMLInputElement | null>(null);
 
-  // "preview" = popup showing current expansion; "editor" = full edit popover; "delete" = delete confirm
   const [activePopup, setActivePopup] = useState<
     "preview" | "editor" | "delete" | null
   >(null);
   const [popoverStyle, setPopoverStyle] = useState<CSSProperties | null>(null);
-
-  // Editor draft state
   const [draftName, setDraftName] = useState(token.groupName);
   const [draftTags, setDraftTags] = useState<string[]>([]);
   const [newTagDraft, setNewTagDraft] = useState("");
 
-  const group = groups.find((g) => g.name === token.groupName);
+  const group = groups.find((item) => item.name === token.groupName);
   const currentTags =
-    token.overrideTags ?? group?.tokens.map((t) => t.label) ?? [];
+    token.overrideTags ?? group?.tokens.map((item) => item.label) ?? [];
   const hasOverride = token.overrideTags !== undefined;
 
   const openEditor = () => {
-    const currentGroup = groups.find((g) => g.name === token.groupName);
+    const currentGroup = groups.find((item) => item.name === token.groupName);
     setDraftName(token.groupName);
     setDraftTags(
-      token.overrideTags ?? currentGroup?.tokens.map((t) => t.label) ?? [],
+      token.overrideTags ?? currentGroup?.tokens.map((item) => item.label) ?? [],
     );
     setNewTagDraft("");
     setActivePopup("editor");
@@ -88,11 +87,11 @@ function GroupChipCore({
 
   const handleApply = () => {
     const trimmedName = draftName.trim() || token.groupName;
-    const targetGroup = groups.find((g) => g.name === trimmedName);
-    const dbTags = targetGroup?.tokens.map((t) => t.label) ?? [];
+    const targetGroup = groups.find((item) => item.name === trimmedName);
+    const dbTags = targetGroup?.tokens.map((item) => item.label) ?? [];
     const tagsMatchDb =
       draftTags.length === dbTags.length &&
-      draftTags.every((t, i) => t === dbTags[i]);
+      draftTags.every((tag, index) => tag === dbTags[index]);
 
     onChange?.({
       kind: "group",
@@ -107,23 +106,22 @@ function GroupChipCore({
   };
 
   const handleResetTags = () => {
-    const targetGroup = groups.find((g) => g.name === draftName.trim());
-    setDraftTags(targetGroup?.tokens.map((t) => t.label) ?? []);
+    const targetGroup = groups.find((item) => item.name === draftName.trim());
+    setDraftTags(targetGroup?.tokens.map((item) => item.label) ?? []);
   };
 
   const handleAddTag = () => {
     const tag = newTagDraft.trim();
     if (!tag) return;
-    setDraftTags((prev) => [...prev, tag]);
+    setDraftTags((previous) => [...previous, tag]);
     setNewTagDraft("");
     requestAnimationFrame(() => newTagInputRef.current?.focus());
   };
 
   const handleDeleteTag = (index: number) => {
-    setDraftTags((prev) => prev.filter((_, i) => i !== index));
+    setDraftTags((previous) => previous.filter((_, i) => i !== index));
   };
 
-  // Focus new tag input when editor opens
   useEffect(() => {
     if (activePopup !== "editor") return;
     const raf = window.requestAnimationFrame(() => {
@@ -132,7 +130,6 @@ function GroupChipCore({
     return () => window.cancelAnimationFrame(raf);
   }, [activePopup]);
 
-  // Position tracking + outside-click for both popups
   useEffect(() => {
     if (activePopup === null) return;
 
@@ -176,9 +173,9 @@ function GroupChipCore({
       });
     };
 
-    const onPointerDown = (e: MouseEvent) => {
-      if (rootRef.current?.contains(e.target as Node)) return;
-      if (popoverRef.current?.contains(e.target as Node)) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      if (popoverRef.current?.contains(event.target as Node)) return;
       setActivePopup(null);
     };
 
@@ -198,6 +195,7 @@ function GroupChipCore({
     rootRef.current = node;
     sortable?.setNodeRef(node);
   };
+
   const setTriggerRef = (node: HTMLDivElement | null) => {
     triggerRef.current = node;
     chipRef?.(node);
@@ -227,7 +225,7 @@ function GroupChipCore({
         onClick={() => {
           if (readOnly) return;
           if (activePopup === "editor") return;
-          setActivePopup((prev) => (prev === "preview" ? null : "preview"));
+          setActivePopup((previous) => (previous === "preview" ? null : "preview"));
         }}
         onDoubleClick={() => {
           if (readOnly) return;
@@ -236,7 +234,7 @@ function GroupChipCore({
         onContextMenu={(e) => {
           if (!onDelete) return;
           e.preventDefault();
-          setActivePopup((prev) => (prev === "delete" ? null : "delete"));
+          setActivePopup((previous) => (previous === "delete" ? null : "delete"));
         }}
         onFocus={onTokenFocus}
         onKeyDown={(e) => {
@@ -244,87 +242,86 @@ function GroupChipCore({
           if (e.defaultPrevented) return;
           if (!readOnly && (e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
-            setActivePopup((prev) => (prev === "preview" ? null : "preview"));
+            setActivePopup((previous) => (previous === "preview" ? null : "preview"));
           }
         }}
         {...sortable?.attributes}
         {...(activePopup !== null ? {} : sortable?.listeners)}
         className={cn(
-          "inline-flex items-center gap-1 px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer touch-none select-none",
-          "bg-group/14 text-group border-group/35",
+          "inline-flex cursor-pointer touch-none select-none items-center gap-1 rounded border px-1.5 py-1 text-xs transition-colors",
+          "border-group/35 bg-group/14 text-group",
           "hover:brightness-105",
           sortable?.isDragging && "opacity-70",
           hasOverride && "ring-1 ring-group/40",
         )}
       >
-        <span className="font-semibold text-group shrink-0">@</span>
+        <span className="shrink-0 font-semibold text-group">@</span>
         <span>{`{${token.groupName}}`}</span>
         <ChevronDown className="h-2.5 w-2.5 shrink-0 text-group/80" />
       </div>
     </div>
   );
 
-  // Preview popup — shows current expansion
-  const previewPopover = activePopup === "preview" && (
+  const previewPopover = activePopup === "preview" ? (
     <div
       ref={popoverRef}
       style={popoverStyle ?? hiddenStyle}
       className="rounded-md border border-border bg-popover p-2.5 shadow-lg"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="mb-2 flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
           {token.groupName}
         </p>
-        {hasOverride && (
+        {hasOverride ? (
           <span className="rounded bg-group/12 px-1.5 py-0.5 text-[9px] text-group/85">
-            편집됨
+            {t("groupChip.edited")}
           </span>
-        )}
+        ) : null}
       </div>
       {currentTags.length === 0 ? (
-        <p className="text-xs text-muted-foreground/60 italic">태그 없음</p>
+        <p className="text-xs italic text-muted-foreground/60">
+          {t("groupChip.noTags")}
+        </p>
       ) : (
         <div className="flex flex-wrap gap-1">
-          {currentTags.map((tag, i) => (
+          {currentTags.map((tag, index) => (
             <span
-              key={i}
-              className="px-1.5 py-0.5 text-[11px] rounded bg-muted text-foreground/80 border border-border/40"
+              key={index}
+              className="rounded border border-border/40 bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80"
             >
               {tag}
             </span>
           ))}
         </div>
       )}
-      {isEditable && (
+      {isEditable ? (
         <div className="mt-2 flex items-center justify-between">
           <p className="text-[10px] text-muted-foreground/40">
-            Delete/Backspace로 제거
+            {t("groupChip.deleteHint")}
           </p>
           <button
             type="button"
             onClick={() => openEditor()}
-            className="text-[10px] text-group hover:text-group/80 transition-colors"
+            className="text-[10px] text-group transition-colors hover:text-group/80"
           >
-            편집
+            {t("groupChip.edit")}
           </button>
         </div>
-      )}
+      ) : null}
     </div>
-  );
+  ) : null;
 
-  // Editor popup — edit group name + tags (one-time, not persisted to DB)
-  const editorPopover = activePopup === "editor" && (
+  const editorPopover = activePopup === "editor" ? (
     <div
       ref={popoverRef}
       style={popoverStyle ?? hiddenStyle}
       className="rounded-md border border-border bg-popover p-2.5 shadow-lg"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Group Name */}
       <div className="mb-3">
-        <label className="block text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-          Group Name
+        <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-muted-foreground">
+          {t("groupChip.groupName")}
         </label>
         <input
           value={draftName}
@@ -343,38 +340,39 @@ function GroupChipCore({
         />
       </div>
 
-      {/* Tags */}
       <div className="mb-3">
-        <div className="flex items-center justify-between mb-1.5">
+        <div className="mb-1.5 flex items-center justify-between">
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Tags
+            {t("groupChip.tags")}
           </label>
           <button
             type="button"
             onClick={handleResetTags}
-            title="그룹 원본 태그로 초기화"
-            className="h-4 w-4 flex items-center justify-center rounded text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+            title={t("groupChip.resetTags")}
+            aria-label={t("groupChip.resetTags")}
+            className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:text-muted-foreground"
           >
             <RotateCcw className="h-2.5 w-2.5" />
           </button>
         </div>
 
-        {/* Tag list */}
-        <div className="space-y-1 max-h-30 overflow-y-auto mb-1.5">
+        <div className="mb-1.5 max-h-30 space-y-1 overflow-y-auto">
           {draftTags.length === 0 ? (
-            <p className="text-xs text-muted-foreground/40 text-center py-2">
-              태그 없음
+            <p className="py-2 text-center text-xs text-muted-foreground/40">
+              {t("groupChip.noTags")}
             </p>
           ) : (
-            draftTags.map((tag, i) => (
-              <div key={i} className="flex items-center gap-1.5 group/tag">
-                <span className="flex-1 min-w-0 text-xs text-foreground/80 truncate px-1.5 py-0.5 rounded bg-muted border border-border/40">
+            draftTags.map((tag, index) => (
+              <div key={index} className="group/tag flex items-center gap-1.5">
+                <span className="flex-1 min-w-0 truncate rounded border border-border/40 bg-muted px-1.5 py-0.5 text-xs text-foreground/80">
                   {tag}
                 </span>
                 <button
                   type="button"
-                  onClick={() => handleDeleteTag(i)}
-                  className="opacity-0 group-hover/tag:opacity-100 transition-opacity h-5 w-5 flex items-center justify-center rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 shrink-0"
+                  onClick={() => handleDeleteTag(index)}
+                  title={t("common.delete")}
+                  aria-label={t("common.delete")}
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover/tag:opacity-100"
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -383,7 +381,6 @@ function GroupChipCore({
           )}
         </div>
 
-        {/* Add tag */}
         <div className="flex gap-1">
           <input
             ref={newTagInputRef}
@@ -399,57 +396,56 @@ function GroupChipCore({
                 handleCancel();
               }
             }}
-            placeholder="태그 추가..."
-            className="flex-1 min-w-0 h-7 px-2 text-xs bg-background border border-border/60 rounded outline-none focus:border-primary/60 text-foreground placeholder:text-muted-foreground/40"
+            placeholder={t("groupChip.addTagPlaceholder")}
+            className="flex-1 min-w-0 h-7 rounded border border-border/60 bg-background px-2 text-xs text-foreground outline-none focus:border-primary/60 placeholder:text-muted-foreground/40"
           />
           <button
             type="button"
             onClick={handleAddTag}
             disabled={!newTagDraft.trim()}
-            className="h-7 w-7 flex items-center justify-center rounded bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25 transition-colors disabled:opacity-40"
+            title={t("promptGroupPanel.addTag")}
+            aria-label={t("promptGroupPanel.addTag")}
+            className="flex h-7 w-7 items-center justify-center rounded border border-primary/30 bg-primary/15 text-primary transition-colors hover:bg-primary/25 disabled:opacity-40"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Note */}
-      <p className="text-[10px] text-muted-foreground/40 mb-2.5">
-        변경사항은 이 칩에만 적용됩니다
+      <p className="mb-2.5 text-[10px] text-muted-foreground/40">
+        {t("groupChip.note")}
       </p>
 
-      {/* Footer */}
       <div className="flex items-center justify-end gap-1.5">
         <button
           type="button"
           onClick={handleCancel}
           className="h-7 rounded border border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="button"
           onClick={handleApply}
           className="h-7 rounded border border-primary/50 bg-primary/10 px-2 text-[11px] text-primary hover:bg-primary/20"
         >
-          Apply
+          {t("groupChip.apply")}
         </button>
       </div>
     </div>
-  );
+  ) : null;
 
-  const deletePopover = activePopup === "delete" && (
+  const deletePopover = activePopup === "delete" ? (
     <div
       ref={popoverRef}
       style={popoverStyle ?? hiddenStyle}
       className="rounded-md border border-border bg-popover p-2.5 shadow-lg"
       onClick={(e) => e.stopPropagation()}
     >
-      <p className="text-xs text-foreground/80 mb-2.5">
-        <span className="font-medium text-group">
-          @{`{${token.groupName}}`}
-        </span>
-        을 제거하시겠습니까?
+      <p className="mb-2.5 text-xs text-foreground/80">
+        {t("groupChip.deleteConfirm", {
+          name: `@{${token.groupName}}`,
+        })}
       </p>
       <div className="flex items-center justify-end gap-1.5">
         <button
@@ -457,7 +453,7 @@ function GroupChipCore({
           onClick={() => setActivePopup(null)}
           className="h-7 rounded border border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
         >
-          취소
+          {t("common.cancel")}
         </button>
         <button
           type="button"
@@ -465,14 +461,14 @@ function GroupChipCore({
             setActivePopup(null);
             onDelete?.();
           }}
-          className="h-7 rounded border border-destructive/50 bg-destructive/10 px-2 text-[11px] text-destructive hover:bg-destructive/20 flex items-center gap-1"
+          className="flex h-7 items-center gap-1 rounded border border-destructive/50 bg-destructive/10 px-2 text-[11px] text-destructive hover:bg-destructive/20"
         >
           <Trash2 className="h-3 w-3" />
-          삭제
+          {t("common.delete")}
         </button>
       </div>
     </div>
-  );
+  ) : null;
 
   const popoverContent =
     activePopup === "preview"
@@ -537,5 +533,6 @@ export function GroupChip({
       />
     );
   }
+
   return <GroupChipCore {...props} />;
 }

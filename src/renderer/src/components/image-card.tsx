@@ -19,7 +19,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import type { PromptToken } from "@/lib/token";
+import { useLocaleFormatters } from "@/lib/formatters";
 import { TokenContainer } from "./token-container";
+import { useTranslation } from "react-i18next";
 
 export interface ImageData {
   id: string;
@@ -83,6 +85,8 @@ export const ImageCard = memo(function ImageCard({
   selected = false,
   onSelectChange,
 }: ImageCardProps) {
+  const { t } = useTranslation();
+  const { formatDate, formatDateTime } = useLocaleFormatters();
   const TOKEN_PREVIEW_LIMIT = 10;
   const [imageLoaded, setImageLoaded] = useState(false);
   const previewTokens = image.tokens.slice(0, TOKEN_PREVIEW_LIMIT);
@@ -121,32 +125,34 @@ export const ImageCard = memo(function ImageCard({
             image.isFavorite ? "fill-favorite text-favorite" : "",
           )}
         />
-        {image.isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+        {image.isFavorite
+          ? t("imageCard.menu.removeFavorite")
+          : t("imageCard.menu.addFavorite")}
       </ContextMenuItem>
       <ContextMenuItem onSelect={() => onCopyPrompt(image.prompt)}>
         <Copy className="h-4 w-4" />
-        프롬프트 복사
+        {t("imageCard.menu.copyPrompt")}
       </ContextMenuItem>
       {onSendToGenerator && (
         <ContextMenuItem onSelect={() => onSendToGenerator(image)}>
           <ImagePlus className="h-4 w-4" />
-          생성 모드로 보내기
+          {t("imageCard.menu.sendToGenerator")}
         </ContextMenuItem>
       )}
       {onSendToSource && (
         <ContextMenuItem onSelect={() => onSendToSource(image)}>
           <ImagePlus className="h-4 w-4" />
-          참고 이미지로 보내기
+          {t("imageCard.menu.sendToSource")}
         </ContextMenuItem>
       )}
       <ContextMenuSeparator />
       <ContextMenuItem onSelect={() => onReveal(image.path)}>
         <ExternalLink className="h-4 w-4" />
-        원본 보기
+        {t("imageCard.menu.revealOriginal")}
       </ContextMenuItem>
       <ContextMenuItem onSelect={() => onChangeCategory(image)}>
         <Tag className="h-4 w-4" />
-        카테고리 변경
+        {t("imageCard.menu.changeCategory")}
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem
@@ -154,7 +160,7 @@ export const ImageCard = memo(function ImageCard({
         onSelect={() => onDelete(image.id)}
       >
         <Trash2 className="h-4 w-4" />
-        삭제
+        {t("imageCard.menu.delete")}
       </ContextMenuItem>
     </ContextMenuContent>
   );
@@ -178,7 +184,7 @@ export const ImageCard = memo(function ImageCard({
               {image.src && (
                 <img
                   src={image.src}
-                  alt={image.prompt || "image preview"}
+                  alt={image.prompt || t("imageCard.previewAlt")}
                   className={cn(
                     "h-full w-full object-cover transition-opacity duration-200",
                     imageLoaded ? "opacity-100" : "opacity-0",
@@ -204,9 +210,7 @@ export const ImageCard = memo(function ImageCard({
               {image.model}
             </span>
             <span className="shrink-0 text-xs text-muted-foreground w-48 text-right">
-              {new Date(image.fileModifiedAt).toLocaleDateString("ko-KR") +
-                " " +
-                new Date(image.fileModifiedAt).toLocaleTimeString("ko-KR")}
+              {formatDateTime(image.fileModifiedAt)}
             </span>
             {image.isFavorite && (
               <Heart className="h-3.5 w-3.5 fill-favorite text-favorite shrink-0" />
@@ -231,7 +235,7 @@ export const ImageCard = memo(function ImageCard({
               {image.src && (
                 <img
                   src={image.src}
-                  alt={image.prompt || "image preview"}
+                  alt={image.prompt || t("imageCard.previewAlt")}
                   className={cn(
                     "absolute inset-0 h-full w-full object-cover transition-opacity duration-200",
                     imageLoaded ? "opacity-100" : "opacity-0",
@@ -248,7 +252,7 @@ export const ImageCard = memo(function ImageCard({
               )}
               {!image.src && (
                 <span className="text-muted-foreground text-sm">
-                  Image Preview
+                  {t("imageCard.emptyPreview")}
                 </span>
               )}
             </div>
@@ -265,7 +269,7 @@ export const ImageCard = memo(function ImageCard({
                   {hiddenTokenCount > 0 && (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end bg-gradient-to-t from-black/80 to-transparent px-2 pb-1 pt-5">
                       <span className="rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white/80">
-                        외 {hiddenTokenCount}개
+                        {t("imageCard.moreTokens", { count: hiddenTokenCount })}
                       </span>
                     </div>
                   )}
@@ -326,7 +330,7 @@ export const ImageCard = memo(function ImageCard({
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{image.model}</span>
               <span>
-                {new Date(image.fileModifiedAt).toLocaleDateString("ko-KR")}
+                {formatDate(image.fileModifiedAt)}
               </span>
             </div>
           </div>

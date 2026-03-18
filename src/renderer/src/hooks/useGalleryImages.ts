@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import type { ImageData } from "@/components/image-card";
 import type { ImageListQuery } from "@preload/index.d";
+import i18n from "@/lib/i18n";
 import { rowToImageData } from "@/lib/image-utils";
 
 export function useGalleryImages(
@@ -61,7 +62,9 @@ export function useGalleryImages(
     } catch (e: unknown) {
       if (requestId !== listRequestSeqRef.current) return;
       toast.error(
-        `이미지 목록 로드 실패: ${e instanceof Error ? e.message : String(e)}`,
+        i18n.t("error.imageListLoadFailed", {
+          message: e instanceof Error ? e.message : String(e),
+        }),
       );
     } finally {
       if (requestId === listRequestSeqRef.current) {

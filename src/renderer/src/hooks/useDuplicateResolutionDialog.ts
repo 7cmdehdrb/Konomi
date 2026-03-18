@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import i18n from "@/lib/i18n";
 import type {
   Folder,
   FolderDuplicateGroup,
@@ -154,9 +155,7 @@ export class DuplicateResolutionRequiredError extends Error {
   readonly suppressDialogError = true;
 
   constructor(duplicateCount: number) {
-    super(
-      `중복 이미지 ${duplicateCount}개가 발견되었습니다. 폴더 추가를 완료하려면 중복 처리 방식을 선택해 주세요.`,
-    );
+    super(i18n.t("duplicateResolution.requiredError", { count: duplicateCount }));
     this.name = "DuplicateResolutionRequiredError";
   }
 }
@@ -238,7 +237,7 @@ export function useDuplicateResolutionDialog({
           (folder) => normalizeFolderPath(folder.path) === normalizedPath,
         )
       ) {
-        throw new Error("이미 추가된 폴더 경로입니다.");
+        throw new Error(i18n.t("duplicateResolution.pathAlreadyAdded"));
       }
 
       const duplicates = await window.folder.findDuplicates(path);
@@ -306,7 +305,9 @@ export function useDuplicateResolutionDialog({
       resetDialogState();
     } catch (e: unknown) {
       toast.error(
-        `중복 이미지 처리 실패: ${e instanceof Error ? e.message : String(e)}`,
+        i18n.t("duplicateResolution.resolveFailed", {
+          message: e instanceof Error ? e.message : String(e),
+        }),
       );
     } finally {
       setResolving(false);

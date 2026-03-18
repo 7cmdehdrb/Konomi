@@ -1,46 +1,124 @@
-import { FolderPlus, Images, Search, Sparkles, Tags } from "lucide-react";
+import { useState } from "react";
+import { FolderPlus, Globe, Images, Search, Sparkles, Tags } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import type { AppLanguage } from "@/lib/language";
+import { SUPPORTED_APP_LANGUAGES } from "@/lib/language";
+import { cn } from "@/lib/utils";
 
 interface OnboardingViewProps {
   onAddFolder: () => void;
+  language: AppLanguage;
+  onLanguageChange: (language: AppLanguage) => void;
 }
 
-const features = [
-  {
-    icon: Search,
-    title: "프롬프트 검색",
-    description: "이미지에 포함된 프롬프트로 검색할 수 있습니다",
-  },
-  {
-    icon: Sparkles,
-    title: "유사 이미지 탐색",
-    description: "시각적 유사도와 프롬프트 유사도로 비슷한 이미지를 찾아줍니다",
-  },
-  {
-    icon: Tags,
-    title: "카테고리 관리",
-    description: "이미지를 입맛대로 카테고리로 분류하세요",
-  },
-];
+const ONBOARDING_LANGUAGE_STEP_KEY = "konomi-onboarding-language-step-completed";
 
-export function OnboardingView({ onAddFolder }: OnboardingViewProps) {
+export function OnboardingView({
+  onAddFolder,
+  language,
+  onLanguageChange,
+}: OnboardingViewProps) {
+  const { t } = useTranslation();
+  const [languageStepCompleted, setLanguageStepCompleted] = useState(() => {
+    try {
+      return localStorage.getItem(ONBOARDING_LANGUAGE_STEP_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const features = [
+    {
+      icon: Search,
+      title: t("onboarding.features.search.title"),
+      description: t("onboarding.features.search.description"),
+    },
+    {
+      icon: Sparkles,
+      title: t("onboarding.features.similar.title"),
+      description: t("onboarding.features.similar.description"),
+    },
+    {
+      icon: Tags,
+      title: t("onboarding.features.categories.title"),
+      description: t("onboarding.features.categories.description"),
+    },
+  ];
+
+  const handleContinue = () => {
+    try {
+      localStorage.setItem(ONBOARDING_LANGUAGE_STEP_KEY, "true");
+    } catch {
+      // ignore storage errors
+    }
+    setLanguageStepCompleted(true);
+  };
+
+  if (!languageStepCompleted) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 select-none">
+        <div className="max-w-lg space-y-8">
+          <div className="space-y-3">
+            <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+              <Globe className="h-10 w-10 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground">
+              {t("onboarding.languageStep.title")}
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {t("onboarding.languageStep.description")}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {SUPPORTED_APP_LANGUAGES.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onLanguageChange(item)}
+                className={cn(
+                  "rounded-xl border px-4 py-4 text-left transition-colors",
+                  language === item
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border bg-secondary/40 text-muted-foreground hover:border-foreground/20 hover:text-foreground",
+                )}
+              >
+                <div className="text-sm font-medium">
+                  {t(`settings.language.${item}`)}
+                </div>
+                <div className="mt-1 text-xs opacity-80">
+                  {t(`onboarding.languageStep.options.${item}`)}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <Button size="lg" className="gap-2" onClick={handleContinue}>
+            {t("onboarding.languageStep.continue")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center p-8 select-none">
       <div className="max-w-lg space-y-8">
-        {/* App icon + welcome */}
         <div className="space-y-3">
           <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
             <Images className="h-10 w-10 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground">환영합니다</h2>
+          <h2 className="text-2xl font-bold text-foreground">
+            {t("onboarding.title")}
+          </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            AI 생성 이미지를 더 쉽고 편리하게
+            {t("onboarding.descriptionLine1")}
             <br />
-            검색, 분류, 관리할 수 있는 솔루션입니다.
+            {t("onboarding.descriptionLine2")}
           </p>
         </div>
 
-        {/* Features */}
         <div className="space-y-3 text-left">
           {features.map((feature) => (
             <div
@@ -62,14 +140,13 @@ export function OnboardingView({ onAddFolder }: OnboardingViewProps) {
           ))}
         </div>
 
-        {/* CTA */}
         <div className="space-y-4">
           <Button size="lg" className="gap-2" onClick={onAddFolder}>
             <FolderPlus className="h-5 w-5" />
-            이미지 폴더 추가하기
+            {t("onboarding.addFolder")}
           </Button>
           <p className="text-xs text-muted-foreground">
-            이미지가 있는 폴더를 추가하면 자동으로 스캔이 시작됩니다
+            {t("onboarding.addFolderDescription")}
           </p>
         </div>
       </div>

@@ -22,6 +22,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ImageCard, type ImageData } from "./image-card";
 import { OnboardingView } from "./onboarding-view";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
+import type { AppLanguage } from "@/lib/language";
 
 interface ImageGalleryProps {
   images: ImageData[];
@@ -50,6 +52,8 @@ interface ImageGalleryProps {
   hasFolders?: boolean;
   onAddFolder?: () => void;
   isInitializing?: boolean;
+  language: AppLanguage;
+  onLanguageChange: (language: AppLanguage) => void;
 }
 
 export const ImageGallery = memo(function ImageGallery({
@@ -79,7 +83,10 @@ export const ImageGallery = memo(function ImageGallery({
   hasFolders = true,
   onAddFolder,
   isInitializing = false,
+  language,
+  onLanguageChange,
 }: ImageGalleryProps) {
+  const { t } = useTranslation();
   const [internalPage, setInternalPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -194,25 +201,19 @@ export const ImageGallery = memo(function ImageGallery({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground select-none">
-              총{" "}
-              <span className="text-foreground font-medium">{totalCount}</span>{" "}
-              개의 이미지
+              {t("gallery.totalImages", { count: totalCount })}
             </span>
             {searchQuery && (
               <button
                 onClick={onClearSearch}
                 className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
               >
-                초기화
+                {t("gallery.resetSearch")}
               </button>
             )}
             {selectionMode && (
               <span className="text-sm text-muted-foreground select-none">
-                선택{" "}
-                <span className="text-foreground font-medium">
-                  {selectedCount}
-                </span>
-                개
+                {t("gallery.selectedCount", { count: selectedCount })}
               </span>
             )}
           </div>
@@ -224,10 +225,12 @@ export const ImageGallery = memo(function ImageGallery({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-popover border-border">
-                <SelectItem value="recent">최신순</SelectItem>
-                <SelectItem value="oldest">오래된순</SelectItem>
-                <SelectItem value="name">이름순</SelectItem>
-                <SelectItem value="favorites">즐겨찾기</SelectItem>
+                <SelectItem value="recent">{t("gallery.sort.recent")}</SelectItem>
+                <SelectItem value="oldest">{t("gallery.sort.oldest")}</SelectItem>
+                <SelectItem value="name">{t("gallery.sort.name")}</SelectItem>
+                <SelectItem value="favorites">
+                  {t("gallery.sort.favorites")}
+                </SelectItem>
               </SelectContent>
             </Select>
 
@@ -282,7 +285,9 @@ export const ImageGallery = memo(function ImageGallery({
             onClick={() => setSelectionMode((prev) => !prev)}
           >
             <SquareCheckBig className="h-4 w-4" />
-            {selectionMode ? "선택 모드 종료" : "선택"}
+            {selectionMode
+              ? t("gallery.exitSelectionMode")
+              : t("gallery.selectionMode")}
           </Button>
 
           {selectionMode && (
@@ -292,7 +297,9 @@ export const ImageGallery = memo(function ImageGallery({
                 size="sm"
                 onClick={handleSelectCurrentPage}
               >
-                {allPageSelected ? "현재 페이지 선택 해제" : "현재 페이지 선택"}
+                {allPageSelected
+                  ? t("gallery.deselectCurrentPage")
+                  : t("gallery.selectCurrentPage")}
               </Button>
               <Button
                 variant="outline"
@@ -301,8 +308,10 @@ export const ImageGallery = memo(function ImageGallery({
                 disabled={images.length === 0}
               >
                 {allFilteredSelected
-                  ? "검색 결과 전체 선택 해제"
-                  : `검색 결과 전체 선택 (${images.length})`}
+                  ? t("gallery.deselectAllResults")
+                  : t("gallery.selectAllResults", {
+                      count: images.length,
+                    })}
               </Button>
               <Button
                 variant="ghost"
@@ -310,7 +319,7 @@ export const ImageGallery = memo(function ImageGallery({
                 onClick={() => setSelectedIds(new Set())}
                 disabled={selectedCount === 0}
               >
-                선택 초기화
+                {t("gallery.clearSelection")}
               </Button>
               <Button
                 size="sm"
@@ -318,7 +327,7 @@ export const ImageGallery = memo(function ImageGallery({
                 disabled={selectedCount === 0}
               >
                 <Tags className="h-4 w-4" />
-                카테고리 일괄 변경
+                {t("gallery.changeCategoryForSelection")}
               </Button>
             </>
           )}
@@ -367,24 +376,28 @@ export const ImageGallery = memo(function ImageGallery({
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
           <h3 className="text-lg font-medium text-foreground mb-2">
-            라이브러리 준비 중
+            {t("gallery.initializingTitle")}
           </h3>
           <p className="text-sm text-muted-foreground max-w-md">
-            등록된 폴더를 확인하고 이미지를 불러오고 있습니다.
+            {t("gallery.initializingDescription")}
           </p>
         </div>
       ) : !hasFolders && onAddFolder ? (
-        <OnboardingView onAddFolder={onAddFolder} />
+        <OnboardingView
+          onAddFolder={onAddFolder}
+          language={language}
+          onLanguageChange={onLanguageChange}
+        />
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-center p-4 select-none">
           <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
             <Grid3X3 className="h-8 w-8 text-muted-foreground" />
           </div>
           <h3 className="text-lg font-medium text-foreground mb-2">
-            이미지가 없습니다
+            {t("gallery.emptyTitle")}
           </h3>
           <p className="text-sm text-muted-foreground max-w-md">
-            검색 조건을 변경하거나 필터를 조정해 보세요.
+            {t("gallery.emptyDescription")}
           </p>
         </div>
       )}

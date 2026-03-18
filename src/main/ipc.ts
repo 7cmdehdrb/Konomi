@@ -26,6 +26,10 @@ export function registerIpcHandlers(): void {
     platform: process.platform,
     arch: process.arch,
   }));
+  ipcMain.handle("app:getLocale", () => {
+    const preferred = app.getPreferredSystemLanguages?.()[0];
+    return preferred || app.getLocale();
+  });
   ipcMain.handle("app:getDbFileSize", () => {
     const dbPath = path.join(app.getPath("userData"), "konomi.db");
     try {

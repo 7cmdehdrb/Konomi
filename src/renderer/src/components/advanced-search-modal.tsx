@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ export function AdvancedSearchModal({
   availableResolutions,
   availableModels,
 }: AdvancedSearchModalProps) {
+  const { t } = useTranslation();
   const [manualWidth, setManualWidth] = useState("");
   const [manualHeight, setManualHeight] = useState("");
   const [manualModel, setManualModel] = useState("");
@@ -115,11 +117,13 @@ export function AdvancedSearchModal({
     >
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>고급 검색</DialogTitle>
+          <DialogTitle>{t("advancedSearch.title")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-5">
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-foreground">해상도</p>
+            <p className="text-sm font-semibold text-foreground">
+              {t("advancedSearch.resolution")}
+            </p>
             {availableResolutions.length > 0 && (
               <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
                 {availableResolutions.map((r) => {
@@ -134,7 +138,7 @@ export function AdvancedSearchModal({
                       onClick={() => toggleFilter(f)}
                       className={chipClass(isActive(f))}
                     >
-                      {r.width}×{r.height}
+                      {r.width}x{r.height}
                     </button>
                   );
                 })}
@@ -143,7 +147,7 @@ export function AdvancedSearchModal({
             <div className="flex gap-2 items-center">
               <Input
                 type="number"
-                placeholder="너비"
+                placeholder={t("advancedSearch.widthPlaceholder")}
                 value={manualWidth}
                 onChange={(e) => setManualWidth(e.target.value)}
                 className="h-8 text-xs"
@@ -151,10 +155,10 @@ export function AdvancedSearchModal({
                   if (e.key === "Enter") addManualResolution();
                 }}
               />
-              <span className="text-muted-foreground text-xs shrink-0">×</span>
+              <span className="text-muted-foreground text-xs shrink-0">x</span>
               <Input
                 type="number"
-                placeholder="높이"
+                placeholder={t("advancedSearch.heightPlaceholder")}
                 value={manualHeight}
                 onChange={(e) => setManualHeight(e.target.value)}
                 className="h-8 text-xs"
@@ -168,13 +172,15 @@ export function AdvancedSearchModal({
                 className="h-8 shrink-0"
                 onClick={addManualResolution}
               >
-                추가
+                {t("advancedSearch.add")}
               </Button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-foreground">모델</p>
+            <p className="text-sm font-semibold text-foreground">
+              {t("advancedSearch.model")}
+            </p>
             {availableModels.length > 0 && (
               <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
                 {availableModels.map((m) => {
@@ -185,7 +191,7 @@ export function AdvancedSearchModal({
                       onClick={() => toggleFilter(f)}
                       className={chipClass(isActive(f))}
                     >
-                      {m || "(모든 모델)"}
+                      {m || t("advancedSearch.allModels")}
                     </button>
                   );
                 })}
@@ -194,7 +200,7 @@ export function AdvancedSearchModal({
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Input
-                  placeholder="모델명 직접 입력"
+                  placeholder={t("advancedSearch.modelPlaceholder")}
                   value={manualModel}
                   onChange={(e) => {
                     setManualModel(e.target.value);
@@ -232,7 +238,7 @@ export function AdvancedSearchModal({
                 className="h-8 shrink-0"
                 onClick={() => addManualModel()}
               >
-                추가
+                {t("advancedSearch.add")}
               </Button>
             </div>
           </div>

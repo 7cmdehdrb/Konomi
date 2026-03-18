@@ -206,6 +206,7 @@ declare global {
   interface Window {
     appInfo: {
       get: () => Promise<AppInfo>;
+      getLocale: () => Promise<string>;
       getDbFileSize: () => Promise<number | null>;
       getPromptsDbSchemaVersion: () => Promise<number | null>;
     };
