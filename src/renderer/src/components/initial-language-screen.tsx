@@ -23,10 +23,10 @@ export function InitialLanguageScreen({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-background/88 px-6 py-10 backdrop-blur-md">
-      <div className="w-full max-w-4xl overflow-hidden rounded-[2rem] border border-border/60 bg-background shadow-2xl">
+    <div className="fixed inset-0 z-140 flex items-center justify-center bg-background/88 px-6 py-10 backdrop-blur-md">
+      <div className="w-full max-w-4xl overflow-hidden rounded-4xl border border-border/60 bg-background shadow-2xl">
         <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="bg-primary/[0.08] px-8 py-10 sm:px-10 sm:py-12">
+          <div className="bg-primary/8 px-8 py-10 sm:px-10 sm:py-12">
             <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/12">
               <Globe className="h-8 w-8 text-primary" />
             </div>

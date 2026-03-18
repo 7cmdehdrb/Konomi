@@ -776,10 +776,7 @@ function DeferredNumberInput({
       return;
     }
 
-    const nextValue = Math.min(
-      max ?? parsed,
-      Math.max(min ?? parsed, parsed),
-    );
+    const nextValue = Math.min(max ?? parsed, Math.max(min ?? parsed, parsed));
     setLocal(String(nextValue));
     onChange(nextValue);
   }, [local, max, min, onChange, value]);
@@ -827,36 +824,42 @@ const AdvancedSamplerSummary = memo(function AdvancedSamplerSummary({
   );
 });
 
-const AdvancedSamplerNoiseControls = memo(function AdvancedSamplerNoiseControls({
-  sampler,
-  setSampler,
-  noiseSchedule,
-  setNoiseSchedule,
-}: {
-  sampler: string;
-  setSampler: (v: string) => void;
-  noiseSchedule: string;
-  setNoiseSchedule: (v: string) => void;
-}) {
-  const { t } = useTranslation();
+const AdvancedSamplerNoiseControls = memo(
+  function AdvancedSamplerNoiseControls({
+    sampler,
+    setSampler,
+    noiseSchedule,
+    setNoiseSchedule,
+  }: {
+    sampler: string;
+    setSampler: (v: string) => void;
+    noiseSchedule: string;
+    setNoiseSchedule: (v: string) => void;
+  }) {
+    const { t } = useTranslation();
 
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <div>
-        <FieldLabel label={t("generation.advanced.sampler")} />
-        <Select value={sampler} onChange={setSampler} options={SAMPLER_OPTIONS} />
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <FieldLabel label={t("generation.advanced.sampler")} />
+          <Select
+            value={sampler}
+            onChange={setSampler}
+            options={SAMPLER_OPTIONS}
+          />
+        </div>
+        <div>
+          <FieldLabel label={t("generation.advanced.noise")} />
+          <Select
+            value={noiseSchedule}
+            onChange={setNoiseSchedule}
+            options={NOISE_SCHEDULE_OPTIONS}
+          />
+        </div>
       </div>
-      <div>
-        <FieldLabel label={t("generation.advanced.noise")} />
-        <Select
-          value={noiseSchedule}
-          onChange={setNoiseSchedule}
-          options={NOISE_SCHEDULE_OPTIONS}
-        />
-      </div>
-    </div>
-  );
-});
+    );
+  },
+);
 
 const AdvancedInlineNumberSummary = memo(function AdvancedInlineNumberSummary({
   label,
@@ -1136,7 +1139,10 @@ const AdvancedParamsSection = memo(function AdvancedParamsSection({
           />
           <span className="w-px h-6 bg-border/50 shrink-0" />
           {/* Seed */}
-          <AdvancedSeedSummary seedInput={seedInput} setSeedInput={setSeedInput} />
+          <AdvancedSeedSummary
+            seedInput={seedInput}
+            setSeedInput={setSeedInput}
+          />
           <span className="w-px h-6 bg-border/50 shrink-0" />
           {/* Sampler */}
           <AdvancedSamplerSummary sampler={sampler} setSampler={setSampler} />
@@ -1966,14 +1972,19 @@ const ReferenceSections = memo(function ReferenceSections({
           >
             <div className="space-y-2">
               <div>
-                <FieldLabel label="Strength" value={i2iRef.strength.toFixed(2)} />
+                <FieldLabel
+                  label="Strength"
+                  value={i2iRef.strength.toFixed(2)}
+                />
                 <Slider
                   min={0.01}
                   max={0.99}
                   step={0.01}
                   value={i2iRef.strength}
                   onChange={(value) =>
-                    setI2iRef((prev) => (prev ? { ...prev, strength: value } : prev))
+                    setI2iRef((prev) =>
+                      prev ? { ...prev, strength: value } : prev,
+                    )
                   }
                 />
               </div>
@@ -1985,7 +1996,9 @@ const ReferenceSections = memo(function ReferenceSections({
                   step={0.01}
                   value={i2iRef.noise}
                   onChange={(value) =>
-                    setI2iRef((prev) => (prev ? { ...prev, noise: value } : prev))
+                    setI2iRef((prev) =>
+                      prev ? { ...prev, noise: value } : prev,
+                    )
                   }
                 />
               </div>
@@ -2004,7 +2017,9 @@ const ReferenceSections = memo(function ReferenceSections({
                 previewUrl={vibe.previewUrl}
                 onRemove={() => {
                   if (vibe.isObjectUrl) URL.revokeObjectURL(vibe.previewUrl);
-                  setVibes((prev) => prev.filter((item) => item.id !== vibe.id));
+                  setVibes((prev) =>
+                    prev.filter((item) => item.id !== vibe.id),
+                  );
                 }}
               >
                 <div className="space-y-2">
@@ -2205,7 +2220,9 @@ const SizeSection = memo(function SizeSection({
                   placeholder="W"
                   className="w-0 flex-1 min-w-0 bg-secondary/60 border border-border/60 rounded px-1.5 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary/50 cursor-text"
                 />
-                <span className="text-xs text-muted-foreground shrink-0">횞</span>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  횞
+                </span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -2495,7 +2512,10 @@ const ResultViewport = memo(function ResultViewport({
             className="max-w-full max-h-full object-contain rounded-sm"
           />
           {recentSeeds.get(resultSrc) != null && (
-            <div ref={seedDropdownRef} className="absolute bottom-3 right-3 z-20">
+            <div
+              ref={seedDropdownRef}
+              className="absolute bottom-3 right-3 z-20"
+            >
               <button
                 onClick={() => setSeedDropdownOpen((open) => !open)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background/80 backdrop-blur-sm border border-border/50 text-xs font-mono tabular-nums text-foreground/80 hover:text-foreground hover:bg-background/95 transition-colors shadow-sm"
@@ -3101,7 +3121,9 @@ const RightSidePanel = memo(function RightSidePanel({
                 )}
                 <button
                   onClick={onValidateApiKey}
-                  disabled={validating || !apiKeyInput.trim() || apiKeyValidated}
+                  disabled={
+                    validating || !apiKeyInput.trim() || apiKeyValidated
+                  }
                   className={cn(
                     "mt-1.5 w-full h-8 flex items-center justify-center gap-1.5 rounded-lg border text-xs transition-colors disabled:opacity-40",
                     apiKeyValidated
@@ -3127,7 +3149,9 @@ const RightSidePanel = memo(function RightSidePanel({
                 <div className="flex gap-1.5">
                   <input
                     value={outputFolder}
-                    placeholder={t("generation.actions.outputFolderPlaceholder")}
+                    placeholder={t(
+                      "generation.actions.outputFolderPlaceholder",
+                    )}
                     className={cn(INPUT_CLS, "flex-1 min-w-0")}
                     readOnly
                   />
@@ -4084,112 +4108,115 @@ export function GenerationView({
     [latestViewStateRef],
   );
 
-  const handleGenerate = useCallback(async (force = false) => {
-    const current = latestViewStateRef.current;
-    if (!current.prompt.trim()) return;
+  const handleGenerate = useCallback(
+    async (force = false) => {
+      const current = latestViewStateRef.current;
+      if (!current.prompt.trim()) return;
 
-    const expandGroupRefs = (text: string) =>
-      expandGroupRefsFromCategories(text, current.categories);
-    const seed = resolveSeedForGeneration(current.seedInput);
-    const validCharacterPrompts = current.characterPrompts.filter((c) =>
-      c.prompt.trim(),
-    );
-    const paramsKey = JSON.stringify({
-      prompt: expandGroupRefs(current.prompt),
-      negativePrompt: expandGroupRefs(current.negativePrompt),
-      characterPrompts: validCharacterPrompts.map((c) =>
-        expandGroupRefs(c.prompt.trim()),
-      ),
-      characterNegativePrompts: validCharacterPrompts.map((c) =>
-        expandGroupRefs(c.negativePrompt.trim()),
-      ),
-      characterPositions: validCharacterPrompts.map((c) => c.position),
-      model: current.model,
-      width: current.width,
-      height: current.height,
-      steps: current.steps,
-      scale: current.scale,
-      sampler: current.sampler,
-      noiseSchedule: current.noiseSchedule,
-      seed,
-      i2iName: current.i2iRef?.name,
-      i2iStrength: current.i2iRef?.strength,
-      i2iNoise: current.i2iRef?.noise,
-      vibes: current.vibes.map((v) => v.name + v.infoExtracted + v.strength),
-      preciseRefName: current.preciseRef?.name,
-      preciseRefFidelity: current.preciseRef?.fidelity,
-    });
-    if (!force && paramsKey === lastParamsKeyRef.current) {
-      setDupAlert(true);
-      return;
-    }
-    lastParamsKeyRef.current = paramsKey;
-    setGenerating(true);
-    setError(null);
-    setResultSrc(null);
-    setPreviewSrc(null);
-    try {
-      const params: GenerateParams = {
+      const expandGroupRefs = (text: string) =>
+        expandGroupRefsFromCategories(text, current.categories);
+      const seed = resolveSeedForGeneration(current.seedInput);
+      const validCharacterPrompts = current.characterPrompts.filter((c) =>
+        c.prompt.trim(),
+      );
+      const paramsKey = JSON.stringify({
         prompt: expandGroupRefs(current.prompt),
         negativePrompt: expandGroupRefs(current.negativePrompt),
-        ...(validCharacterPrompts.length > 0 && {
-          characterPrompts: validCharacterPrompts.map((c) =>
-            expandGroupRefs(c.prompt.trim()),
-          ),
-          characterNegativePrompts: validCharacterPrompts.map((c) =>
-            expandGroupRefs(c.negativePrompt.trim()),
-          ),
-          characterPositions: validCharacterPrompts.map((c) => c.position),
-        }),
-        outputFolder: current.outputFolder,
+        characterPrompts: validCharacterPrompts.map((c) =>
+          expandGroupRefs(c.prompt.trim()),
+        ),
+        characterNegativePrompts: validCharacterPrompts.map((c) =>
+          expandGroupRefs(c.negativePrompt.trim()),
+        ),
+        characterPositions: validCharacterPrompts.map((c) => c.position),
         model: current.model,
         width: current.width,
         height: current.height,
         steps: current.steps,
         scale: current.scale,
-        cfgRescale: current.cfgRescale,
-        varietyPlus: current.varietyPlus,
         sampler: current.sampler,
         noiseSchedule: current.noiseSchedule,
         seed,
-        ...(current.i2iRef && {
-          i2i: {
-            imageData: current.i2iRef.data,
-            strength: current.i2iRef.strength,
-            noise: current.i2iRef.noise,
-          },
-        }),
-        ...(current.vibes.length > 0 && {
-          vibes: current.vibes.map((v) => ({
-            imageData: v.data,
-            infoExtracted: v.infoExtracted,
-            strength: v.strength,
-          })),
-        }),
-        ...(current.preciseRef && {
-          preciseRef: {
-            imageData: current.preciseRef.data,
-            fidelity: current.preciseRef.fidelity,
-          },
-        }),
-      };
-      const filePath = await window.nai.generate(params);
-      const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
-      setResultSrc(src);
-      setRecentImages((prev) => [src, ...prev]);
-      saveLastGenParams(getStoredSeedInput(current.seedInput));
-      void window.image.readNaiMeta(filePath).then((meta) => {
-        if (meta?.seed != null) {
-          setRecentSeeds((prev) => new Map(prev).set(src, meta.seed!));
-        }
+        i2iName: current.i2iRef?.name,
+        i2iStrength: current.i2iRef?.strength,
+        i2iNoise: current.i2iRef?.noise,
+        vibes: current.vibes.map((v) => v.name + v.infoExtracted + v.strength),
+        preciseRefName: current.preciseRef?.name,
+        preciseRefFidelity: current.preciseRef?.fidelity,
       });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setGenerating(false);
+      if (!force && paramsKey === lastParamsKeyRef.current) {
+        setDupAlert(true);
+        return;
+      }
+      lastParamsKeyRef.current = paramsKey;
+      setGenerating(true);
+      setError(null);
+      setResultSrc(null);
       setPreviewSrc(null);
-    }
-  }, [latestViewStateRef, resolveSeedForGeneration, saveLastGenParams]);
+      try {
+        const params: GenerateParams = {
+          prompt: expandGroupRefs(current.prompt),
+          negativePrompt: expandGroupRefs(current.negativePrompt),
+          ...(validCharacterPrompts.length > 0 && {
+            characterPrompts: validCharacterPrompts.map((c) =>
+              expandGroupRefs(c.prompt.trim()),
+            ),
+            characterNegativePrompts: validCharacterPrompts.map((c) =>
+              expandGroupRefs(c.negativePrompt.trim()),
+            ),
+            characterPositions: validCharacterPrompts.map((c) => c.position),
+          }),
+          outputFolder: current.outputFolder,
+          model: current.model,
+          width: current.width,
+          height: current.height,
+          steps: current.steps,
+          scale: current.scale,
+          cfgRescale: current.cfgRescale,
+          varietyPlus: current.varietyPlus,
+          sampler: current.sampler,
+          noiseSchedule: current.noiseSchedule,
+          seed,
+          ...(current.i2iRef && {
+            i2i: {
+              imageData: current.i2iRef.data,
+              strength: current.i2iRef.strength,
+              noise: current.i2iRef.noise,
+            },
+          }),
+          ...(current.vibes.length > 0 && {
+            vibes: current.vibes.map((v) => ({
+              imageData: v.data,
+              infoExtracted: v.infoExtracted,
+              strength: v.strength,
+            })),
+          }),
+          ...(current.preciseRef && {
+            preciseRef: {
+              imageData: current.preciseRef.data,
+              fidelity: current.preciseRef.fidelity,
+            },
+          }),
+        };
+        const filePath = await window.nai.generate(params);
+        const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
+        setResultSrc(src);
+        setRecentImages((prev) => [src, ...prev]);
+        saveLastGenParams(getStoredSeedInput(current.seedInput));
+        void window.image.readNaiMeta(filePath).then((meta) => {
+          if (meta?.seed != null) {
+            setRecentSeeds((prev) => new Map(prev).set(src, meta.seed!));
+          }
+        });
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setGenerating(false);
+        setPreviewSrc(null);
+      }
+    },
+    [latestViewStateRef, resolveSeedForGeneration, saveLastGenParams],
+  );
 
   const handleAutoGenerate = useCallback(async () => {
     const current = latestViewStateRef.current;
@@ -4213,11 +4240,7 @@ export function GenerationView({
     const useRandomSeed =
       current.autoGenSeedMode === "random" || fixedSeed === undefined;
 
-    for (
-      let i = 0;
-      current.autoGenInfinite || i < current.autoGenCount;
-      i++
-    ) {
+    for (let i = 0; current.autoGenInfinite || i < current.autoGenCount; i++) {
       if (cancelToken.cancelled) break;
 
       const overrideSeed = useRandomSeed ? createRandomSeed() : fixedSeed;
@@ -4354,23 +4377,26 @@ export function GenerationView({
     }
   }, []);
 
-  const getDropItemData = useCallback(async (item: DropItem): Promise<RefImage> => {
-    if (item.kind === "file") {
-      const data = new Uint8Array(await item.file.arrayBuffer());
-      const objUrl = URL.createObjectURL(item.file);
-      return { data, previewUrl: objUrl, name: item.name, isObjectUrl: true };
-    }
+  const getDropItemData = useCallback(
+    async (item: DropItem): Promise<RefImage> => {
+      if (item.kind === "file") {
+        const data = new Uint8Array(await item.file.arrayBuffer());
+        const objUrl = URL.createObjectURL(item.file);
+        return { data, previewUrl: objUrl, name: item.name, isObjectUrl: true };
+      }
 
-    const path = item.kind === "image" ? item.image.path : item.path;
-    const src = item.kind === "image" ? item.image.src : item.src;
-    const buf = await window.image.readFile(path);
-    return {
-      data: new Uint8Array(buf),
-      previewUrl: src,
-      name: item.name,
-      isObjectUrl: false,
-    };
-  }, []);
+      const path = item.kind === "image" ? item.image.path : item.path;
+      const src = item.kind === "image" ? item.image.src : item.src;
+      const buf = await window.image.readFile(path);
+      return {
+        data: new Uint8Array(buf),
+        previewUrl: src,
+        name: item.name,
+        isObjectUrl: false,
+      };
+    },
+    [],
+  );
 
   const handleSetI2i = useCallback(async () => {
     if (!dropItem || loadingAction) return;

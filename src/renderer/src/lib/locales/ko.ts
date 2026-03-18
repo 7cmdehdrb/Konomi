@@ -4,7 +4,8 @@ const ko = {
     dialog: {
       imageDelete: {
         title: "이미지 삭제",
-        description: "정말로 이 이미지를 삭제할까요? 파일은 휴지통으로 이동됩니다.",
+        description:
+          "정말로 이 이미지를 삭제할까요? 파일은 휴지통으로 이동됩니다.",
       },
       scanCancel: {
         title: "스캔 취소",

@@ -76,7 +76,11 @@ export async function validateApiKey(
     throw new Error(`HTTP ${res.status}: ${body}`);
   }
   const data = (await res.json()) as { tier?: number };
-  const tierNames: Record<number, string> = { 1: "Tablet", 2: "Scroll", 3: "Opus" };
+  const tierNames: Record<number, string> = {
+    1: "Tablet",
+    2: "Scroll",
+    3: "Opus",
+  };
   return { valid: true, tier: tierNames[data.tier ?? 0] ?? "Unknown" };
 }
 
@@ -100,11 +104,24 @@ export async function generateImage(
     }))
     .filter((c) => c.prompt);
 
-  const hasV4Characters = chars.length > 0 && isV4Model(model as Parameters<typeof isV4Model>[0]);
+  const hasV4Characters =
+    chars.length > 0 && isV4Model(model as Parameters<typeof isV4Model>[0]);
 
   // Character position resolution for V4 Global mode
-  const colMap: Record<string, number> = { A: 0.1, B: 0.3, C: 0.5, D: 0.7, E: 0.9 };
-  const rowMap: Record<string, number> = { "1": 0.1, "2": 0.3, "3": 0.5, "4": 0.7, "5": 0.9 };
+  const colMap: Record<string, number> = {
+    A: 0.1,
+    B: 0.3,
+    C: 0.5,
+    D: 0.7,
+    E: 0.9,
+  };
+  const rowMap: Record<string, number> = {
+    "1": 0.1,
+    "2": 0.3,
+    "3": 0.5,
+    "4": 0.7,
+    "5": 0.9,
+  };
   const centers = chars.map((_, i) => {
     const posKey = params.characterPositions?.[i] ?? "global";
     if (posKey === "global" || posKey.length < 2) return { x: 0.5, y: 0.5 };
@@ -112,7 +129,9 @@ export async function generateImage(
   });
   const useCoords =
     hasV4Characters &&
-    (params.characterPositions ?? []).some((p) => p !== "global" && p.length >= 2);
+    (params.characterPositions ?? []).some(
+      (p) => p !== "global" && p.length >= 2,
+    );
 
   // Always intercept the low-level generateStream to:
   // 1. Restore exact seed (SDK Zod caps at 999999999; NAI seeds can be up to 4294967295)
@@ -132,7 +151,8 @@ export async function generateImage(
       if (params.seed !== undefined) p.seed = params.seed;
       // Prompt guidance rescale
       if (params.cfgRescale !== undefined) p.cfg_rescale = params.cfgRescale;
-      if (params.varietyPlus !== undefined) p.dynamic_thresholding = params.varietyPlus;
+      if (params.varietyPlus !== undefined)
+        p.dynamic_thresholding = params.varietyPlus;
       // Fix negative prompt: SDK appends UC preset tags; restore to exact user input
       const rawNeg = params.negativePrompt ?? "";
       p.negative_prompt = rawNeg;
@@ -188,7 +208,10 @@ export async function generateImage(
     scale: params.scale ?? 6.0,
     sampler: (params.sampler ?? "k_euler") as any,
     noiseSchedule: (params.noiseSchedule ?? "karras") as any,
-    seed: params.seed !== undefined && params.seed <= 999999999 ? params.seed : undefined,
+    seed:
+      params.seed !== undefined && params.seed <= 999999999
+        ? params.seed
+        : undefined,
     quality: false,
     ...(!hasV4Characters &&
       chars.length > 0 && {
@@ -229,7 +252,12 @@ export async function generateImage(
   let finalImage: Buffer | null = null;
 
   for await (const chunk of stream) {
-    const c = chunk as { event_type?: string; image?: string; error?: string; message?: string };
+    const c = chunk as {
+      event_type?: string;
+      image?: string;
+      error?: string;
+      message?: string;
+    };
     if (c.event_type === "intermediate" && onPreview && c.image) {
       onPreview(`data:image/png;base64,${c.image}`);
     } else if (c.event_type === "final" && c.image) {

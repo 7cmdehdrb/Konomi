@@ -78,10 +78,7 @@ export async function createCategory(
   });
 }
 
-export async function renameCategory(
-  id: number,
-  name: string,
-): Promise<void> {
+export async function renameCategory(id: number, name: string): Promise<void> {
   await getDB().promptCategory.update({ where: { id }, data: { name } });
 }
 

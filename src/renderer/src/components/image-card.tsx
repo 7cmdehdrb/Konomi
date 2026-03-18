@@ -329,9 +329,7 @@ export const ImageCard = memo(function ImageCard({
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{image.model}</span>
-              <span>
-                {formatDate(image.fileModifiedAt)}
-              </span>
+              <span>{formatDate(image.fileModifiedAt)}</span>
             </div>
           </div>
         </div>

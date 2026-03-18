@@ -1,4 +1,10 @@
-import { useState, useCallback, useEffect, useRef, startTransition } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  startTransition,
+} from "react";
 import { toast } from "sonner";
 import type { SimilarGroup } from "@preload/index.d";
 import type { Settings } from "@/hooks/useSettings";

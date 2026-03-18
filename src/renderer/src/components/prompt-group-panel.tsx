@@ -356,8 +356,16 @@ function CategoryItem({
           type="button"
           onClick={() => setExpanded((value) => !value)}
           className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground/80 hover:text-foreground"
-          title={expanded ? t("promptGroupPanel.collapse") : t("promptGroupPanel.expand")}
-          aria-label={expanded ? t("promptGroupPanel.collapse") : t("promptGroupPanel.expand")}
+          title={
+            expanded
+              ? t("promptGroupPanel.collapse")
+              : t("promptGroupPanel.expand")
+          }
+          aria-label={
+            expanded
+              ? t("promptGroupPanel.collapse")
+              : t("promptGroupPanel.expand")
+          }
         >
           {expanded ? (
             <ChevronDown className="h-3 w-3" />
@@ -637,7 +645,9 @@ export const PromptGroupPanel = memo(function PromptGroupPanel({
                 group.id === groupId
                   ? {
                       ...group,
-                      tokens: group.tokens.filter((token) => token.id !== tokenId),
+                      tokens: group.tokens.filter(
+                        (token) => token.id !== tokenId,
+                      ),
                     }
                   : group,
               ),

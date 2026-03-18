@@ -72,7 +72,10 @@ function WildcardChipCore({
   };
 
   const handleApply = () => {
-    onChange?.({ ...token, options: draftOptions.filter((option) => option.trim()) });
+    onChange?.({
+      ...token,
+      options: draftOptions.filter((option) => option.trim()),
+    });
     setPopoverOpen(false);
   };
 

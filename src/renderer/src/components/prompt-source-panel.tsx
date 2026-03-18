@@ -33,9 +33,7 @@ function DraggableTokenChip({ token }: DraggableTokenChipProps) {
       title={raw}
     >
       <GripVertical className="h-2.5 w-2.5 shrink-0 -ml-0.5 text-muted-foreground/50" />
-      <span className="max-w-[140px] truncate text-foreground/90">
-        {token.text}
-      </span>
+      <span className="max-w-35 truncate text-foreground/90">{token.text}</span>
       {hasWeight ? (
         <span className="shrink-0 text-[10px] font-mono text-primary/70">
           {token.weight.toFixed(2)}

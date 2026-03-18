@@ -153,34 +153,18 @@ function computePopoverPosition(
   switch (placement) {
     case "bottom":
       top = spotRect.top + spotRect.height + PADDING + GAP;
-      left =
-        spotRect.left +
-        spotRect.width / 2 -
-        PADDING -
-        POPOVER_WIDTH / 2;
+      left = spotRect.left + spotRect.width / 2 - PADDING - POPOVER_WIDTH / 2;
       break;
     case "top":
       top = spotRect.top - PADDING - GAP - popoverHeight;
-      left =
-        spotRect.left +
-        spotRect.width / 2 -
-        PADDING -
-        POPOVER_WIDTH / 2;
+      left = spotRect.left + spotRect.width / 2 - PADDING - POPOVER_WIDTH / 2;
       break;
     case "right":
-      top =
-        spotRect.top +
-        spotRect.height / 2 -
-        PADDING -
-        popoverHeight / 2;
+      top = spotRect.top + spotRect.height / 2 - PADDING - popoverHeight / 2;
       left = spotRect.left + spotRect.width + PADDING + GAP;
       break;
     case "left":
-      top =
-        spotRect.top +
-        spotRect.height / 2 -
-        PADDING -
-        popoverHeight / 2;
+      top = spotRect.top + spotRect.height / 2 - PADDING - popoverHeight / 2;
       left = spotRect.left - PADDING - GAP - POPOVER_WIDTH;
       break;
   }
@@ -221,7 +205,12 @@ export function FeatureTour({
       return;
     }
     const r = el.getBoundingClientRect();
-    setTargetRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    setTargetRect({
+      top: r.top,
+      left: r.left,
+      width: r.width,
+      height: r.height,
+    });
   }, [currentStep]);
 
   useEffect(() => {
@@ -293,7 +282,7 @@ export function FeatureTour({
   const isLast = step === tourSteps.length - 1;
 
   const overlay = (
-    <div className="fixed inset-0 z-[9999]">
+    <div className="fixed inset-0 z-9999">
       <div className="absolute inset-0" />
 
       {targetRect && (

@@ -63,7 +63,12 @@ import {
   getCommonCategoryIdsForImages,
   seedBuiltinCategories,
 } from "./lib/category";
-import { getNaiConfig, updateNaiConfig, generateImage, validateApiKey } from "./lib/nai-gen";
+import {
+  getNaiConfig,
+  updateNaiConfig,
+  generateImage,
+  validateApiKey,
+} from "./lib/nai-gen";
 import type { NaiConfigPatch, GenerateParams } from "./lib/nai-gen";
 import type { CancelToken } from "./lib/scanner";
 import { createLogger } from "./lib/logger";

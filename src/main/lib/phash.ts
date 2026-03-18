@@ -530,7 +530,9 @@ async function upsertSimilarityCacheRows(
   const ROWS_PER_STMT = 2000;
   for (let i = 0; i < rows.length; i += ROWS_PER_STMT) {
     const chunk = rows.slice(i, i + ROWS_PER_STMT);
-    const placeholders = chunk.map(() => `(?, ?, ?, ?, datetime('now'))`).join(",");
+    const placeholders = chunk
+      .map(() => `(?, ?, ?, ?, datetime('now'))`)
+      .join(",");
     const params: unknown[] = [];
     for (const row of chunk) {
       params.push(row.imageAId, row.imageBId, row.phashDistance, row.textScore);
@@ -855,7 +857,10 @@ export async function getSimilarityReasons(
   );
 
   const config = resolveThresholdConfig(threshold, jaccardThreshold);
-  const resultMap = new Map<number, { reason: SimilarityReason; score: number }>();
+  const resultMap = new Map<
+    number,
+    { reason: SimilarityReason; score: number }
+  >();
   for (const row of rows) {
     const otherId = row.imageAId === imageId ? row.imageBId : row.imageAId;
     const reason = classifyReasonAtThreshold(row, threshold, config);

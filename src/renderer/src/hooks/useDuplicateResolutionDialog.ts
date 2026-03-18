@@ -155,7 +155,9 @@ export class DuplicateResolutionRequiredError extends Error {
   readonly suppressDialogError = true;
 
   constructor(duplicateCount: number) {
-    super(i18n.t("duplicateResolution.requiredError", { count: duplicateCount }));
+    super(
+      i18n.t("duplicateResolution.requiredError", { count: duplicateCount }),
+    );
     this.name = "DuplicateResolutionRequiredError";
   }
 }

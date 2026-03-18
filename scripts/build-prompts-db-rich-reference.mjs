@@ -35,11 +35,7 @@ function resolveDefaultOutputPath() {
 
   const xdgConfigHome =
     process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config");
-  return path.join(
-    xdgConfigHome,
-    APP_USER_DATA_DIRNAME,
-    PROMPTS_DB_FILENAME,
-  );
+  return path.join(xdgConfigHome, APP_USER_DATA_DIRNAME, PROMPTS_DB_FILENAME);
 }
 
 const DEFAULT_OUTPUT_PATH = resolveDefaultOutputPath();
@@ -192,10 +188,11 @@ function parseDatasetRecord(rawRecord) {
 
   return {
     tag: rawRecord.slice(0, firstComma).trim(),
-    category: Number.parseInt(
-      rawRecord.slice(firstComma + 1, secondComma).trim() || "0",
-      10,
-    ) || 0,
+    category:
+      Number.parseInt(
+        rawRecord.slice(firstComma + 1, secondComma).trim() || "0",
+        10,
+      ) || 0,
     postCount: Math.max(
       0,
       Number.parseInt(
@@ -221,7 +218,10 @@ function parseDescription(rawDescription) {
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
-    body = body.slice(0, keywordIndex).trim().replace(/[.\s]+$/g, "");
+    body = body
+      .slice(0, keywordIndex)
+      .trim()
+      .replace(/[.\s]+$/g, "");
   }
 
   return {

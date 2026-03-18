@@ -220,8 +220,12 @@ export const ImageGallery = memo(function ImageGallery({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-popover border-border">
-                <SelectItem value="recent">{t("gallery.sort.recent")}</SelectItem>
-                <SelectItem value="oldest">{t("gallery.sort.oldest")}</SelectItem>
+                <SelectItem value="recent">
+                  {t("gallery.sort.recent")}
+                </SelectItem>
+                <SelectItem value="oldest">
+                  {t("gallery.sort.oldest")}
+                </SelectItem>
                 <SelectItem value="name">{t("gallery.sort.name")}</SelectItem>
                 <SelectItem value="favorites">
                   {t("gallery.sort.favorites")}

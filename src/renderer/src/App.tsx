@@ -42,7 +42,7 @@ import type { AdvancedFilter } from "@/lib/advanced-filter";
 import { createLogger } from "@/lib/logger";
 import { rowToImageData } from "@/lib/image-utils";
 import { dispatchSearchInputAppendTag } from "@/lib/search-input-event";
-import { applyAppLanguagePreference } from "@/lib/i18n";
+import i18n, { applyAppLanguagePreference } from "@/lib/i18n";
 import { useTranslation } from "react-i18next";
 
 const log = createLogger("renderer/App");
@@ -477,6 +477,7 @@ export default function App() {
       scanningRef,
       analyzeTimerRef,
       pendingSimilarityRecalcRef,
+      t,
     ],
   );
 
@@ -520,7 +521,7 @@ export default function App() {
       .then((loaded) => setCategories(applyCategoryOrder(loaded)))
       .catch((e: unknown) =>
         toast.error(
-          t("error.categoryLoadFailed", {
+          i18n.t("error.categoryLoadFailed", {
             message: e instanceof Error ? e.message : String(e),
           }),
         ),
@@ -710,37 +711,43 @@ export default function App() {
     setSelectedCategoryId(id);
   }, []);
 
-  const handleCategoryCreate = useCallback((name: string) => {
-    log.info("Creating category", { name });
-    window.category
-      .create(name)
-      .then((cat) =>
-        setCategories((prev) => applyCategoryOrder([...prev, cat])),
-      )
-      .catch((e: unknown) =>
-        toast.error(
-          t("error.categoryCreateFailed", {
-            message: e instanceof Error ? e.message : String(e),
-          }),
-        ),
-      );
-  }, []);
+  const handleCategoryCreate = useCallback(
+    (name: string) => {
+      log.info("Creating category", { name });
+      window.category
+        .create(name)
+        .then((cat) =>
+          setCategories((prev) => applyCategoryOrder([...prev, cat])),
+        )
+        .catch((e: unknown) =>
+          toast.error(
+            t("error.categoryCreateFailed", {
+              message: e instanceof Error ? e.message : String(e),
+            }),
+          ),
+        );
+    },
+    [t],
+  );
 
-  const handleCategoryRename = useCallback((id: number, name: string) => {
-    log.info("Renaming category", { categoryId: id, name });
-    window.category
-      .rename(id, name)
-      .then((updated) =>
-        setCategories((prev) => prev.map((c) => (c.id === id ? updated : c))),
-      )
-      .catch((e: unknown) =>
-        toast.error(
-          t("error.categoryRenameFailed", {
-            message: e instanceof Error ? e.message : String(e),
-          }),
-        ),
-      );
-  }, []);
+  const handleCategoryRename = useCallback(
+    (id: number, name: string) => {
+      log.info("Renaming category", { categoryId: id, name });
+      window.category
+        .rename(id, name)
+        .then((updated) =>
+          setCategories((prev) => prev.map((c) => (c.id === id ? updated : c))),
+        )
+        .catch((e: unknown) =>
+          toast.error(
+            t("error.categoryRenameFailed", {
+              message: e instanceof Error ? e.message : String(e),
+            }),
+          ),
+        );
+    },
+    [t],
+  );
 
   const handleCategoryReorder = useCallback((ids: number[]) => {
     log.info("Reordering categories", { ids });
@@ -767,7 +774,7 @@ export default function App() {
           ),
         );
     },
-    [schedulePageRefresh, selectedCategoryId],
+    [schedulePageRefresh, selectedCategoryId, t],
   );
 
   const handleCategoryAddByPrompt = useCallback(
@@ -786,7 +793,7 @@ export default function App() {
           ),
         );
     },
-    [schedulePageRefresh, selectedCategoryId],
+    [schedulePageRefresh, selectedCategoryId, t],
   );
 
   const handleToggleFavorite = useCallback(
@@ -818,14 +825,17 @@ export default function App() {
         prev?.id === id ? { ...prev, isFavorite: !prev.isFavorite } : prev,
       );
     },
-    [schedulePageRefresh, selectedBuiltinCategory, setImages, sortBy],
+    [schedulePageRefresh, selectedBuiltinCategory, setImages, sortBy, t],
   );
 
-  const handleCopyPrompt = useCallback((prompt: string) => {
-    navigator.clipboard
-      .writeText(prompt)
-      .catch(() => toast.error(t("app.clipboardCopyFailed")));
-  }, [t]);
+  const handleCopyPrompt = useCallback(
+    (prompt: string) => {
+      navigator.clipboard
+        .writeText(prompt)
+        .catch(() => toast.error(t("app.clipboardCopyFailed")));
+    },
+    [t],
+  );
 
   const handleAddTagToSearch = useCallback((tag: string) => {
     const normalizedTag = tag.trim();
@@ -878,7 +888,7 @@ export default function App() {
       schedulePageRefresh(60);
     }
     setDeleteConfirmId(null);
-  }, [deleteConfirmId, images, schedulePageRefresh, selectedImage?.id]);
+  }, [deleteConfirmId, images, schedulePageRefresh, selectedImage?.id, t]);
 
   const handleSendToGenerator = useCallback(
     (image: ImageData) => {
@@ -940,7 +950,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!selectedImage || !selectedImageId) {
+    if (!selectedImageId) {
       setSimilarImages([]);
       setSimilarReasons({});
       return;

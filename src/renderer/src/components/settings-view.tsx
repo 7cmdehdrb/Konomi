@@ -6,7 +6,7 @@ import {
   Trash2,
   Info,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,7 +97,9 @@ function OptionGroup<T extends number>({
 }
 
 const similarityQualityLabel = (value: number): string =>
-  i18n.t(`settings.similarity.quality.${value}`, { defaultValue: String(value) });
+  i18n.t(`settings.similarity.quality.${value}`, {
+    defaultValue: String(value),
+  });
 
 const jaccardLabel = (value: number): string => {
   if (value >= 0.68) return i18n.t("settings.similarity.jaccard.veryStrict");
@@ -185,7 +187,7 @@ export function SettingsView({
 
     const shouldBootstrapFromBasic =
       settings.visualSimilarityThreshold ===
-      DEFAULTS.visualSimilarityThreshold &&
+        DEFAULTS.visualSimilarityThreshold &&
       settings.promptSimilarityThreshold === DEFAULTS.promptSimilarityThreshold;
 
     if (!shouldBootstrapFromBasic) {
@@ -202,7 +204,7 @@ export function SettingsView({
     });
   };
 
-  const loadIgnoredDuplicates = async () => {
+  const loadIgnoredDuplicates = useCallback(async () => {
     setIgnoredLoading(true);
     setIgnoredError(null);
     try {
@@ -210,14 +212,12 @@ export function SettingsView({
       setIgnoredDuplicates(rows);
     } catch (e: unknown) {
       setIgnoredError(
-        e instanceof Error
-          ? e.message
-          : t("settings.ignored.loadError"),
+        e instanceof Error ? e.message : i18n.t("settings.ignored.loadError"),
       );
     } finally {
       setIgnoredLoading(false);
     }
-  };
+  }, []);
 
   const handleResetAll = () => {
     onReset();
@@ -237,9 +237,7 @@ export function SettingsView({
       await loadIgnoredDuplicates();
     } catch (e: unknown) {
       setIgnoredError(
-        e instanceof Error
-          ? e.message
-          : t("settings.ignored.clearError"),
+        e instanceof Error ? e.message : t("settings.ignored.clearError"),
       );
     } finally {
       setIgnoredClearing(false);
@@ -248,7 +246,7 @@ export function SettingsView({
 
   useEffect(() => {
     void loadIgnoredDuplicates();
-  }, []);
+  }, [loadIgnoredDuplicates]);
 
   useEffect(() => {
     window.appInfo
@@ -513,7 +511,9 @@ export function SettingsView({
                       settings.visualSimilarityThreshold,
                     ),
                     prompt: settings.promptSimilarityThreshold.toFixed(2),
-                    promptLabel: jaccardLabel(settings.promptSimilarityThreshold),
+                    promptLabel: jaccardLabel(
+                      settings.promptSimilarityThreshold,
+                    ),
                   })
                 : t("settings.similarity.currentApplied", {
                     visual: settings.similarityThreshold,
@@ -523,7 +523,9 @@ export function SettingsView({
                     prompt: derivePromptThreshold(
                       settings.similarityThreshold,
                     ).toFixed(2),
-                    promptLabel: jaccardLabel(settings.promptSimilarityThreshold),
+                    promptLabel: jaccardLabel(
+                      settings.promptSimilarityThreshold,
+                    ),
                   })}
             </div>
 

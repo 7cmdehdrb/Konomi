@@ -13,7 +13,8 @@ export function filterLabel(filter: AdvancedFilter): string {
 }
 
 export function filterKey(filter: AdvancedFilter): string {
-  if (filter.type === "resolution") return `res:${filter.width}x${filter.height}`;
+  if (filter.type === "resolution")
+    return `res:${filter.width}x${filter.height}`;
   return `model:${filter.value}`;
 }
 

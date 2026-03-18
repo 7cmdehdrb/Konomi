@@ -25,8 +25,7 @@ function resolveAppDataDir() {
   }
 
   const xdgConfigHome = (process.env.XDG_CONFIG_HOME ?? "").trim();
-  const configHome =
-    xdgConfigHome || path.join(os.homedir(), ".config");
+  const configHome = xdgConfigHome || path.join(os.homedir(), ".config");
   return path.join(configHome, "konomi-dev");
 }
 

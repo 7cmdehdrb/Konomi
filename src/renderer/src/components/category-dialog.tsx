@@ -129,7 +129,9 @@ export function CategoryDialog({
 
         {isBulk && (
           <p className="text-sm text-muted-foreground">
-            {t("categoryDialog.bulkDescription", { count: targetImages.length })}
+            {t("categoryDialog.bulkDescription", {
+              count: targetImages.length,
+            })}
           </p>
         )}
 

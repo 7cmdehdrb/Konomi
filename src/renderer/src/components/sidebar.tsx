@@ -334,9 +334,7 @@ export function Sidebar({
                   onClick={() => folder.handleOpenChange(true)}
                   disabled={scanning || isAnalyzing}
                   title={
-                    isAnalyzing
-                      ? t("sidebar.folders.addDisabled")
-                      : undefined
+                    isAnalyzing ? t("sidebar.folders.addDisabled") : undefined
                   }
                 >
                   {scanning || isAnalyzing ? (
@@ -629,22 +627,20 @@ export function Sidebar({
                             : cat.name}
                         </span>
                       )}
-                      {cat.isBuiltin &&
-                        cat.order === 1 &&
-                        isSelected && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                            title={t("sidebar.categories.reroll")}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onRandomRefresh();
-                            }}
-                          >
-                            <RefreshCw className="h-3 w-3" />
-                          </Button>
-                        )}
+                      {cat.isBuiltin && cat.order === 1 && isSelected && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                          title={t("sidebar.categories.reroll")}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRandomRefresh();
+                          }}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </Button>
+                      )}
                       {!cat.isBuiltin && editingCategoryId !== cat.id && (
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
                           <Button

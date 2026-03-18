@@ -219,7 +219,9 @@ export function DuplicateResolutionDialog({
                               : "outline"
                           }
                           size="sm"
-                          onClick={() => onSetChoice(currentItem.id, "existing")}
+                          onClick={() =>
+                            onSetChoice(currentItem.id, "existing")
+                          }
                           disabled={
                             resolving ||
                             currentItem.existingEntries.length === 0
@@ -235,7 +237,9 @@ export function DuplicateResolutionDialog({
                               : "outline"
                           }
                           size="sm"
-                          onClick={() => onSetChoice(currentItem.id, "incoming")}
+                          onClick={() =>
+                            onSetChoice(currentItem.id, "incoming")
+                          }
                           disabled={
                             resolving ||
                             currentItem.incomingEntries.length === 0
