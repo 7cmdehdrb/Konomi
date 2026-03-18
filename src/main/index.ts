@@ -27,6 +27,7 @@ registerIpcHandlers();
 const log = createLogger("main/index");
 
 const BOUNDS_FILE = join(app.getPath("userData"), "window-bounds.json");
+const DEVTOOLS_OPEN_FLAGS = new Set(["-d", "--dev"]);
 
 function configureAppDataPaths(): void {
   if (app.isPackaged) {
@@ -125,6 +126,15 @@ function pathEquals(left: string, right: string): boolean {
   return normalizedLeft === normalizedRight;
 }
 
+function shouldOpenDevTools(): boolean {
+  if (!app.isPackaged) {
+    return true;
+  }
+
+  const launchArgs = process.argv.slice(1);
+  return launchArgs.some((arg) => DEVTOOLS_OPEN_FLAGS.has(arg));
+}
+
 function loadBounds(): {
   width: number;
   height: number;
@@ -208,7 +218,11 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
 
-  if (!app.isPackaged) {
+  if (shouldOpenDevTools()) {
+    log.info("Opening DevTools", {
+      packaged: app.isPackaged,
+      argv: process.argv,
+    });
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
 
