@@ -159,6 +159,9 @@ export function SettingsView({
   const [ignoredClearing, setIgnoredClearing] = useState(false);
   const [ignoredError, setIgnoredError] = useState<string | null>(null);
   const [dbFileSize, setDbFileSize] = useState<number | null>(null);
+  const [promptsDbSchemaVersion, setPromptsDbSchemaVersion] = useState<
+    number | null
+  >(null);
   const visualSliderValue = Number(
     (
       SIMILARITY_MAX -
@@ -190,7 +193,7 @@ export function SettingsView({
 
     const shouldBootstrapFromBasic =
       settings.visualSimilarityThreshold ===
-        DEFAULTS.visualSimilarityThreshold &&
+      DEFAULTS.visualSimilarityThreshold &&
       settings.promptSimilarityThreshold === DEFAULTS.promptSimilarityThreshold;
 
     if (!shouldBootstrapFromBasic) {
@@ -260,6 +263,11 @@ export function SettingsView({
       .getDbFileSize()
       .then((size) => setDbFileSize(size))
       .catch(() => setDbFileSize(null));
+
+    window.appInfo
+      .getPromptsDbSchemaVersion()
+      .then((version) => setPromptsDbSchemaVersion(version))
+      .catch(() => setPromptsDbSchemaVersion(null));
   }, []);
 
   return (
@@ -667,13 +675,28 @@ export function SettingsView({
 
         <Separator className="bg-border" />
 
-        <div className="flex items-center justify-between rounded-md border border-border/60 bg-secondary/10 px-3 py-2">
-          <span className="text-xs text-muted-foreground select-none">
-            DB 파일 용량
-          </span>
-          <span className="text-xs font-mono text-foreground">
-            {formatBytes(dbFileSize)}
-          </span>
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-foreground select-none">
+            데이터베이스 정보
+          </h2>
+          <div className="rounded-md border border-border/60 bg-secondary/10">
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-xs text-muted-foreground select-none">
+                이미지 데이터베이스 용량
+              </span>
+              <span className="text-xs font-mono text-foreground">
+                {formatBytes(dbFileSize)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between border-t border-border/60 px-3 py-2">
+              <span className="text-xs text-muted-foreground select-none">
+                태그 데이터베이스 버전
+              </span>
+              <span className="text-xs font-mono text-foreground">
+                {promptsDbSchemaVersion ?? "-"}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
