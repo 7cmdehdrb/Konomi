@@ -23,7 +23,6 @@ import { ImageCard, type ImageData } from "./image-card";
 import { OnboardingView } from "./onboarding-view";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import type { AppLanguage } from "@/lib/language";
 
 interface ImageGalleryProps {
   images: ImageData[];
@@ -52,8 +51,6 @@ interface ImageGalleryProps {
   hasFolders?: boolean;
   onAddFolder?: () => void;
   isInitializing?: boolean;
-  language: AppLanguage;
-  onLanguageChange: (language: AppLanguage) => void;
 }
 
 export const ImageGallery = memo(function ImageGallery({
@@ -83,8 +80,6 @@ export const ImageGallery = memo(function ImageGallery({
   hasFolders = true,
   onAddFolder,
   isInitializing = false,
-  language,
-  onLanguageChange,
 }: ImageGalleryProps) {
   const { t } = useTranslation();
   const [internalPage, setInternalPage] = useState(1);
@@ -383,11 +378,7 @@ export const ImageGallery = memo(function ImageGallery({
           </p>
         </div>
       ) : !hasFolders && onAddFolder ? (
-        <OnboardingView
-          onAddFolder={onAddFolder}
-          language={language}
-          onLanguageChange={onLanguageChange}
-        />
+        <OnboardingView onAddFolder={onAddFolder} />
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-center p-4 select-none">
           <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">

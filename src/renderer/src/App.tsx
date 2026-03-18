@@ -17,6 +17,7 @@ import { SettingsView } from "@/components/settings-view";
 import { CategoryDialog } from "@/components/category-dialog";
 import { GenerationView } from "@/components/generation-view";
 import { FeatureTour } from "@/components/feature-tour";
+import { InitialLanguageScreen } from "@/components/initial-language-screen";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,8 @@ import { useTranslation } from "react-i18next";
 
 const log = createLogger("renderer/App");
 const CATEGORY_ORDER_STORAGE_KEY = "konomi-category-order";
+const INITIAL_LANGUAGE_SCREEN_COMPLETED_KEY =
+  "konomi-initial-language-selection-completed";
 const APP_SPLASH_MIN_VISIBLE_MS = 520;
 const APP_SPLASH_FADE_OUT_MS = 240;
 const SIMILARITY_SETTING_KEYS = new Set<keyof Settings>([
@@ -151,6 +154,11 @@ export default function App() {
   const [folderDialogRequest, setFolderDialogRequest] = useState(0);
   const [tourOpen, setTourOpen] = useState(
     () => localStorage.getItem("konomi-tour-completed") !== "true",
+  );
+  const [initialLanguageScreenOpen, setInitialLanguageScreenOpen] = useState(
+    () =>
+      localStorage.getItem("konomi-tour-completed") !== "true" &&
+      localStorage.getItem(INITIAL_LANGUAGE_SCREEN_COMPLETED_KEY) !== "true",
   );
   const [tourAction, setTourAction] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -922,6 +930,15 @@ export default function App() {
     localStorage.setItem("konomi-tour-completed", "true");
   }, []);
 
+  const handleInitialLanguageContinue = useCallback(() => {
+    try {
+      localStorage.setItem(INITIAL_LANGUAGE_SCREEN_COMPLETED_KEY, "true");
+    } catch {
+      // ignore storage errors
+    }
+    setInitialLanguageScreenOpen(false);
+  }, []);
+
   useEffect(() => {
     if (!selectedImage || !selectedImageId) {
       setSimilarImages([]);
@@ -1120,7 +1137,7 @@ export default function App() {
             outputFolder={outputFolder}
             onOutputFolderChange={setOutputFolder}
             appendPromptTagRequest={appendPromptTagRequest}
-            tourActive={tourOpen}
+            tourActive={tourOpen && !initialLanguageScreenOpen}
             tourAction={tourAction}
           />
         </div>
@@ -1237,8 +1254,6 @@ export default function App() {
               hasFolders={folderCount === null || folderCount > 0}
               onAddFolder={() => setFolderDialogRequest((n) => n + 1)}
               isInitializing={isAppInitializing}
-              language={settings.language}
-              onLanguageChange={(language) => handleSettingsUpdate({ language })}
             />
           </div>
         </div>
@@ -1322,10 +1337,17 @@ export default function App() {
       />
 
       <FeatureTour
-        open={tourOpen}
+        open={tourOpen && !initialLanguageScreenOpen}
         onClose={handleTourClose}
         onPanelChange={setActivePanel}
         onAction={setTourAction}
+      />
+
+      <InitialLanguageScreen
+        open={!renderSplash && initialLanguageScreenOpen}
+        language={settings.language}
+        onLanguageChange={(language) => handleSettingsUpdate({ language })}
+        onContinue={handleInitialLanguageContinue}
       />
 
       {renderSplash && (
