@@ -16,7 +16,7 @@
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
-    "verify:prompts-db": "node ./scripts/verify-prompts-db.mjs",
+    "verify:prompts-db": "node ./scripts/run-electron-node.mjs ./scripts/verify-prompts-db.mjs",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && npm run verify:prompts-db && electron-builder --dir",
     "build:win": "npm run build && npm run verify:prompts-db && electron-builder --win",

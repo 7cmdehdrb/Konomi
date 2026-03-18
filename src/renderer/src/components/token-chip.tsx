@@ -20,7 +20,11 @@ import {
 } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import type { PromptToken, TokenWeightExpression } from "@/lib/token";
-import type { PromptTagSuggestion } from "@preload/index.d";
+import type {
+  PromptTagSuggestion,
+  PromptTagSuggestStats,
+} from "@preload/index.d";
+import { PromptTagSuggestionIndicator } from "./prompt-tag-suggestion-indicator";
 
 function weightClass(w: number): string {
   if (w >= 1.3) return "bg-warning/15 text-warning";
@@ -88,10 +92,11 @@ const POPOVER_WIDTH = 224;
 const POPOVER_GAP = 6;
 const POPOVER_EDGE_PADDING = 8;
 const TAG_SUGGEST_LIMIT = 8;
-
-function formatTagSuggestionCount(count: number): string {
-  return new Intl.NumberFormat().format(Math.max(0, Math.floor(count)));
-}
+const EMPTY_PROMPT_TAG_SUGGEST_STATS: PromptTagSuggestStats = {
+  totalTags: 0,
+  maxCount: 0,
+  bucketThresholds: [],
+};
 
 interface TokenChipProps {
   token: PromptToken;
@@ -176,6 +181,8 @@ function TokenChipCore({
   const [tagSuggestions, setTagSuggestions] = useState<PromptTagSuggestion[]>(
     [],
   );
+  const [tagSuggestionStats, setTagSuggestionStats] =
+    useState<PromptTagSuggestStats>(EMPTY_PROMPT_TAG_SUGGEST_STATS);
   const [tagSuggestionOpen, setTagSuggestionOpen] = useState(false);
   const [tagSuggestionIndex, setTagSuggestionIndex] = useState(0);
   const showInlineSuggestions =
@@ -212,6 +219,7 @@ function TokenChipCore({
 
     if (!canSuggest || !prefix) {
       setTagSuggestions((prev) => (prev.length === 0 ? prev : []));
+      setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
       setTagSuggestionOpen(false);
       setTagSuggestionIndex(0);
       if (tagSuggestDebounceRef.current) {
@@ -239,17 +247,21 @@ function TokenChipCore({
           limit: TAG_SUGGEST_LIMIT,
           exclude: tagSuggestionExclude,
         })
-        .then((results) => {
+        .then(({ suggestions, stats }) => {
           if (requestId !== tagSuggestRequestSeqRef.current) return;
-          setTagSuggestions(results);
-          setTagSuggestionOpen(results.length > 0);
+          setTagSuggestions(suggestions);
+          setTagSuggestionStats(stats);
+          setTagSuggestionOpen(suggestions.length > 0);
           setTagSuggestionIndex((prev) =>
-            results.length === 0 ? 0 : Math.min(prev, results.length - 1),
+            suggestions.length === 0
+              ? 0
+              : Math.min(prev, suggestions.length - 1),
           );
         })
         .catch(() => {
           if (requestId !== tagSuggestRequestSeqRef.current) return;
           setTagSuggestions([]);
+          setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
           setTagSuggestionOpen(false);
           setTagSuggestionIndex(0);
         });
@@ -857,9 +869,10 @@ function TokenChipCore({
                 )}
               >
                 <span className="truncate">{suggestion.tag}</span>
-                <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                  {formatTagSuggestionCount(suggestion.count)}
-                </span>
+                <PromptTagSuggestionIndicator
+                  count={suggestion.count}
+                  bucketThresholds={tagSuggestionStats.bucketThresholds}
+                />
               </button>
             ))}
           </div>,
@@ -917,9 +930,10 @@ function TokenChipCore({
                         )}
                       >
                         <span className="truncate">{suggestion.tag}</span>
-                        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                          {formatTagSuggestionCount(suggestion.count)}
-                        </span>
+                        <PromptTagSuggestionIndicator
+                          count={suggestion.count}
+                          bucketThresholds={tagSuggestionStats.bucketThresholds}
+                        />
                       </button>
                     ))}
                   </div>

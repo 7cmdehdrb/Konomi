@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("appInfo", {
   get: () => ipcRenderer.invoke("app:getInfo"),
   getDbFileSize: () => ipcRenderer.invoke("app:getDbFileSize"),
+  getPromptsDbSchemaVersion: () =>
+    ipcRenderer.invoke("app:getPromptsDbSchemaVersion"),
 });
 
 contextBridge.exposeInMainWorld("image", {
@@ -226,7 +228,8 @@ contextBridge.exposeInMainWorld("nai", {
     ipcRenderer.invoke("nai:updateConfig", patch),
   generate: (params: object) => ipcRenderer.invoke("nai:generate", params),
   onGeneratePreview: (cb: (dataUrl: string) => void) => {
-    const handler = (_: Electron.IpcRendererEvent, dataUrl: string) => cb(dataUrl);
+    const handler = (_: Electron.IpcRendererEvent, dataUrl: string) =>
+      cb(dataUrl);
     ipcRenderer.on("nai:generatePreview", handler);
     return () => ipcRenderer.off("nai:generatePreview", handler);
   },

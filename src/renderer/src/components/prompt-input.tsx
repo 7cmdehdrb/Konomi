@@ -30,10 +30,15 @@ import {
   isGroupRef,
   isWildcard,
 } from "@/lib/token";
-import type { PromptGroup, PromptTagSuggestion } from "@preload/index.d";
+import type {
+  PromptGroup,
+  PromptTagSuggestion,
+  PromptTagSuggestStats,
+} from "@preload/index.d";
 import { TokenChip } from "./token-chip";
 import { GroupChip } from "./group-chip";
 import { WildcardChip } from "./wildcard-chip";
+import { PromptTagSuggestionIndicator } from "./prompt-tag-suggestion-indicator";
 
 type EditableToken = AnyToken & { id: string };
 const INPUT_WRAP_SPACE_THRESHOLD_PX = 120;
@@ -42,10 +47,11 @@ const INPUT_WRAP_TOKEN_GAP_PX = 6;
 
 const DRAG_TOKEN_MIME = "application/x-konomi-token";
 const TAG_SUGGEST_LIMIT = 8;
-
-function formatTagSuggestionCount(count: number): string {
-  return new Intl.NumberFormat().format(Math.max(0, Math.floor(count)));
-}
+const EMPTY_PROMPT_TAG_SUGGEST_STATS: PromptTagSuggestStats = {
+  totalTags: 0,
+  maxCount: 0,
+  bucketThresholds: [],
+};
 
 interface PromptInputProps {
   value: string;
@@ -141,6 +147,8 @@ export function PromptInput({
   const [tagSuggestions, setTagSuggestions] = useState<PromptTagSuggestion[]>(
     [],
   );
+  const [tagSuggestionStats, setTagSuggestionStats] =
+    useState<PromptTagSuggestStats>(EMPTY_PROMPT_TAG_SUGGEST_STATS);
   const [tagSuggestionOpen, setTagSuggestionOpen] = useState(false);
   const [tagSuggestionIndex, setTagSuggestionIndex] = useState(0);
   const tagSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -194,6 +202,7 @@ export function PromptInput({
   useEffect(() => {
     if (groupDropdownOpen) {
       setTagSuggestions([]);
+      setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
       setTagSuggestionOpen(false);
       setTagSuggestionIndex(0);
       if (tagSuggestDebounceRef.current) {
@@ -206,6 +215,7 @@ export function PromptInput({
     const prefix = draft.trim();
     if (!prefix) {
       setTagSuggestions([]);
+      setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
       setTagSuggestionOpen(false);
       setTagSuggestionIndex(0);
       if (tagSuggestDebounceRef.current) {
@@ -228,17 +238,21 @@ export function PromptInput({
           limit: TAG_SUGGEST_LIMIT,
           exclude: promptTagExclusions,
         })
-        .then((results) => {
+        .then(({ suggestions, stats }) => {
           if (requestId !== tagSuggestRequestSeqRef.current) return;
-          setTagSuggestions(results);
-          setTagSuggestionOpen(results.length > 0);
+          setTagSuggestions(suggestions);
+          setTagSuggestionStats(stats);
+          setTagSuggestionOpen(suggestions.length > 0);
           setTagSuggestionIndex((prev) =>
-            results.length === 0 ? 0 : Math.min(prev, results.length - 1),
+            suggestions.length === 0
+              ? 0
+              : Math.min(prev, suggestions.length - 1),
           );
         })
         .catch(() => {
           if (requestId !== tagSuggestRequestSeqRef.current) return;
           setTagSuggestions([]);
+          setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
           setTagSuggestionOpen(false);
           setTagSuggestionIndex(0);
         });
@@ -976,9 +990,10 @@ export function PromptInput({
                   )}
                 >
                   <span className="truncate">{suggestion.tag}</span>
-                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                    {formatTagSuggestionCount(suggestion.count)}
-                  </span>
+                  <PromptTagSuggestionIndicator
+                    count={suggestion.count}
+                    bucketThresholds={tagSuggestionStats.bucketThresholds}
+                  />
                 </button>
               ))}
             </div>

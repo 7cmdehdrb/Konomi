@@ -6,6 +6,7 @@ export const PROMPTS_DB_FILENAME = "prompts.db";
 const DEFAULT_SUGGEST_LIMIT = 8;
 const MAX_SUGGEST_LIMIT = 20;
 const NORMALIZED_TAG_SQL = "LOWER(REPLACE(tag, '_', ' '))";
+const TAG_COUNT_BUCKET_PERCENTILES = [0.8, 0.95, 0.99, 0.999];
 
 export type PromptTagSuggestQuery = {
   prefix: string;
@@ -18,7 +19,25 @@ export type PromptTagSuggestion = {
   count: number;
 };
 
+export type PromptTagSuggestStats = {
+  totalTags: number;
+  maxCount: number;
+  bucketThresholds: number[];
+};
+
+export type PromptTagSuggestResult = {
+  suggestions: PromptTagSuggestion[];
+  stats: PromptTagSuggestStats;
+};
+
 let promptsDB: Database.Database | null = null;
+let promptTagSuggestStatsCache: PromptTagSuggestStats | null = null;
+
+const EMPTY_PROMPT_TAG_SUGGEST_STATS: PromptTagSuggestStats = {
+  totalTags: 0,
+  maxCount: 0,
+  bucketThresholds: [],
+};
 
 function resolvePromptsDBPath(): string {
   const overridePath = (process.env.KONOMI_PROMPTS_DB_PATH ?? "").trim();
@@ -34,6 +53,33 @@ function resolvePromptsDBPath(): string {
 
 export function getPromptsDBPath(): string {
   return resolvePromptsDBPath();
+}
+
+export function readPromptsDBSchemaVersion(
+  dbPath = getPromptsDBPath(),
+): number | null {
+  let db: Database.Database | null = null;
+  try {
+    db = new Database(dbPath, {
+      readonly: true,
+      fileMustExist: true,
+    });
+    db.pragma("query_only = ON");
+    const row = db
+      .prepare(
+        `SELECT value
+         FROM prompts_meta
+         WHERE key = 'schema_version'
+         LIMIT 1`,
+      )
+      .get() as { value?: string | number } | undefined;
+    const version = Number.parseInt(String(row?.value ?? ""), 10);
+    return Number.isFinite(version) ? version : null;
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
 }
 
 export function hasPromptsDB(): boolean {
@@ -80,15 +126,128 @@ export function getPromptsDB(): Database.Database {
 export function closePromptsDB(): void {
   promptsDB?.close();
   promptsDB = null;
+  promptTagSuggestStatsCache = null;
+}
+
+function parseNonNegativeInteger(value: unknown): number {
+  return Math.max(0, Math.floor(Number(value) || 0));
+}
+
+function parseBucketThresholds(value: unknown): number[] {
+  try {
+    const parsed = JSON.parse(String(value ?? "[]")) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => parseNonNegativeInteger(entry))
+      .filter(
+        (entry, index, array) => index === 0 || entry >= array[index - 1],
+      );
+  } catch {
+    return [];
+  }
+}
+
+function readPostCountAtOffset(db: Database.Database, offset: number): number {
+  const row = db
+    .prepare(
+      `SELECT post_count
+       FROM prompt_tag
+       ORDER BY post_count DESC, id ASC
+       LIMIT 1 OFFSET ?`,
+    )
+    .get(offset) as { post_count: number } | undefined;
+  return parseNonNegativeInteger(row?.post_count);
+}
+
+function computeBucketThresholds(
+  db: Database.Database,
+  totalTags: number,
+): number[] {
+  if (totalTags <= 0) return [];
+  return TAG_COUNT_BUCKET_PERCENTILES.map((percentile) => {
+    const topFraction = Math.max(0, 1 - percentile);
+    const offset = Math.max(0, Math.ceil(totalTags * topFraction) - 1);
+    return readPostCountAtOffset(db, offset);
+  });
+}
+
+function getPromptTagSuggestStats(): PromptTagSuggestStats {
+  if (promptTagSuggestStatsCache) {
+    return promptTagSuggestStatsCache;
+  }
+
+  if (!hasPromptsDB()) {
+    promptTagSuggestStatsCache = EMPTY_PROMPT_TAG_SUGGEST_STATS;
+    return promptTagSuggestStatsCache;
+  }
+
+  try {
+    const db = getPromptsDB();
+    const metaRows = db
+      .prepare(
+        `SELECT key, value
+         FROM prompts_meta
+         WHERE key IN ('tag_count_total', 'tag_count_max', 'tag_count_bucket_thresholds')`,
+      )
+      .all() as Array<{ key: string; value: string }>;
+    const meta = new Map(metaRows.map((row) => [row.key, row.value]));
+    const totalTags = parseNonNegativeInteger(meta.get("tag_count_total"));
+    const maxCount = parseNonNegativeInteger(meta.get("tag_count_max"));
+    const bucketThresholds = parseBucketThresholds(
+      meta.get("tag_count_bucket_thresholds"),
+    );
+
+    if (bucketThresholds.length > 0 || (totalTags === 0 && maxCount === 0)) {
+      promptTagSuggestStatsCache = {
+        totalTags,
+        maxCount,
+        bucketThresholds,
+      };
+      return promptTagSuggestStatsCache;
+    }
+
+    const summary = db
+      .prepare(
+        `SELECT
+           COUNT(*) AS total_tags,
+           COALESCE(MAX(post_count), 0) AS max_count
+         FROM prompt_tag`,
+      )
+      .get() as { total_tags: number; max_count: number };
+
+    promptTagSuggestStatsCache = {
+      totalTags: parseNonNegativeInteger(summary?.total_tags),
+      maxCount: parseNonNegativeInteger(summary?.max_count),
+      bucketThresholds: computeBucketThresholds(
+        db,
+        parseNonNegativeInteger(summary?.total_tags),
+      ),
+    };
+    return promptTagSuggestStatsCache;
+  } catch {
+    promptTagSuggestStatsCache = EMPTY_PROMPT_TAG_SUGGEST_STATS;
+    return promptTagSuggestStatsCache;
+  }
 }
 
 export function suggestPromptTags(
   query: PromptTagSuggestQuery,
-): PromptTagSuggestion[] {
-  if (!hasPromptsDB()) return [];
+): PromptTagSuggestResult {
+  const stats = getPromptTagSuggestStats();
+  if (!hasPromptsDB()) {
+    return {
+      suggestions: [],
+      stats,
+    };
+  }
 
   const prefix = normalizePromptTerm(query?.prefix ?? "");
-  if (!prefix) return [];
+  if (!prefix) {
+    return {
+      suggestions: [],
+      stats,
+    };
+  }
 
   const limit = normalizeSuggestLimit(query?.limit);
   const excluded = normalizeExcludedTags(query?.exclude);
@@ -113,15 +272,21 @@ export function suggestPromptTags(
          LIMIT ?`,
       )
       .all(`${prefix}%`, ...excluded, prefix, limit) as Array<{
-        tag: string;
-        count: number;
-      }>;
+      tag: string;
+      count: number;
+    }>;
   } catch {
-    return [];
+    return {
+      suggestions: [],
+      stats,
+    };
   }
 
-  return rows.map((row) => ({
-    tag: row.tag,
-    count: Math.max(0, Math.floor(row.count ?? 0)),
-  }));
+  return {
+    suggestions: rows.map((row) => ({
+      tag: row.tag,
+      count: Math.max(0, Math.floor(row.count ?? 0)),
+    })),
+    stats,
+  };
 }

@@ -136,6 +136,15 @@ export type PromptTagSuggestion = {
   tag: string;
   count: number;
 };
+export type PromptTagSuggestStats = {
+  totalTags: number;
+  maxCount: number;
+  bucketThresholds: number[];
+};
+export type PromptTagSuggestResult = {
+  suggestions: PromptTagSuggestion[];
+  stats: PromptTagSuggestStats;
+};
 export type PromptGroup = {
   id: number;
   name: string;
@@ -198,12 +207,13 @@ declare global {
     appInfo: {
       get: () => Promise<AppInfo>;
       getDbFileSize: () => Promise<number | null>;
+      getPromptsDbSchemaVersion: () => Promise<number | null>;
     };
     promptBuilder: {
       listCategories: () => Promise<PromptCategory[]>;
       suggestTags: (
         query: PromptTagSuggestQuery,
-      ) => Promise<PromptTagSuggestion[]>;
+      ) => Promise<PromptTagSuggestResult>;
       createCategory: (name: string) => Promise<PromptCategory>;
       renameCategory: (id: number, name: string) => Promise<void>;
       deleteCategory: (id: number) => Promise<void>;
@@ -288,7 +298,9 @@ declare global {
       rename: (id: number, name: string) => Promise<Folder>;
     };
     nai: {
-      validateApiKey: (apiKey: string) => Promise<{ valid: boolean; tier?: string }>;
+      validateApiKey: (
+        apiKey: string,
+      ) => Promise<{ valid: boolean; tier?: string }>;
       getConfig: () => Promise<NaiConfig>;
       updateConfig: (patch: { apiKey?: string }) => Promise<NaiConfig>;
       generate: (params: GenerateParams) => Promise<string>;

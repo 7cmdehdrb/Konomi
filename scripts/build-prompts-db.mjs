@@ -3,7 +3,8 @@ import path from "path";
 import Database from "better-sqlite3";
 
 const PROMPTS_DB_FILENAME = "prompts.db";
-const PROMPTS_SCHEMA_VERSION = 1;
+const PROMPTS_SCHEMA_VERSION = 3;
+const TAG_COUNT_BUCKET_PERCENTILES = [0.8, 0.95, 0.99, 0.999];
 const DEFAULT_OUTPUT_PATH = path.resolve(
   process.cwd(),
   "resources",
@@ -143,12 +144,99 @@ function ensureSchema(db, sourceDataset) {
     upsertMeta.run("search_rank", "post_count_desc");
     upsertMeta.run(
       "schema_notes",
-      "prompt_tag stores prompt autocomplete tags ranked by post_count. Search is expected to use tag prefix filtering plus post_count descending order.",
+      "prompt_tag stores prompt autocomplete tags ranked by post_count. prompts_meta also stores global post_count bucket metadata for renderer autocomplete indicators.",
     );
     upsertMeta.run("built_at", new Date().toISOString());
   });
 
   transaction();
+}
+
+function computeTagCountStats(db) {
+  const summary = db
+    .prepare(
+      `SELECT
+         COUNT(*) AS total_tags,
+         COALESCE(MAX(post_count), 0) AS max_post_count
+       FROM prompt_tag`,
+    )
+    .get();
+
+  const totalTags = Math.max(
+    0,
+    Number.parseInt(String(summary?.total_tags ?? "0"), 10) || 0,
+  );
+  const maxPostCount = Math.max(
+    0,
+    Number.parseInt(String(summary?.max_post_count ?? "0"), 10) || 0,
+  );
+
+  if (totalTags === 0) {
+    return {
+      totalTags,
+      maxPostCount,
+      percentile95PostCount: 0,
+      scaleMaxPostCount: 0,
+      bucketPercentiles: TAG_COUNT_BUCKET_PERCENTILES,
+      bucketThresholds: [],
+    };
+  }
+
+  const selectPostCountAtOffset = db.prepare(
+    `SELECT post_count
+     FROM prompt_tag
+     ORDER BY post_count DESC, id ASC
+     LIMIT 1 OFFSET ?`,
+  );
+  const getPercentilePostCount = (percentile) => {
+    const topFraction = Math.max(0, 1 - percentile);
+    const offset = Math.max(0, Math.ceil(totalTags * topFraction) - 1);
+    const row = selectPostCountAtOffset.get(offset);
+    return Math.max(
+      0,
+      Number.parseInt(String(row?.post_count ?? "0"), 10) || 0,
+    );
+  };
+
+  const percentile95PostCount = getPercentilePostCount(0.95);
+  const bucketThresholds = TAG_COUNT_BUCKET_PERCENTILES.map(
+    getPercentilePostCount,
+  );
+
+  return {
+    totalTags,
+    maxPostCount,
+    percentile95PostCount,
+    scaleMaxPostCount: Math.max(1, percentile95PostCount || maxPostCount),
+    bucketPercentiles: TAG_COUNT_BUCKET_PERCENTILES,
+    bucketThresholds,
+  };
+}
+
+function writeTagCountStatsMeta(db) {
+  const stats = computeTagCountStats(db);
+  const upsertMeta = db.prepare(
+    `INSERT INTO prompts_meta (key, value)
+     VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  );
+
+  db.transaction(() => {
+    upsertMeta.run("tag_count_total", String(stats.totalTags));
+    upsertMeta.run("tag_count_max", String(stats.maxPostCount));
+    upsertMeta.run("tag_count_p95", String(stats.percentile95PostCount));
+    upsertMeta.run("tag_count_scale_max", String(stats.scaleMaxPostCount));
+    upsertMeta.run("tag_count_scale_strategy", "log_clamp_p95");
+    upsertMeta.run(
+      "tag_count_bucket_percentiles",
+      JSON.stringify(stats.bucketPercentiles),
+    );
+    upsertMeta.run(
+      "tag_count_bucket_thresholds",
+      JSON.stringify(stats.bucketThresholds),
+    );
+    upsertMeta.run("tag_count_bucket_strategy", "global_percentile_buckets");
+  })();
 }
 
 async function buildPromptsDB(csvPath, outputPath) {
@@ -223,6 +311,7 @@ async function buildPromptsDB(csvPath, outputPath) {
     inserted += batch.length;
   }
 
+  writeTagCountStatsMeta(db);
   db.exec("ANALYZE");
   db.exec("VACUUM");
   db.close();

@@ -3,6 +3,10 @@ import fs from "fs";
 import path from "path";
 import { unlink, readFile } from "fs/promises";
 import { readImageMeta, readNaiMetaFromBuffer } from "./lib/nai";
+import {
+  PROMPTS_DB_FILENAME,
+  readPromptsDBSchemaVersion,
+} from "./lib/prompts-db";
 import { readWebuiMetaFromBuffer } from "./lib/webui";
 import { bridge } from "./bridge";
 import { isManagedImagePath, registerTransientPath } from "./lib/path-guard";
@@ -30,6 +34,10 @@ export function registerIpcHandlers(): void {
     } catch {
       return null;
     }
+  });
+  ipcMain.handle("app:getPromptsDbSchemaVersion", () => {
+    const dbPath = path.join(app.getPath("userData"), PROMPTS_DB_FILENAME);
+    return readPromptsDBSchemaVersion(dbPath);
   });
 
   // ── File/system handlers (must stay in main process) ───────────────────────
