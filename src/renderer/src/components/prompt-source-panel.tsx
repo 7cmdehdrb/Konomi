@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { GripVertical } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -74,7 +74,9 @@ interface PromptSourcePanelProps {
   image: ImageData;
 }
 
-export function PromptSourcePanel({ image }: PromptSourcePanelProps) {
+export const PromptSourcePanel = memo(function PromptSourcePanel({
+  image,
+}: PromptSourcePanelProps) {
   const { t } = useTranslation();
 
   return (
@@ -123,4 +125,4 @@ export function PromptSourcePanel({ image }: PromptSourcePanelProps) {
       </div>
     </div>
   );
-}
+});

@@ -1,5 +1,6 @@
 import {
   Fragment,
+  memo,
   useEffect,
   useMemo,
   useRef,
@@ -98,7 +99,7 @@ function serializePrompt(tokens: EditableToken[], draft: string): string {
   return tokenText ? `${tokenText}, ${cleanDraft}` : cleanDraft;
 }
 
-export function PromptInput({
+export const PromptInput = memo(function PromptInput({
   value,
   onChange,
   placeholder,
@@ -1313,4 +1314,4 @@ export function PromptInput({
       {autocompletePortal}
     </div>
   );
-}
+});

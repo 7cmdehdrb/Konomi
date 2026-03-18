@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -525,7 +525,7 @@ function CategoryItem({
   );
 }
 
-export function PromptGroupPanel({
+export const PromptGroupPanel = memo(function PromptGroupPanel({
   categories,
   onCategoriesChange,
 }: PromptGroupPanelProps) {
@@ -765,4 +765,4 @@ export function PromptGroupPanel({
       </div>
     </div>
   );
-}
+});

@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -49,6 +59,7 @@ import type {
   NaiConfig,
   GenerateParams,
   PromptCategory,
+  PromptGroup,
 } from "@preload/index.d";
 import type { NovelAIMeta } from "@/types/nai";
 import type { ImageData } from "@/components/image-card";
@@ -67,6 +78,14 @@ type RefImage = {
   name: string;
   isObjectUrl: boolean;
 };
+
+type I2IRef = RefImage & { strength: number; noise: number };
+type VibeRef = RefImage & {
+  id: string;
+  infoExtracted: number;
+  strength: number;
+};
+type PreciseRef = RefImage & { fidelity: number };
 
 type CharacterPromptMode = "prompt" | "negativePrompt";
 
@@ -322,6 +341,16 @@ const SAMPLERS = [
 ];
 
 const NOISE_SCHEDULES = ["karras", "exponential", "polyexponential", "native"];
+const SAMPLER_OPTIONS = SAMPLERS.map((sampler) => ({
+  value: sampler,
+  label: sampler,
+}));
+const NOISE_SCHEDULE_OPTIONS = NOISE_SCHEDULES.map((noiseSchedule) => ({
+  value: noiseSchedule,
+  label: noiseSchedule,
+}));
+const INFINITY_SYMBOL = "\u221E";
+const NAI_GEN_PERSIST_DELAY_MS = 200;
 
 const INPUT_CLS =
   "w-full bg-secondary/60 border border-border/60 rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/60 focus:bg-secondary transition-colors";
@@ -372,7 +401,7 @@ function FieldLabel({
   );
 }
 
-function Select({
+function SelectBase({
   value,
   onChange,
   options,
@@ -403,11 +432,12 @@ function Select({
     </RadixSelect>
   );
 }
+const Select = memo(SelectBase);
 
 const INLINE_SELECT_TRIGGER_CLS =
   "h-auto data-[size=default]:h-auto p-0 border-none bg-transparent dark:bg-transparent hover:bg-transparent dark:hover:bg-transparent shadow-none text-sm font-semibold text-foreground gap-1 focus-visible:ring-0 [&_svg]:size-3.5 cursor-pointer";
 
-function InlineSelect({
+function InlineSelectBase({
   value,
   onChange,
   options,
@@ -433,6 +463,7 @@ function InlineSelect({
     </RadixSelect>
   );
 }
+const InlineSelect = memo(InlineSelectBase);
 
 function Slider({
   min,
@@ -440,6 +471,7 @@ function Slider({
   step = 1,
   value,
   onChange,
+  onCommit,
   disabled,
 }: {
   min: number;
@@ -447,8 +479,13 @@ function Slider({
   step?: number;
   value: number;
   onChange: (v: number) => void;
+  onCommit?: (v: number) => void;
   disabled?: boolean;
 }) {
+  const handleCommit = (event: React.SyntheticEvent<HTMLInputElement>) => {
+    onCommit?.(Number(event.currentTarget.value));
+  };
+
   return (
     <input
       type="range"
@@ -458,6 +495,9 @@ function Slider({
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(Number(e.target.value))}
+      onBlur={handleCommit}
+      onKeyUp={handleCommit}
+      onPointerUp={handleCommit}
       className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-primary bg-secondary disabled:opacity-30 disabled:cursor-not-allowed"
     />
   );
@@ -631,6 +671,39 @@ function loadNaiGenSettings() {
   }
 }
 
+function useLatestRef<T>(value: T) {
+  const ref = useRef(value);
+
+  useLayoutEffect(() => {
+    ref.current = value;
+  }, [value]);
+
+  return ref;
+}
+
+function expandGroupRefsFromCategories(
+  text: string,
+  categories: PromptCategory[],
+): string {
+  return text.replace(
+    /@\{([^:}]+)(?::([^}]*))?\}/g,
+    (_, name: string, overrideStr?: string) => {
+      if (overrideStr !== undefined) {
+        const tags = overrideStr
+          .split("|")
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0);
+        return tags.join(", ");
+      }
+      const group = categories
+        .flatMap((category) => category.groups)
+        .find((groupItem) => groupItem.name === name);
+      if (!group || group.tokens.length === 0) return "";
+      return group.tokens.map((token) => token.label).join(", ");
+    },
+  );
+}
+
 function RecentThumb({
   src,
   isCurrent,
@@ -679,10 +752,16 @@ function DeferredNumberInput({
   value,
   onChange,
   className,
+  min,
+  max,
+  step,
 }: {
   value: number;
   onChange: (v: number) => void;
   className?: string;
+  min?: number;
+  max?: number;
+  step?: number;
 }) {
   const [local, setLocal] = useState(String(value));
 
@@ -690,16 +769,30 @@ function DeferredNumberInput({
     setLocal(String(value));
   }, [value]);
 
+  const handleCommit = useCallback(() => {
+    const parsed = Number(local);
+    if (!Number.isFinite(parsed)) {
+      setLocal(String(value));
+      return;
+    }
+
+    const nextValue = Math.min(
+      max ?? parsed,
+      Math.max(min ?? parsed, parsed),
+    );
+    setLocal(String(nextValue));
+    onChange(nextValue);
+  }, [local, max, min, onChange, value]);
+
   return (
     <input
       type="number"
+      min={min}
+      max={max}
+      step={step}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
-      onBlur={() => {
-        const n = Number(local);
-        if (!isNaN(n) && n > 0) onChange(n);
-        else setLocal(String(value));
-      }}
+      onBlur={handleCommit}
       className={className}
     />
   );
@@ -708,7 +801,279 @@ function DeferredNumberInput({
 const INLINE_NUM_CLS =
   "w-10 text-sm font-semibold tabular-nums leading-none bg-transparent border-none outline-none text-foreground p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
-function AdvancedParamsSection({
+const formatInteger = (value: number) => String(value);
+const formatOneDecimal = (value: number) => value.toFixed(1);
+const formatTwoDecimals = (value: number) => value.toFixed(2);
+
+const AdvancedSamplerSummary = memo(function AdvancedSamplerSummary({
+  sampler,
+  setSampler,
+}: {
+  sampler: string;
+  setSampler: (v: string) => void;
+}) {
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+        Sampler
+      </span>
+      <InlineSelect
+        value={sampler}
+        onChange={setSampler}
+        options={SAMPLER_OPTIONS}
+        className="max-w-37.5"
+      />
+    </span>
+  );
+});
+
+const AdvancedSamplerNoiseControls = memo(function AdvancedSamplerNoiseControls({
+  sampler,
+  setSampler,
+  noiseSchedule,
+  setNoiseSchedule,
+}: {
+  sampler: string;
+  setSampler: (v: string) => void;
+  noiseSchedule: string;
+  setNoiseSchedule: (v: string) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <div>
+        <FieldLabel label={t("generation.advanced.sampler")} />
+        <Select value={sampler} onChange={setSampler} options={SAMPLER_OPTIONS} />
+      </div>
+      <div>
+        <FieldLabel label={t("generation.advanced.noise")} />
+        <Select
+          value={noiseSchedule}
+          onChange={setNoiseSchedule}
+          options={NOISE_SCHEDULE_OPTIONS}
+        />
+      </div>
+    </div>
+  );
+});
+
+const AdvancedInlineNumberSummary = memo(function AdvancedInlineNumberSummary({
+  label,
+  value,
+  setValue,
+  min,
+  max,
+  step,
+}: {
+  label: string;
+  value: number;
+  setValue: (v: number) => void;
+  min: number;
+  max: number;
+  step: number;
+}) {
+  const handleChange = useCallback(
+    (nextValue: number) => {
+      if (nextValue !== value) setValue(nextValue);
+    },
+    [setValue, value],
+  );
+
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+        {label}
+      </span>
+      <DeferredNumberInput
+        value={value}
+        onChange={handleChange}
+        min={min}
+        max={max}
+        step={step}
+        className={INLINE_NUM_CLS}
+      />
+    </span>
+  );
+});
+
+const AdvancedSeedSummary = memo(function AdvancedSeedSummary({
+  seedInput,
+  setSeedInput,
+}: {
+  seedInput: string;
+  setSeedInput: (v: string) => void;
+}) {
+  const [localSeed, setLocalSeed] = useState(seedInput);
+  const [seedFocused, setSeedFocused] = useState(false);
+
+  useEffect(() => {
+    if (!seedFocused) setLocalSeed(seedInput);
+  }, [seedFocused, seedInput]);
+
+  const commitSeedInput = useCallback(
+    (nextValue = localSeed) => {
+      setSeedFocused(false);
+      if (nextValue !== seedInput) setSeedInput(nextValue);
+    },
+    [localSeed, seedInput, setSeedInput],
+  );
+
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+        Seed
+      </span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={localSeed}
+        readOnly={!!localSeed.trim() && !seedFocused}
+        onMouseDown={
+          localSeed.trim() && !seedFocused
+            ? (e) => {
+                e.preventDefault();
+                setLocalSeed("");
+                setSeedInput("");
+              }
+            : undefined
+        }
+        onChange={(e) => setLocalSeed(e.target.value)}
+        onFocus={() => setSeedFocused(true)}
+        onBlur={() => commitSeedInput()}
+        placeholder="-"
+        className={cn(
+          "w-16 max-w-16 text-sm font-semibold tabular-nums leading-none font-mono bg-transparent border-none outline-none text-foreground placeholder:text-foreground/30 p-0",
+          localSeed.trim() && !seedFocused && "cursor-pointer truncate",
+        )}
+      />
+    </span>
+  );
+});
+
+const AdvancedSliderControl = memo(function AdvancedSliderControl({
+  label,
+  value,
+  setValue,
+  min,
+  max,
+  step,
+  formatValue,
+}: {
+  label: string;
+  value: number;
+  setValue: (v: number) => void;
+  min: number;
+  max: number;
+  step?: number;
+  formatValue: (value: number) => string;
+}) {
+  const [draftValue, setDraftValue] = useState(value);
+
+  useEffect(() => {
+    setDraftValue(value);
+  }, [value]);
+
+  const commitValue = useCallback(
+    (nextValue: number) => {
+      if (nextValue !== value) setValue(nextValue);
+    },
+    [setValue, value],
+  );
+
+  return (
+    <div>
+      <FieldLabel label={label} value={formatValue(draftValue)} />
+      <Slider
+        min={min}
+        max={max}
+        step={step}
+        value={draftValue}
+        onChange={setDraftValue}
+        onCommit={commitValue}
+      />
+    </div>
+  );
+});
+
+const AdvancedVarietyToggle = memo(function AdvancedVarietyToggle({
+  varietyPlus,
+  setVarietyPlus,
+}: {
+  varietyPlus: boolean;
+  setVarietyPlus: (v: boolean | ((p: boolean) => boolean)) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => setVarietyPlus((v) => !v)}
+      className={cn(
+        "flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors",
+        varietyPlus
+          ? "bg-primary/15 border-primary/40 text-primary"
+          : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
+      )}
+    >
+      <Check className={cn("h-3 w-3", !varietyPlus && "opacity-20")} />
+      Variety+
+    </button>
+  );
+});
+
+const AdvancedSeedControl = memo(function AdvancedSeedControl({
+  seedInput,
+  setSeedInput,
+}: {
+  seedInput: string;
+  setSeedInput: (v: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [localSeed, setLocalSeed] = useState(seedInput);
+  const [seedFocused, setSeedFocused] = useState(false);
+
+  useEffect(() => {
+    if (!seedFocused) setLocalSeed(seedInput);
+  }, [seedFocused, seedInput]);
+
+  const commitSeedInput = useCallback(
+    (nextValue = localSeed) => {
+      setSeedFocused(false);
+      if (nextValue !== seedInput) setSeedInput(nextValue);
+    },
+    [localSeed, seedInput, setSeedInput],
+  );
+
+  return (
+    <div>
+      <FieldLabel label={t("generation.advanced.seed")} />
+      <div className="flex gap-1.5">
+        <input
+          type="number"
+          value={localSeed}
+          onChange={(e) => setLocalSeed(e.target.value)}
+          onFocus={() => setSeedFocused(true)}
+          onBlur={() => commitSeedInput()}
+          placeholder={t("generation.advanced.random")}
+          className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono")}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            setLocalSeed("");
+            setSeedFocused(false);
+            setSeedInput("");
+          }}
+          title={t("generation.advanced.randomSeed")}
+          className="shrink-0 px-2.5 rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+        >
+          <Shuffle className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+});
+
+const AdvancedParamsSection = memo(function AdvancedParamsSection({
   steps,
   setSteps,
   scale,
@@ -743,12 +1108,7 @@ function AdvancedParamsSection({
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [localSeed, setLocalSeed] = useState(seedInput);
-  const [seedFocused, setSeedFocused] = useState(false);
-
-  useEffect(() => {
-    if (!seedFocused) setLocalSeed(seedInput);
-  }, [seedInput, seedFocused]);
+  const handleToggleOpen = useCallback(() => setOpen((value) => !value), []);
 
   return (
     <div className="overflow-hidden">
@@ -756,86 +1116,35 @@ function AdvancedParamsSection({
       <div className="flex">
         <div className="flex items-start gap-3 flex-wrap px-4 py-3.5 min-w-0">
           {/* Steps */}
-          <span className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-              Steps
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={50}
-              value={steps}
-              onChange={(e) => setSteps(Number(e.target.value))}
-              className={INLINE_NUM_CLS}
-            />
-          </span>
+          <AdvancedInlineNumberSummary
+            label="Steps"
+            value={steps}
+            setValue={setSteps}
+            min={1}
+            max={50}
+            step={1}
+          />
           <span className="w-px h-6 bg-border/50 shrink-0" />
           {/* CFG */}
-          <span className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-              CFG
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              step={0.1}
-              value={scale}
-              onChange={(e) => setScale(Number(e.target.value))}
-              className={INLINE_NUM_CLS}
-            />
-          </span>
+          <AdvancedInlineNumberSummary
+            label="CFG"
+            value={scale}
+            setValue={setScale}
+            min={1}
+            max={10}
+            step={0.1}
+          />
           <span className="w-px h-6 bg-border/50 shrink-0" />
           {/* Seed */}
-          <span className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-              Seed
-            </span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={localSeed}
-              readOnly={!!localSeed.trim() && !seedFocused}
-              onMouseDown={
-                localSeed.trim() && !seedFocused
-                  ? (e) => {
-                      e.preventDefault();
-                      setLocalSeed("");
-                      setSeedInput("");
-                    }
-                  : undefined
-              }
-              onChange={(e) => setLocalSeed(e.target.value)}
-              onFocus={() => setSeedFocused(true)}
-              onBlur={() => {
-                setSeedFocused(false);
-                setSeedInput(localSeed);
-              }}
-              placeholder="-"
-              className={cn(
-                "w-16 max-w-16 text-sm font-semibold tabular-nums leading-none font-mono bg-transparent border-none outline-none text-foreground placeholder:text-foreground/30 p-0",
-                localSeed.trim() && !seedFocused && "cursor-pointer truncate",
-              )}
-            />
-          </span>
+          <AdvancedSeedSummary seedInput={seedInput} setSeedInput={setSeedInput} />
           <span className="w-px h-6 bg-border/50 shrink-0" />
           {/* Sampler */}
-          <span className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-              Sampler
-            </span>
-            <InlineSelect
-              value={sampler}
-              onChange={setSampler}
-              options={SAMPLERS.map((s) => ({ value: s, label: s }))}
-              className="max-w-37.5"
-            />
-          </span>
+          <AdvancedSamplerSummary sampler={sampler} setSampler={setSampler} />
         </div>
         {/* 펼치기 버튼 */}
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={handleToggleOpen}
           className="ml-auto self-stretch px-4 flex cursor-pointer items-center justify-center rounded transition-colors"
         >
           <ChevronUp
@@ -850,83 +1159,46 @@ function AdvancedParamsSection({
       {/* 펼쳐진 본문 */}
       {open && (
         <div className="px-3 pb-3 pt-4 space-y-3.5 border-t border-border/30">
-          <div>
-            <FieldLabel label="Steps" value={steps} />
-            <Slider min={1} max={50} value={steps} onChange={setSteps} />
-          </div>
-          <div>
-            <FieldLabel label="CFG Scale" value={scale.toFixed(1)} />
-            <Slider
-              min={1}
-              max={10}
-              step={0.1}
-              value={scale}
-              onChange={setScale}
-            />
-          </div>
-          <div>
-            <FieldLabel
-              label="Prompt Guidance Rescale"
-              value={cfgRescale.toFixed(2)}
-            />
-            <Slider
-              min={0}
-              max={1}
-              step={0.02}
-              value={cfgRescale}
-              onChange={setCfgRescale}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setVarietyPlus((v) => !v)}
-            className={cn(
-              "flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors",
-              varietyPlus
-                ? "bg-primary/15 border-primary/40 text-primary"
-                : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
-            )}
-          >
-            <Check className={cn("h-3 w-3", !varietyPlus && "opacity-20")} />
-            Variety+
-          </button>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <FieldLabel label={t("generation.advanced.sampler")} />
-              <Select
-                value={sampler}
-                onChange={setSampler}
-                options={SAMPLERS.map((s) => ({ value: s, label: s }))}
-              />
-            </div>
-            <div>
-              <FieldLabel label={t("generation.advanced.noise")} />
-              <Select
-                value={noiseSchedule}
-                onChange={setNoiseSchedule}
-                options={NOISE_SCHEDULES.map((n) => ({ value: n, label: n }))}
-              />
-            </div>
-          </div>
-          <div>
-            <FieldLabel label={t("generation.advanced.seed")} />
-            <div className="flex gap-1.5">
-              <input
-                type="number"
-                value={seedInput}
-                onChange={(e) => setSeedInput(e.target.value)}
-                placeholder={t("generation.advanced.random")}
-                className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono")}
-              />
-              <button
-                onClick={() => setSeedInput("")}
-                title={t("generation.advanced.randomSeed")}
-                className="shrink-0 px-2.5 rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
-              >
-                <Shuffle className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
+          <AdvancedSliderControl
+            label="Steps"
+            value={steps}
+            setValue={setSteps}
+            min={1}
+            max={50}
+            formatValue={formatInteger}
+          />
+          <AdvancedSliderControl
+            label="CFG Scale"
+            value={scale}
+            setValue={setScale}
+            min={1}
+            max={10}
+            step={0.1}
+            formatValue={formatOneDecimal}
+          />
+          <AdvancedSliderControl
+            label="Prompt Guidance Rescale"
+            value={cfgRescale}
+            setValue={setCfgRescale}
+            min={0}
+            max={1}
+            step={0.02}
+            formatValue={formatTwoDecimals}
+          />
+          <AdvancedVarietyToggle
+            varietyPlus={varietyPlus}
+            setVarietyPlus={setVarietyPlus}
+          />
+          <AdvancedSamplerNoiseControls
+            sampler={sampler}
+            setSampler={setSampler}
+            noiseSchedule={noiseSchedule}
+            setNoiseSchedule={setNoiseSchedule}
+          />
+          <AdvancedSeedControl
+            seedInput={seedInput}
+            setSeedInput={setSeedInput}
+          />
           <button
             type="button"
             onClick={onReset}
@@ -938,9 +1210,277 @@ function AdvancedParamsSection({
       )}
     </div>
   );
-}
+});
 
-function AutoGenSection({
+const AutoGenSummaryHeader = memo(function AutoGenSummaryHeader({
+  count,
+  delay,
+  infinite,
+  seedMode,
+  open,
+  onToggleOpen,
+}: {
+  count: number;
+  delay: number;
+  infinite: boolean;
+  seedMode: "random" | "fixed";
+  open: boolean;
+  onToggleOpen: () => void;
+}) {
+  return (
+    <div className="flex">
+      <div className="flex items-center gap-3 flex-wrap px-4 py-3.5 min-w-0">
+        <span className="flex flex-col gap-0.5">
+          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+            Count
+          </span>
+          <span className="text-sm font-semibold tabular-nums leading-none">
+            {infinite ? INFINITY_SYMBOL : count}
+          </span>
+        </span>
+        <span className="w-px h-6 bg-border/50 shrink-0" />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+            Delay
+          </span>
+          <span className="text-sm font-semibold tabular-nums leading-none">
+            {delay.toFixed(1)}s
+          </span>
+        </span>
+        <span className="w-px h-6 bg-border/50 shrink-0" />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+            Seed
+          </span>
+          <span className="text-sm font-semibold leading-none">
+            {seedMode === "random" ? "Random" : "Fixed"}
+          </span>
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={onToggleOpen}
+        className="ml-auto self-stretch px-4 flex cursor-pointer items-center justify-center rounded transition-colors"
+      >
+        {open ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+    </div>
+  );
+});
+
+const AutoGenCountControl = memo(function AutoGenCountControl({
+  count,
+  setCount,
+  infinite,
+  setInfinite,
+}: {
+  count: number;
+  setCount: (v: number) => void;
+  infinite: boolean;
+  setInfinite: (v: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const [draftCount, setDraftCount] = useState(count);
+
+  useEffect(() => {
+    setDraftCount(count);
+  }, [count]);
+
+  const commitCount = useCallback(
+    (nextValue: number) => {
+      if (nextValue !== count) setCount(nextValue);
+    },
+    [count, setCount],
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs text-muted-foreground">
+          {t("generation.advanced.count")}
+        </span>
+        <div className="flex items-center gap-2">
+          {!infinite && (
+            <span className="text-xs font-mono text-foreground/80 bg-secondary px-1.5 py-0.5 rounded">
+              {t("generation.advanced.countUnit", { count: draftCount })}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setInfinite(!infinite)}
+            className={cn(
+              "flex items-center gap-1 text-xs px-2 py-0.5 rounded border transition-colors",
+              infinite
+                ? "bg-primary/15 border-primary/40 text-primary"
+                : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
+            )}
+          >
+            {infinite && <Check className="h-2.5 w-2.5" />}
+            {INFINITY_SYMBOL} {t("generation.advanced.infinite")}
+          </button>
+        </div>
+      </div>
+      <Slider
+        min={1}
+        max={50}
+        value={draftCount}
+        onChange={setDraftCount}
+        onCommit={commitCount}
+        disabled={infinite}
+      />
+    </div>
+  );
+});
+
+const AutoGenDelayControl = memo(function AutoGenDelayControl({
+  delay,
+  setDelay,
+}: {
+  delay: number;
+  setDelay: (v: number) => void;
+}) {
+  const { t } = useTranslation();
+  const [draftDelay, setDraftDelay] = useState(delay);
+
+  useEffect(() => {
+    setDraftDelay(delay);
+  }, [delay]);
+
+  const commitDelay = useCallback(
+    (nextValue: number) => {
+      if (nextValue !== delay) setDelay(nextValue);
+    },
+    [delay, setDelay],
+  );
+
+  return (
+    <div>
+      <FieldLabel
+        label={t("generation.advanced.delay")}
+        value={`${draftDelay.toFixed(1)}s`}
+      />
+      <Slider
+        min={3}
+        max={60}
+        step={0.5}
+        value={draftDelay}
+        onChange={setDraftDelay}
+        onCommit={commitDelay}
+      />
+    </div>
+  );
+});
+
+const AutoGenSeedModeControl = memo(function AutoGenSeedModeControl({
+  seedMode,
+  setSeedMode,
+  policyAgreed,
+  setPolicyAgreed,
+}: {
+  seedMode: "random" | "fixed";
+  setSeedMode: (v: "random" | "fixed") => void;
+  policyAgreed: boolean;
+  setPolicyAgreed: (v: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const [warningOpen, setWarningOpen] = useState(false);
+  const warningButtonRef = useRef<HTMLButtonElement | null>(null);
+  const warningPopoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!warningOpen) return;
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (warningButtonRef.current?.contains(target)) return;
+      if (warningPopoverRef.current?.contains(target)) return;
+      setWarningOpen(false);
+    };
+    window.addEventListener("mousedown", handleMouseDown);
+    return () => window.removeEventListener("mousedown", handleMouseDown);
+  }, [warningOpen]);
+
+  return (
+    <div>
+      <span className="text-xs text-muted-foreground block mb-2">
+        {t("generation.advanced.seedMode")}
+      </span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1">
+          {(["random", "fixed"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setSeedMode(mode)}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-md transition-colors",
+                seedMode === mode
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
+              )}
+            >
+              {mode === "random"
+                ? t("generation.advanced.seedModeRandom")
+                : t("generation.advanced.seedModeFixed")}
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <TooltipProvider delayDuration={0}>
+            <Tooltip open={!policyAgreed && !warningOpen}>
+              <TooltipTrigger asChild>
+                <button
+                  ref={warningButtonRef}
+                  type="button"
+                  onClick={() => setWarningOpen((prev) => !prev)}
+                  title={t("generation.advanced.warningTitle")}
+                  aria-label={t("generation.advanced.warningTooltip")}
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-warning/30 bg-warning/12 text-warning transition-colors hover:border-warning/50 hover:bg-warning/16"
+                >
+                  <TriangleAlert className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                align="end"
+                sideOffset={8}
+                collisionPadding={12}
+                className="max-w-56 select-none whitespace-normal text-left leading-relaxed text-foreground/85"
+              >
+                {t("generation.advanced.warningRequired")}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          {warningOpen && (
+            <div
+              ref={warningPopoverRef}
+              className="absolute bottom-full right-0 z-20 mb-2 w-80 rounded-xl border border-border/60 bg-popover p-3 shadow-xl"
+            >
+              <p className="text-sm font-semibold text-foreground">
+                {t("generation.advanced.warningTitle")}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-foreground/85">
+                {t("generation.advanced.warningDescription")}
+              </p>
+              <div className="mt-3 border-t border-border/40 pt-3">
+                <Checkbox
+                  checked={policyAgreed}
+                  onChange={setPolicyAgreed}
+                  label={t("generation.advanced.warningConfirmed")}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const AutoGenSection = memo(function AutoGenSection({
   count,
   setCount,
   delay,
@@ -963,196 +1503,1989 @@ function AutoGenSection({
   policyAgreed: boolean;
   setPolicyAgreed: (v: boolean) => void;
 }) {
-  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [warningOpen, setWarningOpen] = useState(false);
-  const warningButtonRef = useRef<HTMLButtonElement | null>(null);
-  const warningPopoverRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) setWarningOpen(false);
-  }, [open]);
-
-  useEffect(() => {
-    if (!warningOpen) return;
-    const handleMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (warningButtonRef.current?.contains(target)) return;
-      if (warningPopoverRef.current?.contains(target)) return;
-      setWarningOpen(false);
-    };
-    window.addEventListener("mousedown", handleMouseDown);
-    return () => window.removeEventListener("mousedown", handleMouseDown);
-  }, [warningOpen]);
 
   return (
     <div className="overflow-hidden">
-      <div className="flex">
-        <div className="flex items-center gap-3 flex-wrap px-4 py-3.5 min-w-0">
-          <span className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-              Count
-            </span>
-            <span className="text-sm font-semibold tabular-nums leading-none">
-              {infinite ? "∞" : count}
-            </span>
-          </span>
-          <span className="w-px h-6 bg-border/50 shrink-0" />
-          <span className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-              Delay
-            </span>
-            <span className="text-sm font-semibold tabular-nums leading-none">
-              {delay.toFixed(1)}s
-            </span>
-          </span>
-          <span className="w-px h-6 bg-border/50 shrink-0" />
-          <span className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
-              Seed
-            </span>
-            <span className="text-sm font-semibold leading-none">
-              {seedMode === "random" ? "Random" : "Fixed"}
-            </span>
-          </span>
-        </div>
-        {/* 펼치기 버튼 */}
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="ml-auto self-stretch px-4 flex cursor-pointer items-center justify-center rounded transition-colors"
-        >
-          {open ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          )}
-        </button>
-      </div>
+      <AutoGenSummaryHeader
+        count={count}
+        delay={delay}
+        infinite={infinite}
+        seedMode={seedMode}
+        open={open}
+        onToggleOpen={() => setOpen((v) => !v)}
+      />
       {open && (
         <div className="px-4 pb-4 space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-muted-foreground">
-                {t("generation.advanced.count")}
-              </span>
-              <div className="flex items-center gap-2">
-                {!infinite && (
-                  <span className="text-xs font-mono text-foreground/80 bg-secondary px-1.5 py-0.5 rounded">
-                    {t("generation.advanced.countUnit", { count })}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setInfinite(!infinite)}
-                  className={cn(
-                    "flex items-center gap-1 text-xs px-2 py-0.5 rounded border transition-colors",
-                    infinite
-                      ? "bg-primary/15 border-primary/40 text-primary"
-                      : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
-                  )}
-                >
-                  {infinite && <Check className="h-2.5 w-2.5" />}∞{" "}
-                  {t("generation.advanced.infinite")}
-                </button>
-              </div>
-            </div>
-            <Slider
-              min={1}
-              max={50}
-              value={count}
-              onChange={setCount}
-              disabled={infinite}
-            />
-          </div>
-          <div>
-            <FieldLabel
-              label={t("generation.advanced.delay")}
-              value={`${delay.toFixed(1)}s`}
-            />
-            <Slider
-              min={3}
-              max={60}
-              step={0.5}
-              value={delay}
-              onChange={setDelay}
-            />
-          </div>
-          <div>
-            <span className="text-xs text-muted-foreground block mb-2">
-              {t("generation.advanced.seedMode")}
-            </span>
-            <div className="flex items-center justify-between gap-3">
-              <div className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1">
-                {(["random", "fixed"] as const).map((mode) => (
+          <AutoGenCountControl
+            count={count}
+            setCount={setCount}
+            infinite={infinite}
+            setInfinite={setInfinite}
+          />
+          <AutoGenDelayControl delay={delay} setDelay={setDelay} />
+          <AutoGenSeedModeControl
+            seedMode={seedMode}
+            setSeedMode={setSeedMode}
+            policyAgreed={policyAgreed}
+            setPolicyAgreed={setPolicyAgreed}
+          />
+        </div>
+      )}
+    </div>
+  );
+});
+
+interface ModelSectionProps {
+  model: string;
+  setModel: Dispatch<SetStateAction<string>>;
+}
+
+const ModelSection = memo(function ModelSection({
+  model,
+  setModel,
+}: ModelSectionProps) {
+  const { t } = useTranslation();
+
+  return (
+    <div>
+      <SectionHeader label={t("generation.sections.model")} />
+      <Select value={model} onChange={setModel} options={MODELS} />
+    </div>
+  );
+});
+
+interface PromptSectionProps {
+  promptInputMode: "prompt" | "negativePrompt";
+  setPromptInputMode: Dispatch<SetStateAction<"prompt" | "negativePrompt">>;
+  prompt: string;
+  negativePrompt: string;
+  setPrompt: Dispatch<SetStateAction<string>>;
+  setNegativePrompt: Dispatch<SetStateAction<string>>;
+  promptGroups: PromptGroup[];
+}
+
+const PromptSection = memo(function PromptSection({
+  promptInputMode,
+  setPromptInputMode,
+  prompt,
+  negativePrompt,
+  setPrompt,
+  setNegativePrompt,
+  promptGroups,
+}: PromptSectionProps) {
+  const { t } = useTranslation();
+  const handlePromptChange = useCallback(
+    (nextValue: string) => {
+      if (promptInputMode === "prompt") {
+        setPrompt(nextValue);
+      } else {
+        setNegativePrompt(nextValue);
+      }
+    },
+    [promptInputMode, setNegativePrompt, setPrompt],
+  );
+
+  return (
+    <div data-tour="gen-prompt-input">
+      <SectionHeader label={t("generation.sections.prompt")} />
+      <div
+        className="mb-2 inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1"
+        role="radiogroup"
+        aria-label="Prompt input mode"
+      >
+        <button
+          type="button"
+          role="radio"
+          aria-checked={promptInputMode === "prompt"}
+          onClick={() => setPromptInputMode("prompt")}
+          className={cn(
+            "px-2.5 py-1 text-xs rounded-md transition-colors",
+            promptInputMode === "prompt"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
+          )}
+        >
+          Prompt
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={promptInputMode === "negativePrompt"}
+          onClick={() => setPromptInputMode("negativePrompt")}
+          className={cn(
+            "px-2.5 py-1 text-xs rounded-md transition-colors",
+            promptInputMode === "negativePrompt"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
+          )}
+        >
+          Negative Prompt
+        </button>
+      </div>
+      <PromptInput
+        key={promptInputMode}
+        value={promptInputMode === "prompt" ? prompt : negativePrompt}
+        onChange={handlePromptChange}
+        placeholder={
+          promptInputMode === "prompt"
+            ? "1girl, beautiful, masterpiece, ..."
+            : "nsfw, lowres, bad anatomy, ..."
+        }
+        minHeight={180}
+        maxHeight={460}
+        groups={promptGroups}
+        allowExternalDrop
+      />
+    </div>
+  );
+});
+
+interface CharacterPromptCardProps {
+  index: number;
+  character: CharacterPromptInput;
+  aiChoice: boolean;
+  hasDuplicatePosition: boolean;
+  promptGroups: PromptGroup[];
+  onSetInputMode: (index: number, inputMode: CharacterPromptMode) => void;
+  onRemove: (index: number) => void;
+  onPositionChange: (index: number, position: CharacterPosition) => void;
+  onValueChange: (index: number, nextValue: string) => void;
+}
+
+const CharacterPromptCard = memo(function CharacterPromptCard({
+  index,
+  character,
+  aiChoice,
+  hasDuplicatePosition,
+  promptGroups,
+  onSetInputMode,
+  onRemove,
+  onPositionChange,
+  onValueChange,
+}: CharacterPromptCardProps) {
+  const { t } = useTranslation();
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border bg-secondary/20 p-2 space-y-2",
+        !aiChoice && hasDuplicatePosition
+          ? "border-warning/50"
+          : "border-border/40",
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <div
+          className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1"
+          role="radiogroup"
+          aria-label={`Character ${index + 1} input mode`}
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={character.inputMode === "prompt"}
+            onClick={() => onSetInputMode(index, "prompt")}
+            className={cn(
+              "px-2 py-1 text-[11px] rounded-md transition-colors",
+              character.inputMode === "prompt"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
+            )}
+          >
+            Prompt
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={character.inputMode === "negativePrompt"}
+            onClick={() => onSetInputMode(index, "negativePrompt")}
+            className={cn(
+              "px-2 py-1 text-[11px] rounded-md transition-colors",
+              character.inputMode === "negativePrompt"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
+            )}
+          >
+            Negative Prompt
+          </button>
+        </div>
+        <div className="flex-1" />
+        <button
+          onClick={() => onRemove(index)}
+          className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {!aiChoice && (
+        <PositionAdjustButton
+          value={character.position}
+          onChange={(position) => onPositionChange(index, position)}
+        />
+      )}
+      <PromptInput
+        key={character.inputMode}
+        value={
+          character.inputMode === "prompt"
+            ? character.prompt
+            : character.negativePrompt
+        }
+        onChange={(nextValue) => onValueChange(index, nextValue)}
+        placeholder={
+          character.inputMode === "prompt"
+            ? t("generation.character.promptLabel", { index: index + 1 })
+            : t("generation.character.negativePromptLabel", {
+                index: index + 1,
+              })
+        }
+        minHeight={110}
+        maxHeight={300}
+        className="min-w-0"
+        groups={promptGroups}
+        allowExternalDrop
+      />
+    </div>
+  );
+});
+
+interface CharacterPromptsSectionProps {
+  characterPrompts: CharacterPromptInput[];
+  setCharacterPrompts: Dispatch<SetStateAction<CharacterPromptInput[]>>;
+  aiChoice: boolean;
+  setAiChoice: Dispatch<SetStateAction<boolean>>;
+  promptGroups: PromptGroup[];
+}
+
+const CharacterPromptsSection = memo(function CharacterPromptsSection({
+  characterPrompts,
+  setCharacterPrompts,
+  aiChoice,
+  setAiChoice,
+  promptGroups,
+}: CharacterPromptsSectionProps) {
+  const { t } = useTranslation();
+  const [characterAddOpen, setCharacterAddOpen] = useState(false);
+  const duplicatePositions = useMemo(() => {
+    if (aiChoice) return new Set<string>();
+
+    return new Set(
+      Object.entries(
+        characterPrompts.reduce<Record<string, number>>((acc, character) => {
+          acc[character.position] = (acc[character.position] ?? 0) + 1;
+          return acc;
+        }, {}),
+      )
+        .filter(([, count]) => count > 1)
+        .map(([position]) => position),
+    );
+  }, [aiChoice, characterPrompts]);
+
+  const handleAddCharacterPrompt = useCallback(
+    (preset: CharacterPromptPreset) => {
+      const promptPrefix =
+        CHARACTER_PROMPT_PRESETS.find((item) => item.value === preset)
+          ?.promptPrefix ?? "";
+      setCharacterPrompts((prev) => [
+        ...prev,
+        createCharacterPromptInput(promptPrefix),
+      ]);
+      setCharacterAddOpen(false);
+    },
+    [setCharacterAddOpen, setCharacterPrompts],
+  );
+
+  const handleToggleAiChoice = useCallback(() => {
+    const next = !aiChoice;
+    setAiChoice(next);
+    if (next) {
+      setCharacterPrompts((prev) =>
+        prev.map((character) => ({ ...character, position: "global" })),
+      );
+      return;
+    }
+
+    setCharacterPrompts((prev) =>
+      prev.map((character) => ({
+        ...character,
+        position: character.position === "global" ? "C3" : character.position,
+      })),
+    );
+  }, [aiChoice, setAiChoice, setCharacterPrompts]);
+
+  const handleSetInputMode = useCallback(
+    (index: number, inputMode: CharacterPromptMode) => {
+      setCharacterPrompts((prev) =>
+        prev.map((item, currentIndex) =>
+          currentIndex === index ? { ...item, inputMode } : item,
+        ),
+      );
+    },
+    [setCharacterPrompts],
+  );
+
+  const handleRemoveCharacter = useCallback(
+    (index: number) => {
+      setCharacterPrompts((prev) =>
+        prev.filter((_, currentIndex) => currentIndex !== index),
+      );
+    },
+    [setCharacterPrompts],
+  );
+
+  const handlePositionChange = useCallback(
+    (index: number, position: CharacterPosition) => {
+      setCharacterPrompts((prev) =>
+        prev.map((item, currentIndex) =>
+          currentIndex === index ? { ...item, position } : item,
+        ),
+      );
+    },
+    [setCharacterPrompts],
+  );
+
+  const handleValueChange = useCallback(
+    (index: number, nextValue: string) => {
+      setCharacterPrompts((prev) =>
+        prev.map((item, currentIndex) => {
+          if (currentIndex !== index) return item;
+          return item.inputMode === "prompt"
+            ? { ...item, prompt: nextValue }
+            : { ...item, negativePrompt: nextValue };
+        }),
+      );
+    },
+    [setCharacterPrompts],
+  );
+
+  return (
+    <div>
+      <SectionHeader
+        label={t("generation.sections.characters")}
+        action={
+          <div className="relative">
+            <button
+              onClick={() => setCharacterAddOpen((prev) => !prev)}
+              className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+            {characterAddOpen && (
+              <div className="absolute right-0 top-full mt-1 w-28 rounded-lg border border-border/60 bg-popover shadow-lg overflow-hidden z-10">
+                {CHARACTER_PROMPT_PRESETS.map((preset) => (
                   <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setSeedMode(mode)}
-                    className={cn(
-                      "px-2.5 py-1 text-xs rounded-md transition-colors",
-                      seedMode === mode
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
-                    )}
+                    key={preset.value}
+                    onClick={() => handleAddCharacterPrompt(preset.value)}
+                    className="w-full text-left px-2.5 py-1.5 text-xs text-foreground/80 hover:bg-secondary transition-colors"
                   >
-                    {mode === "random"
-                      ? t("generation.advanced.seedModeRandom")
-                      : t("generation.advanced.seedModeFixed")}
+                    {preset.label}
                   </button>
                 ))}
               </div>
-              <div className="relative">
-                <TooltipProvider delayDuration={0}>
-                  <Tooltip open={!policyAgreed && !warningOpen}>
-                    <TooltipTrigger asChild>
-                      <button
-                        ref={warningButtonRef}
-                        type="button"
-                        onClick={() => setWarningOpen((prev) => !prev)}
-                        title={t("generation.advanced.warningTitle")}
-                        aria-label={t("generation.advanced.warningTooltip")}
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-warning/30 bg-warning/12 text-warning transition-colors hover:border-warning/50 hover:bg-warning/16"
-                      >
-                        <TriangleAlert className="h-4 w-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      align="end"
-                      sideOffset={8}
-                      collisionPadding={12}
-                      className="max-w-56 select-none whitespace-normal text-left leading-relaxed text-foreground/85"
-                    >
-                      {t("generation.advanced.warningRequired")}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                {warningOpen && (
-                  <div
-                    ref={warningPopoverRef}
-                    className="absolute bottom-full right-0 z-20 mb-2 w-80 rounded-xl border border-border/60 bg-popover p-3 shadow-xl"
-                  >
-                    <p className="text-sm font-semibold text-foreground">
-                      {t("generation.advanced.warningTitle")}
-                    </p>
-                    <p className="mt-2 text-xs leading-relaxed text-foreground/85">
-                      {t("generation.advanced.warningDescription")}
-                    </p>
-                    <div className="mt-3 border-t border-border/40 pt-3">
-                      <Checkbox
-                        checked={policyAgreed}
-                        onChange={setPolicyAgreed}
-                        label={t("generation.advanced.warningConfirmed")}
-                      />
-                    </div>
-                  </div>
-                )}
+            )}
+          </div>
+        }
+      />
+      {characterPrompts.length > 0 && (
+        <div className="px-1 pb-1 space-y-1.5">
+          <button
+            type="button"
+            onClick={handleToggleAiChoice}
+            className={cn(
+              "flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors",
+              aiChoice
+                ? "bg-primary/15 border-primary/40 text-primary"
+                : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
+            )}
+          >
+            <Check className={cn("h-3 w-3", !aiChoice && "opacity-20")} />
+            Automatic Position
+          </button>
+          {duplicatePositions.size > 0 && (
+            <div className="flex items-center gap-1 text-[11px] text-warning">
+              <TriangleAlert className="h-3 w-3 shrink-0" />
+              <span>{t("generation.character.duplicatePosition")}</span>
+            </div>
+          )}
+        </div>
+      )}
+      {characterPrompts.length === 0 ? (
+        <p className="text-xs text-muted-foreground/40 text-center py-2">
+          {t("generation.character.empty")}
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {characterPrompts.map((character, index) => (
+            <CharacterPromptCard
+              key={index}
+              index={index}
+              character={character}
+              aiChoice={aiChoice}
+              hasDuplicatePosition={duplicatePositions.has(character.position)}
+              promptGroups={promptGroups}
+              onSetInputMode={handleSetInputMode}
+              onRemove={handleRemoveCharacter}
+              onPositionChange={handlePositionChange}
+              onValueChange={handleValueChange}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
+interface ReferenceSectionsProps {
+  i2iRef: I2IRef | null;
+  setI2iRef: Dispatch<SetStateAction<I2IRef | null>>;
+  vibes: VibeRef[];
+  setVibes: Dispatch<SetStateAction<VibeRef[]>>;
+  preciseRef: PreciseRef | null;
+  setPreciseRef: Dispatch<SetStateAction<PreciseRef | null>>;
+}
+
+const ReferenceSections = memo(function ReferenceSections({
+  i2iRef,
+  setI2iRef,
+  vibes,
+  setVibes,
+  preciseRef,
+  setPreciseRef,
+}: ReferenceSectionsProps) {
+  return (
+    <>
+      {i2iRef && (
+        <div>
+          <SectionHeader label="Image2Image" />
+          <RefCard
+            previewUrl={i2iRef.previewUrl}
+            onRemove={() => {
+              if (i2iRef.isObjectUrl) URL.revokeObjectURL(i2iRef.previewUrl);
+              setI2iRef(null);
+            }}
+          >
+            <div className="space-y-2">
+              <div>
+                <FieldLabel label="Strength" value={i2iRef.strength.toFixed(2)} />
+                <Slider
+                  min={0.01}
+                  max={0.99}
+                  step={0.01}
+                  value={i2iRef.strength}
+                  onChange={(value) =>
+                    setI2iRef((prev) => (prev ? { ...prev, strength: value } : prev))
+                  }
+                />
+              </div>
+              <div>
+                <FieldLabel label="Noise" value={i2iRef.noise.toFixed(2)} />
+                <Slider
+                  min={0}
+                  max={0.99}
+                  step={0.01}
+                  value={i2iRef.noise}
+                  onChange={(value) =>
+                    setI2iRef((prev) => (prev ? { ...prev, noise: value } : prev))
+                  }
+                />
               </div>
             </div>
+          </RefCard>
+        </div>
+      )}
+
+      {vibes.length > 0 && (
+        <div>
+          <SectionHeader label="Vibe Transfer" />
+          <div className="space-y-2">
+            {vibes.map((vibe) => (
+              <RefCard
+                key={vibe.id}
+                previewUrl={vibe.previewUrl}
+                onRemove={() => {
+                  if (vibe.isObjectUrl) URL.revokeObjectURL(vibe.previewUrl);
+                  setVibes((prev) => prev.filter((item) => item.id !== vibe.id));
+                }}
+              >
+                <div className="space-y-2">
+                  <div>
+                    <FieldLabel
+                      label="Info Extracted"
+                      value={vibe.infoExtracted.toFixed(2)}
+                    />
+                    <Slider
+                      min={0.01}
+                      max={1}
+                      step={0.01}
+                      value={vibe.infoExtracted}
+                      onChange={(value) =>
+                        setVibes((prev) =>
+                          prev.map((item) =>
+                            item.id === vibe.id
+                              ? { ...item, infoExtracted: value }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel
+                      label="Reference Strength"
+                      value={vibe.strength.toFixed(2)}
+                    />
+                    <Slider
+                      min={0.01}
+                      max={1}
+                      step={0.01}
+                      value={vibe.strength}
+                      onChange={(value) =>
+                        setVibes((prev) =>
+                          prev.map((item) =>
+                            item.id === vibe.id
+                              ? { ...item, strength: value }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              </RefCard>
+            ))}
           </div>
         </div>
       )}
+
+      {preciseRef && (
+        <div>
+          <SectionHeader label="Precise Reference" />
+          <RefCard
+            previewUrl={preciseRef.previewUrl}
+            onRemove={() => {
+              if (preciseRef.isObjectUrl)
+                URL.revokeObjectURL(preciseRef.previewUrl);
+              setPreciseRef(null);
+            }}
+          >
+            <div>
+              <FieldLabel
+                label="Fidelity"
+                value={preciseRef.fidelity.toFixed(2)}
+              />
+              <Slider
+                min={0}
+                max={1}
+                step={0.01}
+                value={preciseRef.fidelity}
+                onChange={(value) =>
+                  setPreciseRef((prev) =>
+                    prev ? { ...prev, fidelity: value } : prev,
+                  )
+                }
+              />
+            </div>
+          </RefCard>
+        </div>
+      )}
+    </>
+  );
+});
+
+interface SizeSectionProps {
+  width: number;
+  setWidth: Dispatch<SetStateAction<number>>;
+  height: number;
+  setHeight: Dispatch<SetStateAction<number>>;
+  customSizes: CustomSize[];
+  setCustomSizes: Dispatch<SetStateAction<CustomSize[]>>;
+}
+
+const SizeSection = memo(function SizeSection({
+  width,
+  setWidth,
+  height,
+  setHeight,
+  customSizes,
+  setCustomSizes,
+}: SizeSectionProps) {
+  const { t } = useTranslation();
+  const [customSizesOpen, setCustomSizesOpen] = useState(false);
+  const [customSizeAddW, setCustomSizeAddW] = useState("");
+  const [customSizeAddH, setCustomSizeAddH] = useState("");
+  const selectedPreset = useMemo(
+    () =>
+      SIZE_PRESETS.find(
+        (preset) => preset.width === width && preset.height === height,
+      ),
+    [height, width],
+  );
+  const handleSwapDimensions = useCallback(() => {
+    setWidth(height);
+    setHeight(width);
+  }, [height, setHeight, setWidth, width]);
+
+  return (
+    <div>
+      <SectionHeader label={t("generation.size.title")} />
+      <div className="flex gap-1.5">
+        {SIZE_PRESETS.map((preset) => (
+          <button
+            key={preset.key}
+            onClick={() => {
+              setWidth(preset.width);
+              setHeight(preset.height);
+            }}
+            className={cn(
+              "flex-1 py-1.5 text-xs rounded-lg border transition-colors",
+              selectedPreset?.key === preset.key
+                ? "bg-primary/20 text-primary border-primary/50 font-medium"
+                : "bg-secondary/60 text-muted-foreground border-border/60 hover:text-foreground hover:border-border",
+            )}
+          >
+            {t(`generation.size.${preset.key}`)}
+          </button>
+        ))}
+        <div className="relative">
+          <button
+            onClick={() => setCustomSizesOpen((prev) => !prev)}
+            className={cn(
+              "px-2.5 py-1.5 text-xs rounded-lg border transition-colors whitespace-nowrap",
+              customSizesOpen
+                ? "bg-primary/20 text-primary border-primary/50 font-medium"
+                : "bg-secondary/60 text-muted-foreground border-border/60 hover:text-foreground hover:border-border",
+            )}
+          >
+            {t("generation.size.custom")}
+          </button>
+          {customSizesOpen && (
+            <div className="absolute right-0 bottom-full mb-1 w-52 rounded-lg border border-border/60 bg-popover shadow-lg z-10 overflow-hidden">
+              {customSizes.length === 0 ? (
+                <p className="px-3 py-8 text-xs text-muted-foreground text-center">
+                  {t("generation.size.noSavedSizes")}
+                </p>
+              ) : (
+                customSizes.map((size, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-1 px-2 py-1.5 hover:bg-secondary transition-colors"
+                  >
+                    <button
+                      onClick={() => {
+                        setWidth(size.width);
+                        setHeight(size.height);
+                        setCustomSizesOpen(false);
+                      }}
+                      className="flex-1 text-left text-xs text-foreground/80 font-mono cursor-pointer"
+                    >
+                      {size.width} 횞 {size.height}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const next = customSizes.filter(
+                          (_, currentIndex) => currentIndex !== index,
+                        );
+                        setCustomSizes(next);
+                        saveCustomSizes(next);
+                      }}
+                      className="text-muted-foreground/60 hover:text-destructive transition-colors"
+                      aria-label={t("generation.size.deleteAria")}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))
+              )}
+              <div className="border-t border-border/40 px-2 py-2 flex items-center gap-1.5">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={customSizeAddW}
+                  onChange={(e) => setCustomSizeAddW(e.target.value)}
+                  placeholder="W"
+                  className="w-0 flex-1 min-w-0 bg-secondary/60 border border-border/60 rounded px-1.5 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary/50 cursor-text"
+                />
+                <span className="text-xs text-muted-foreground shrink-0">횞</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={customSizeAddH}
+                  onChange={(e) => setCustomSizeAddH(e.target.value)}
+                  placeholder="H"
+                  className="w-0 flex-1 min-w-0 bg-secondary/60 border border-border/60 rounded px-1.5 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary/50 cursor-text"
+                />
+                <button
+                  onClick={() => {
+                    const nextWidth = parseInt(customSizeAddW, 10);
+                    const nextHeight = parseInt(customSizeAddH, 10);
+                    if (
+                      !nextWidth ||
+                      !nextHeight ||
+                      nextWidth <= 0 ||
+                      nextHeight <= 0
+                    ) {
+                      return;
+                    }
+
+                    const exists = customSizes.some(
+                      (size) =>
+                        size.width === nextWidth && size.height === nextHeight,
+                    );
+                    if (!exists) {
+                      const next = [
+                        ...customSizes,
+                        { width: nextWidth, height: nextHeight },
+                      ];
+                      setCustomSizes(next);
+                      saveCustomSizes(next);
+                    }
+                    setCustomSizeAddW("");
+                    setCustomSizeAddH("");
+                  }}
+                  className="shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer"
+                  aria-label={t("generation.size.addAria")}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-2">
+        <DeferredNumberInput
+          value={width}
+          onChange={setWidth}
+          className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono text-center")}
+        />
+        <button
+          type="button"
+          onClick={handleSwapDimensions}
+          title={t("generation.size.swapTitle")}
+          aria-label={t("generation.size.swapAria")}
+          className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground transition-colors hover:border-border hover:bg-secondary hover:text-foreground"
+        >
+          <ArrowRightLeft className="h-3.5 w-3.5" />
+        </button>
+        <DeferredNumberInput
+          value={height}
+          onChange={setHeight}
+          className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono text-center")}
+        />
+      </div>
+    </div>
+  );
+});
+
+interface GenerateActionsSectionProps {
+  hasApiKey: boolean;
+  outputFolder: string;
+  prompt: string;
+  generating: boolean;
+  autoGenProgress: { current: number; total: number | null } | null;
+  autoCancelPending: boolean;
+  autoGenPolicyAgreed: boolean;
+  onGenerate: () => void;
+  onAutoGenerate: () => void;
+  onCancelAutoGenerate: () => void;
+}
+
+const GenerateActionsSection = memo(function GenerateActionsSection({
+  hasApiKey,
+  outputFolder,
+  prompt,
+  generating,
+  autoGenProgress,
+  autoCancelPending,
+  autoGenPolicyAgreed,
+  onGenerate,
+  onAutoGenerate,
+  onCancelAutoGenerate,
+}: GenerateActionsSectionProps) {
+  const { t } = useTranslation();
+  const canGenerate =
+    !generating &&
+    !autoGenProgress &&
+    hasApiKey &&
+    !!outputFolder &&
+    !!prompt.trim();
+  const canAutoGenerate = canGenerate && autoGenPolicyAgreed;
+
+  return (
+    <div className="p-3 border-t border-border bg-sidebar">
+      {autoGenProgress ? (
+        <div className="space-y-2">
+          {autoGenProgress.total !== null ? (
+            <div className="w-full bg-secondary rounded-full h-1">
+              <div
+                className="bg-primary h-1 rounded-full transition-all duration-300"
+                style={{
+                  width: `${(autoGenProgress.current / autoGenProgress.total) * 100}%`,
+                }}
+              />
+            </div>
+          ) : (
+            <div className="w-full bg-secondary rounded-full h-1 overflow-hidden">
+              <div className="h-1 bg-primary/60 animate-pulse w-full" />
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground tabular-nums flex items-center gap-1.5">
+              {generating && <Loader2 className="h-3 w-3 animate-spin" />}
+              {autoGenProgress.current} / {autoGenProgress.total ?? "??"}
+            </span>
+            <button
+              type="button"
+              disabled={autoCancelPending}
+              onClick={onCancelAutoGenerate}
+              className={cn(
+                "flex items-center gap-1 text-xs transition-colors",
+                autoCancelPending
+                  ? "text-muted-foreground/40 cursor-not-allowed"
+                  : "text-muted-foreground hover:text-destructive",
+              )}
+            >
+              <X className="h-3 w-3" />
+              {autoCancelPending
+                ? t("generation.actions.stopPending")
+                : t("generation.actions.stop")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="relative flex gap-2" data-tour="gen-generate-button">
+          <div className="group/gen relative flex-1">
+            {!canGenerate &&
+              !generating &&
+              !autoGenProgress &&
+              hasApiKey &&
+              !!outputFolder &&
+              !prompt.trim() && (
+                <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden -translate-x-1/2 rounded-lg border border-border/60 bg-popover px-2.5 py-1.5 shadow-lg group-hover/gen:block">
+                  <p className="whitespace-nowrap text-[11px] text-foreground/85">
+                    {t("generation.actions.enterPrompt")}
+                  </p>
+                </div>
+              )}
+            <button
+              onClick={onGenerate}
+              disabled={!canGenerate}
+              className={cn(
+                "w-full h-10 flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all",
+                canGenerate
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
+                  : "bg-secondary/60 text-muted-foreground cursor-not-allowed",
+              )}
+            >
+              {generating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4" />
+              )}
+              {generating
+                ? t("generation.actions.generating")
+                : t("generation.actions.generate")}
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onAutoGenerate}
+            disabled={!canAutoGenerate}
+            title={
+              autoGenPolicyAgreed
+                ? t("generation.actions.autoGenerate")
+                : t("generation.actions.autoGenerateNeedsWarning")
+            }
+            className={cn(
+              "h-10 px-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-center",
+              canAutoGenerate
+                ? "border-primary/50 text-primary hover:bg-primary/10"
+                : "border-border/40 text-muted-foreground cursor-not-allowed",
+            )}
+          >
+            <Sparkles className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
+
+interface ResultViewportProps {
+  generating: boolean;
+  previewSrc: string | null;
+  error: string | null;
+  resultSrc: string | null;
+  recentSeeds: Map<string, number>;
+  setSeedInput: Dispatch<SetStateAction<string>>;
+}
+
+const ResultViewport = memo(function ResultViewport({
+  generating,
+  previewSrc,
+  error,
+  resultSrc,
+  recentSeeds,
+  setSeedInput,
+}: ResultViewportProps) {
+  const { t } = useTranslation();
+  const [seedDropdownOpen, setSeedDropdownOpen] = useState(false);
+  const seedDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!seedDropdownOpen) return;
+    const handler = (event: MouseEvent) => {
+      if (
+        seedDropdownRef.current &&
+        !seedDropdownRef.current.contains(event.target as Node)
+      ) {
+        setSeedDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [seedDropdownOpen]);
+
+  return (
+    <div className="relative z-10 flex flex-col items-center justify-center w-full h-full">
+      {generating ? (
+        previewSrc ? (
+          <div className="relative w-full h-full flex items-center justify-center">
+            <img
+              src={previewSrc}
+              alt={t("generation.actions.generatingPreviewAlt")}
+              className="w-full h-full object-contain rounded-sm"
+            />
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/70 backdrop-blur-sm border border-border/40">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span className="text-xs text-muted-foreground">
+                {t("generation.actions.generating")}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-16 w-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <Loader2 className="h-7 w-7 text-primary animate-spin" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-foreground">
+                {t("generation.actions.generatingNow")}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {t("generation.actions.generatingWait")}
+              </p>
+            </div>
+          </div>
+        )
+      ) : error ? (
+        <div className="max-w-sm w-full mx-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-center">
+          <p className="text-sm font-medium text-destructive mb-1.5">
+            {t("generation.actions.generationFailed")}
+          </p>
+          <p className="text-xs text-muted-foreground break-all leading-relaxed">
+            {error}
+          </p>
+        </div>
+      ) : resultSrc ? (
+        <>
+          <img
+            src={resultSrc}
+            alt={t("generation.actions.resultAlt")}
+            className="max-w-full max-h-full object-contain rounded-sm"
+          />
+          {recentSeeds.get(resultSrc) != null && (
+            <div ref={seedDropdownRef} className="absolute bottom-3 right-3 z-20">
+              <button
+                onClick={() => setSeedDropdownOpen((open) => !open)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background/80 backdrop-blur-sm border border-border/50 text-xs font-mono tabular-nums text-foreground/80 hover:text-foreground hover:bg-background/95 transition-colors shadow-sm"
+              >
+                <Hash className="h-3 w-3 shrink-0" />
+                {recentSeeds.get(resultSrc)}
+              </button>
+              {seedDropdownOpen && (
+                <div className="absolute bottom-full right-0 mb-1.5 w-36 rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
+                  <button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(
+                        String(recentSeeds.get(resultSrc)),
+                      );
+                      setSeedDropdownOpen(false);
+                      toast.success(t("generation.actions.seedCopied"));
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors"
+                  >
+                    <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    {t("generation.actions.copyToClipboard")}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSeedInput(String(recentSeeds.get(resultSrc)));
+                      setSeedDropdownOpen(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    {t("generation.actions.importSeed")}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="flex flex-col items-center gap-3 select-none">
+          <div className="h-16 w-16 rounded-2xl bg-secondary/50 border border-border/30 flex items-center justify-center">
+            <Wand2 className="h-7 w-7 text-muted-foreground/80" />
+          </div>
+          <p className="text-xs text-muted-foreground/80">
+            {t("generation.actions.emptyState")}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+});
+
+interface RecentImagesPanelProps {
+  recentImages: string[];
+  resultSrc: string | null;
+  setResultSrc: Dispatch<SetStateAction<string | null>>;
+}
+
+const RecentImagesPanel = memo(function RecentImagesPanel({
+  recentImages,
+  resultSrc,
+  setResultSrc,
+}: RecentImagesPanelProps) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="w-24 shrink-0 border-l border-border/60 bg-card/70 flex flex-col">
+      <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest text-center pt-3 pb-1 shrink-0">
+        {t("generation.actions.recent")}
+      </p>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {recentImages.length > 0 ? (
+          <div className="p-2 space-y-1.5">
+            {recentImages.map((src, index) => (
+              <RecentThumb
+                key={src + index}
+                src={src}
+                isCurrent={src === resultSrc}
+                onClick={() => setResultSrc(src)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[10px] text-muted-foreground/40 text-center px-2 pt-4">
+            {t("generation.actions.noRecent")}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+});
+
+interface ResultAreaProps {
+  dragOver: boolean;
+  onDragOver: (event: React.DragEvent) => void;
+  onDragEnter: (event: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (event: React.DragEvent) => void;
+  generating: boolean;
+  previewSrc: string | null;
+  error: string | null;
+  resultSrc: string | null;
+  recentSeeds: Map<string, number>;
+  setSeedInput: Dispatch<SetStateAction<string>>;
+  recentImages: string[];
+  setResultSrc: Dispatch<SetStateAction<string | null>>;
+}
+
+const ResultArea = memo(function ResultArea({
+  dragOver,
+  onDragOver,
+  onDragEnter,
+  onDragLeave,
+  onDrop,
+  generating,
+  previewSrc,
+  error,
+  resultSrc,
+  recentSeeds,
+  setSeedInput,
+  recentImages,
+  setResultSrc,
+}: ResultAreaProps) {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      <div
+        className="flex-1 flex flex-col items-center justify-center overflow-hidden relative"
+        onDragOver={onDragOver}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage:
+              "linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+
+        {dragOver && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-primary/5 border-2 border-dashed border-primary/40 rounded-none transition-all">
+            <div className="h-14 w-14 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center mb-3">
+              <ImagePlus className="h-7 w-7 text-primary/70" />
+            </div>
+            <p className="text-sm font-medium text-primary/70">
+              {t("generation.actions.dropHere")}
+            </p>
+          </div>
+        )}
+
+        <ResultViewport
+          generating={generating}
+          previewSrc={previewSrc}
+          error={error}
+          resultSrc={resultSrc}
+          recentSeeds={recentSeeds}
+          setSeedInput={setSeedInput}
+        />
+      </div>
+
+      <RecentImagesPanel
+        recentImages={recentImages}
+        resultSrc={resultSrc}
+        setResultSrc={setResultSrc}
+      />
+    </>
+  );
+});
+
+interface LeftPanelProps {
+  panelWidth: number;
+  hasApiKey: boolean;
+  outputFolder: string;
+  tourActive: boolean;
+  model: string;
+  setModel: Dispatch<SetStateAction<string>>;
+  promptInputMode: "prompt" | "negativePrompt";
+  setPromptInputMode: Dispatch<SetStateAction<"prompt" | "negativePrompt">>;
+  prompt: string;
+  negativePrompt: string;
+  setPrompt: Dispatch<SetStateAction<string>>;
+  setNegativePrompt: Dispatch<SetStateAction<string>>;
+  promptGroups: PromptGroup[];
+  characterPrompts: CharacterPromptInput[];
+  setCharacterPrompts: Dispatch<SetStateAction<CharacterPromptInput[]>>;
+  aiChoice: boolean;
+  setAiChoice: Dispatch<SetStateAction<boolean>>;
+  i2iRef: I2IRef | null;
+  setI2iRef: Dispatch<SetStateAction<I2IRef | null>>;
+  vibes: VibeRef[];
+  setVibes: Dispatch<SetStateAction<VibeRef[]>>;
+  preciseRef: PreciseRef | null;
+  setPreciseRef: Dispatch<SetStateAction<PreciseRef | null>>;
+  width: number;
+  setWidth: Dispatch<SetStateAction<number>>;
+  height: number;
+  setHeight: Dispatch<SetStateAction<number>>;
+  customSizes: CustomSize[];
+  setCustomSizes: Dispatch<SetStateAction<CustomSize[]>>;
+  steps: number;
+  setSteps: Dispatch<SetStateAction<number>>;
+  scale: number;
+  setScale: Dispatch<SetStateAction<number>>;
+  cfgRescale: number;
+  setCfgRescale: Dispatch<SetStateAction<number>>;
+  varietyPlus: boolean;
+  setVarietyPlus: Dispatch<SetStateAction<boolean>>;
+  sampler: string;
+  setSampler: Dispatch<SetStateAction<string>>;
+  noiseSchedule: string;
+  setNoiseSchedule: Dispatch<SetStateAction<string>>;
+  seedInput: string;
+  setSeedInput: Dispatch<SetStateAction<string>>;
+  autoGenCount: number;
+  setAutoGenCount: Dispatch<SetStateAction<number>>;
+  autoGenDelay: number;
+  setAutoGenDelay: Dispatch<SetStateAction<number>>;
+  autoGenSeedMode: "random" | "fixed";
+  setAutoGenSeedMode: Dispatch<SetStateAction<"random" | "fixed">>;
+  autoGenInfinite: boolean;
+  setAutoGenInfinite: Dispatch<SetStateAction<boolean>>;
+  autoGenPolicyAgreed: boolean;
+  setAutoGenPolicyAgreed: Dispatch<SetStateAction<boolean>>;
+  generating: boolean;
+  autoGenProgress: { current: number; total: number | null } | null;
+  autoCancelPending: boolean;
+  onGenerate: () => void;
+  onAutoGenerate: () => void;
+  onCancelAutoGenerate: () => void;
+}
+
+const LeftPanel = memo(function LeftPanel({
+  panelWidth,
+  hasApiKey,
+  outputFolder,
+  tourActive,
+  model,
+  setModel,
+  promptInputMode,
+  setPromptInputMode,
+  prompt,
+  negativePrompt,
+  setPrompt,
+  setNegativePrompt,
+  promptGroups,
+  characterPrompts,
+  setCharacterPrompts,
+  aiChoice,
+  setAiChoice,
+  i2iRef,
+  setI2iRef,
+  vibes,
+  setVibes,
+  preciseRef,
+  setPreciseRef,
+  width,
+  setWidth,
+  height,
+  setHeight,
+  customSizes,
+  setCustomSizes,
+  steps,
+  setSteps,
+  scale,
+  setScale,
+  cfgRescale,
+  setCfgRescale,
+  varietyPlus,
+  setVarietyPlus,
+  sampler,
+  setSampler,
+  noiseSchedule,
+  setNoiseSchedule,
+  seedInput,
+  setSeedInput,
+  autoGenCount,
+  setAutoGenCount,
+  autoGenDelay,
+  setAutoGenDelay,
+  autoGenSeedMode,
+  setAutoGenSeedMode,
+  autoGenInfinite,
+  setAutoGenInfinite,
+  autoGenPolicyAgreed,
+  setAutoGenPolicyAgreed,
+  generating,
+  autoGenProgress,
+  autoCancelPending,
+  onGenerate,
+  onAutoGenerate,
+  onCancelAutoGenerate,
+}: LeftPanelProps) {
+  const { t } = useTranslation();
+  const handleResetAdvancedParams = useCallback(() => {
+    setSteps(NAI_GEN_DEFAULTS.steps);
+    setScale(NAI_GEN_DEFAULTS.scale);
+    setCfgRescale(NAI_GEN_DEFAULTS.cfgRescale);
+    setVarietyPlus(NAI_GEN_DEFAULTS.varietyPlus);
+    setSampler(NAI_GEN_DEFAULTS.sampler);
+    setNoiseSchedule(NAI_GEN_DEFAULTS.noiseSchedule);
+    setSeedInput("");
+  }, [
+    setCfgRescale,
+    setNoiseSchedule,
+    setSampler,
+    setScale,
+    setSeedInput,
+    setSteps,
+    setVarietyPlus,
+  ]);
+
+  return (
+    <div
+      className="relative flex flex-col border-r border-border shrink-0 bg-sidebar overflow-hidden"
+      style={{
+        width: panelWidth,
+        minWidth: panelWidth,
+        maxWidth: panelWidth,
+      }}
+    >
+      {(!hasApiKey || !outputFolder) && !tourActive && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 backdrop-blur-sm bg-sidebar/60 select-none">
+          <Settings className="h-8 w-8 text-muted-foreground/60" />
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-sm font-medium text-foreground/80">
+              {t("generation.state.configurationRequired")}
+            </span>
+            <span className="text-[11px] text-muted-foreground text-center leading-relaxed">
+              {t("generation.state.configurationMessage", {
+                target:
+                  !hasApiKey && !outputFolder
+                    ? t("generation.state.configurationApiKeyAndOutput")
+                    : !hasApiKey
+                      ? t("generation.state.configurationApiKey")
+                      : t("generation.state.configurationOutputFolder"),
+              })}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-4 space-y-5 w-full">
+          <ModelSection model={model} setModel={setModel} />
+          <PromptSection
+            promptInputMode={promptInputMode}
+            setPromptInputMode={setPromptInputMode}
+            prompt={prompt}
+            negativePrompt={negativePrompt}
+            setPrompt={setPrompt}
+            setNegativePrompt={setNegativePrompt}
+            promptGroups={promptGroups}
+          />
+          <CharacterPromptsSection
+            characterPrompts={characterPrompts}
+            setCharacterPrompts={setCharacterPrompts}
+            aiChoice={aiChoice}
+            setAiChoice={setAiChoice}
+            promptGroups={promptGroups}
+          />
+          <ReferenceSections
+            i2iRef={i2iRef}
+            setI2iRef={setI2iRef}
+            vibes={vibes}
+            setVibes={setVibes}
+            preciseRef={preciseRef}
+            setPreciseRef={setPreciseRef}
+          />
+          <SizeSection
+            width={width}
+            setWidth={setWidth}
+            height={height}
+            setHeight={setHeight}
+            customSizes={customSizes}
+            setCustomSizes={setCustomSizes}
+          />
+        </div>
+      </ScrollArea>
+
+      <div className="border-t border-border/40 bg-sidebar">
+        <AdvancedParamsSection
+          steps={steps}
+          setSteps={setSteps}
+          scale={scale}
+          setScale={setScale}
+          cfgRescale={cfgRescale}
+          setCfgRescale={setCfgRescale}
+          varietyPlus={varietyPlus}
+          setVarietyPlus={setVarietyPlus}
+          sampler={sampler}
+          setSampler={setSampler}
+          noiseSchedule={noiseSchedule}
+          setNoiseSchedule={setNoiseSchedule}
+          seedInput={seedInput}
+          setSeedInput={setSeedInput}
+          onReset={handleResetAdvancedParams}
+        />
+      </div>
+
+      <div
+        className="border-t border-border/40 bg-sidebar"
+        data-tour="gen-auto-gen"
+      >
+        <AutoGenSection
+          count={autoGenCount}
+          setCount={setAutoGenCount}
+          delay={autoGenDelay}
+          setDelay={setAutoGenDelay}
+          seedMode={autoGenSeedMode}
+          setSeedMode={setAutoGenSeedMode}
+          infinite={autoGenInfinite}
+          setInfinite={setAutoGenInfinite}
+          policyAgreed={autoGenPolicyAgreed}
+          setPolicyAgreed={setAutoGenPolicyAgreed}
+        />
+      </div>
+
+      <GenerateActionsSection
+        hasApiKey={hasApiKey}
+        outputFolder={outputFolder}
+        prompt={prompt}
+        generating={generating}
+        autoGenProgress={autoGenProgress}
+        autoCancelPending={autoCancelPending}
+        autoGenPolicyAgreed={autoGenPolicyAgreed}
+        onGenerate={onGenerate}
+        onAutoGenerate={onAutoGenerate}
+        onCancelAutoGenerate={onCancelAutoGenerate}
+      />
+    </div>
+  );
+});
+
+interface RightSidePanelProps {
+  visible: boolean;
+  width: number;
+  tab: "settings" | "prompt-group" | "reference";
+  setVisible: Dispatch<SetStateAction<boolean>>;
+  setTab: Dispatch<SetStateAction<"settings" | "prompt-group" | "reference">>;
+  sourceImage: ImageData | null;
+  setSourceImage: Dispatch<SetStateAction<ImageData | null>>;
+  categories: PromptCategory[];
+  setCategories: Dispatch<SetStateAction<PromptCategory[]>>;
+  apiKeyInput: string;
+  setApiKeyInput: Dispatch<SetStateAction<string>>;
+  apiKeyValidated: boolean;
+  setApiKeyValidated: Dispatch<SetStateAction<boolean>>;
+  validating: boolean;
+  onValidateApiKey: () => void;
+  outputFolder: string;
+  onSelectOutputFolder: () => void;
+  configSaving: boolean;
+  onSaveConfig: () => void;
+  onResizeStart: (event: React.MouseEvent) => void;
+}
+
+const RightSidePanel = memo(function RightSidePanel({
+  visible,
+  width,
+  tab,
+  setVisible,
+  setTab,
+  sourceImage,
+  setSourceImage,
+  categories,
+  setCategories,
+  apiKeyInput,
+  setApiKeyInput,
+  apiKeyValidated,
+  setApiKeyValidated,
+  validating,
+  onValidateApiKey,
+  outputFolder,
+  onSelectOutputFolder,
+  configSaving,
+  onSaveConfig,
+  onResizeStart,
+}: RightSidePanelProps) {
+  const { t } = useTranslation();
+
+  return visible ? (
+    <>
+      <div
+        className="shrink-0 flex flex-col h-full bg-sidebar border-r border-border/40 overflow-hidden"
+        style={{ width }}
+      >
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border/40 shrink-0">
+          <button
+            onClick={() => setVisible(false)}
+            title={t("generation.actions.collapsePanel")}
+            className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <div className="flex-1" />
+          {(
+            [
+              { id: "settings", icon: Settings, title: t("settings.title") },
+              {
+                id: "prompt-group",
+                icon: LayoutList,
+                title: t("generation.actions.promptGroup"),
+              },
+              {
+                id: "reference",
+                icon: ImageIcon,
+                title: t("generation.actions.referenceImage"),
+              },
+            ] as const
+          ).map(({ id, icon: Icon, title }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              title={title}
+              className={cn(
+                "h-7 w-7 rounded flex items-center justify-center transition-colors",
+                tab === id
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+            </button>
+          ))}
+          {tab === "reference" && sourceImage && (
+            <button
+              onClick={() => setSourceImage(null)}
+              title={t("generation.actions.removeReferenceImage")}
+              className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0 ml-0.5"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {tab === "prompt-group" && (
+          <div data-tour="gen-prompt-group-panel" className="flex-1 min-h-0">
+            <PromptGroupPanel
+              categories={categories}
+              onCategoriesChange={setCategories}
+            />
+          </div>
+        )}
+
+        {tab === "settings" && (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="divide-y divide-border/40 flex-1 overflow-y-auto">
+              <div className="px-4 py-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground select-none">
+                    NovelAI API Key
+                  </span>
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={t("generation.actions.apiKeyHelp")}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-transparent text-muted-foreground transition-colors hover:border-border hover:bg-secondary/40 hover:text-foreground"
+                        >
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        sideOffset={8}
+                        className="max-w-80 text-foreground/85 p-2"
+                      >
+                        {t("generation.actions.apiKeyHelpDescription")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                {apiKeyValidated ? (
+                  <div className="flex gap-1.5">
+                    <input
+                      type="password"
+                      value={apiKeyInput}
+                      readOnly
+                      className={cn(INPUT_CLS, "flex-1 min-w-0")}
+                    />
+                    <button
+                      onClick={() => {
+                        setApiKeyInput("");
+                        setApiKeyValidated(false);
+                      }}
+                      className="shrink-0 h-8 px-2.5 rounded-lg border border-border/60 bg-secondary/60 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                    >
+                      {t("generation.actions.replace")}
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="API Key"
+                    className={cn(INPUT_CLS, "w-full")}
+                  />
+                )}
+                <button
+                  onClick={onValidateApiKey}
+                  disabled={validating || !apiKeyInput.trim() || apiKeyValidated}
+                  className={cn(
+                    "mt-1.5 w-full h-8 flex items-center justify-center gap-1.5 rounded-lg border text-xs transition-colors disabled:opacity-40",
+                    apiKeyValidated
+                      ? "border-success/40 bg-success/10 text-success"
+                      : "border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border",
+                  )}
+                >
+                  {validating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : apiKeyValidated ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : null}
+                  {apiKeyValidated
+                    ? t("generation.actions.loginSuccess")
+                    : t("generation.actions.login")}
+                </button>
+              </div>
+
+              <div className="px-4 py-3 space-y-1.5">
+                <span className="text-xs text-muted-foreground select-none">
+                  {t("generation.actions.outputFolder")}
+                </span>
+                <div className="flex gap-1.5">
+                  <input
+                    value={outputFolder}
+                    placeholder={t("generation.actions.outputFolderPlaceholder")}
+                    className={cn(INPUT_CLS, "flex-1 min-w-0")}
+                    readOnly
+                  />
+                  <button
+                    onClick={onSelectOutputFolder}
+                    className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 py-3 border-t border-border/40 shrink-0">
+              <button
+                onClick={onSaveConfig}
+                disabled={configSaving}
+                className="w-full h-9 flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40"
+              >
+                {configSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {t("generation.actions.save")}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {tab === "reference" &&
+          (sourceImage ? (
+            <PromptSourcePanel image={sourceImage} />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center gap-2 select-none">
+              <div className="h-12 w-12 rounded-xl bg-secondary/50 border border-border/30 flex items-center justify-center">
+                <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
+              </div>
+              <p className="text-xs text-muted-foreground/40 text-center px-4">
+                {t("generation.actions.sendToReferenceHint")}
+              </p>
+            </div>
+          ))}
+      </div>
+
+      <div
+        onMouseDown={onResizeStart}
+        className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors"
+      />
+    </>
+  ) : (
+    <button
+      onClick={() => setVisible(true)}
+      title={t("generation.actions.openPanel")}
+      className="shrink-0 w-5 h-full flex items-center justify-center border-r border-border/40 bg-sidebar text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+    >
+      <ChevronRight className="h-3.5 w-3.5" />
+    </button>
+  );
+});
+
+function DuplicateGenerationModal({
+  open,
+  onClose,
+  onContinue,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onContinue: () => void;
+}) {
+  const { t } = useTranslation();
+
+  if (!open) return null;
+
+  return (
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+      <div className="w-80 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <p className="text-sm font-semibold text-foreground">
+            {t("generation.dialogs.duplicateTitle")}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {t("generation.dialogs.duplicateDescription")}
+          </p>
+        </div>
+        <div className="flex gap-2 p-3">
+          <button
+            onClick={onClose}
+            className="flex-1 h-9 rounded-lg border border-border/60 bg-secondary/60 text-sm text-foreground hover:bg-secondary transition-colors"
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            onClick={onContinue}
+            className="flex-1 h-9 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            {t("generation.dialogs.continueGenerate")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ValidateResultModal({
+  result,
+  onClose,
+}: {
+  result: { valid: boolean; tier?: string; error?: string } | null;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+
+  if (!result) return null;
+
+  return (
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+      <div className="w-80 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center gap-3">
+          <div
+            className={cn(
+              "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+              result.valid
+                ? "bg-success/15 text-success"
+                : "bg-destructive/15 text-destructive",
+            )}
+          >
+            {result.valid ? (
+              <Save className="h-4 w-4" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {result.valid
+                ? t("generation.dialogs.validApiKey")
+                : t("generation.dialogs.invalidApiKey")}
+            </p>
+            {result.valid && result.tier && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {t("generation.dialogs.subscriptionTier", {
+                  tier: result.tier,
+                })}
+              </p>
+            )}
+            {!result.valid && result.error && (
+              <p className="text-xs text-muted-foreground mt-0.5 break-all">
+                {result.error}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="px-5 py-3 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 h-8 rounded-lg bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors"
+          >
+            {t("generation.dialogs.confirm")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DropImportModal({
+  dropItem,
+  previewUrl,
+  loadingAction,
+  vibeDisabled,
+  preciseDisabled,
+  importChecks,
+  importing,
+  importError,
+  onClose,
+  onSetI2i,
+  onAddVibe,
+  onSetPreciseRef,
+  onToggleCheck,
+  onImportMetadata,
+}: {
+  dropItem: DropItem | null;
+  previewUrl: string | null;
+  loadingAction: string | null;
+  vibeDisabled: boolean;
+  preciseDisabled: boolean;
+  importChecks: ImportChecks;
+  importing: boolean;
+  importError: string | null;
+  onClose: () => void;
+  onSetI2i: () => void;
+  onAddVibe: () => void;
+  onSetPreciseRef: () => void;
+  onToggleCheck: (key: keyof ImportChecks) => void;
+  onImportMetadata: () => void;
+}) {
+  const { t } = useTranslation();
+
+  if (!dropItem) return null;
+
+  return (
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+      <div className="w-100 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {t("generation.dialogs.imageAction")}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-70">
+              {dropItem.name}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {previewUrl && (
+          <div
+            className="bg-secondary/20 flex items-center justify-center"
+            style={{ maxHeight: 220 }}
+          >
+            <img
+              src={previewUrl}
+              alt={t("generation.dialogs.previewAlt")}
+              className="max-w-full object-contain"
+              style={{ maxHeight: 220 }}
+            />
+          </div>
+        )}
+
+        <div className="px-5 py-4 border-b border-border/50">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-3">
+            {t("generation.dialogs.actionSelect")}
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                {
+                  icon: ImagePlus,
+                  label: "Image2Image",
+                  action: onSetI2i,
+                  key: "i2i",
+                  disabled: false,
+                },
+                {
+                  icon: Sparkles,
+                  label: "Vibe Transfer",
+                  action: onAddVibe,
+                  key: "vibe",
+                  disabled: vibeDisabled,
+                },
+                {
+                  icon: Crosshair,
+                  label: "Precise Ref",
+                  action: onSetPreciseRef,
+                  key: "precise",
+                  disabled: preciseDisabled,
+                },
+              ] as const
+            ).map(({ icon: Icon, label, action, key, disabled }) => (
+              <button
+                key={label}
+                onClick={action}
+                disabled={disabled || !!loadingAction}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 py-3 rounded-xl border transition-colors relative overflow-hidden",
+                  disabled
+                    ? "border-border/40 bg-secondary/30 text-muted-foreground/40 cursor-not-allowed"
+                    : "border-border/60 bg-secondary/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-secondary cursor-pointer",
+                )}
+              >
+                {loadingAction === key ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Icon className="h-5 w-5" />
+                )}
+                <span className="text-[10px] font-medium">{label}</span>
+                {disabled && (
+                  <span className="absolute top-1 right-1 text-[8px] bg-border/60 text-muted-foreground/60 px-1 py-0.5 rounded font-medium leading-none">
+                    {t("generation.dialogs.disabled")}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          {vibeDisabled && (
+            <p className="text-[10px] text-muted-foreground/50 mt-2">
+              {t("generation.dialogs.preciseDisablesVibe")}
+            </p>
+          )}
+          {preciseDisabled && (
+            <p className="text-[10px] text-muted-foreground/50 mt-2">
+              {t("generation.dialogs.vibeDisablesPrecise")}
+            </p>
+          )}
+        </div>
+
+        <div className="px-5 py-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-3">
+            {t("generation.dialogs.importMetadata")}
+          </p>
+          <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 mb-4">
+            <Checkbox
+              checked={importChecks.prompt}
+              onChange={() => onToggleCheck("prompt")}
+              label="Prompt"
+            />
+            <Checkbox
+              checked={importChecks.negativePrompt}
+              onChange={() => onToggleCheck("negativePrompt")}
+              label="Negative Prompt"
+            />
+            <Checkbox
+              checked={importChecks.characters}
+              onChange={() => onToggleCheck("characters")}
+              label="Characters"
+            />
+            <Checkbox
+              checked={importChecks.charactersAppend}
+              onChange={() => onToggleCheck("charactersAppend")}
+              label="Append"
+              disabled={!importChecks.characters}
+            />
+            <Checkbox
+              checked={importChecks.settings}
+              onChange={() => onToggleCheck("settings")}
+              label="Settings"
+            />
+            <Checkbox
+              checked={importChecks.seed}
+              onChange={() => onToggleCheck("seed")}
+              label="Seed"
+            />
+          </div>
+          {importError && (
+            <p className="text-xs text-destructive mb-3 bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2">
+              {importError}
+            </p>
+          )}
+          <button
+            onClick={onImportMetadata}
+            disabled={importing || Object.values(importChecks).every((v) => !v)}
+            className="w-full h-9 flex items-center justify-center gap-2 rounded-lg bg-primary/15 border border-primary/30 text-primary text-sm font-medium hover:bg-primary/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {importing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : null}
+            {importing
+              ? t("generation.dialogs.importingMetadata")
+              : t("generation.dialogs.importMetadata")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1191,28 +3524,12 @@ export function GenerationView({
   const [characterPrompts, setCharacterPrompts] = useState<
     CharacterPromptInput[]
   >(() => loadLastGenParams()?.characterPrompts ?? []);
-  const [characterAddOpen, setCharacterAddOpen] = useState(false);
   const [customSizes, setCustomSizes] = useState<CustomSize[]>(() =>
     loadCustomSizes(),
   );
-  const [customSizesOpen, setCustomSizesOpen] = useState(false);
-  const [customSizeAddW, setCustomSizeAddW] = useState("");
-  const [customSizeAddH, setCustomSizeAddH] = useState("");
   const [aiChoice, setAiChoice] = useState(
     () => loadLastGenParams()?.aiChoice ?? true,
   );
-  const duplicatePositions = !aiChoice
-    ? new Set(
-        Object.entries(
-          characterPrompts.reduce<Record<string, number>>((acc, c) => {
-            acc[c.position] = (acc[c.position] ?? 0) + 1;
-            return acc;
-          }, {}),
-        )
-          .filter(([, n]) => n > 1)
-          .map(([p]) => p),
-      )
-    : new Set<string>();
   const [model, setModel] = useState(() => loadNaiGenSettings().model);
   const [width, setWidth] = useState(() => loadNaiGenSettings().width);
   const [height, setHeight] = useState(() => loadNaiGenSettings().height);
@@ -1252,8 +3569,6 @@ export function GenerationView({
     new Map(),
   );
   const [error, setError] = useState<string | null>(null);
-  const [seedDropdownOpen, setSeedDropdownOpen] = useState(false);
-  const seedDropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Right side panel
   const [sourceImage, setSourceImage] = useState<ImageData | null>(null);
@@ -1392,20 +3707,6 @@ export function GenerationView({
     return window.nai.onGeneratePreview((dataUrl) => setPreviewSrc(dataUrl));
   }, []);
 
-  useEffect(() => {
-    if (!seedDropdownOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (
-        seedDropdownRef.current &&
-        !seedDropdownRef.current.contains(e.target as Node)
-      ) {
-        setSeedDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [seedDropdownOpen]);
-
   // Resizable panel
   const [panelWidth, setPanelWidth] = useState(() => {
     try {
@@ -1520,6 +3821,34 @@ export function GenerationView({
     () => categories.flatMap((c) => c.groups),
     [categories],
   );
+  const latestViewStateRef = useLatestRef({
+    prompt,
+    negativePrompt,
+    characterPrompts,
+    aiChoice,
+    seedInput,
+    outputFolder,
+    model,
+    width,
+    height,
+    steps,
+    scale,
+    cfgRescale,
+    varietyPlus,
+    sampler,
+    noiseSchedule,
+    i2iRef,
+    vibes,
+    preciseRef,
+    categories,
+    apiKey: config?.apiKey,
+    autoGenCount,
+    autoGenDelay,
+    autoGenInfinite,
+    autoGenPolicyAgreed,
+    autoGenSeedMode,
+    t,
+  });
 
   const reloadGroups = () => {
     window.promptBuilder
@@ -1553,21 +3882,29 @@ export function GenerationView({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    localStorage.setItem(
-      NAI_GEN_KEY,
-      JSON.stringify({
-        outputFolder,
-        model,
-        sampler,
-        steps,
-        scale,
-        cfgRescale,
-        varietyPlus,
-        width,
-        height,
-        noiseSchedule,
-      }),
-    );
+    const timeoutId = window.setTimeout(() => {
+      try {
+        localStorage.setItem(
+          NAI_GEN_KEY,
+          JSON.stringify({
+            outputFolder,
+            model,
+            sampler,
+            steps,
+            scale,
+            cfgRescale,
+            varietyPlus,
+            width,
+            height,
+            noiseSchedule,
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
+    }, NAI_GEN_PERSIST_DELAY_MS);
+
+    return () => window.clearTimeout(timeoutId);
   }, [
     outputFolder,
     model,
@@ -1647,14 +3984,15 @@ export function GenerationView({
     return () => window.removeEventListener("beforeunload", onUnload);
   }, []);
 
-  const handleValidateApiKey = async () => {
-    if (!apiKeyInput.trim()) return;
+  const handleValidateApiKey = useCallback(async () => {
+    const nextApiKey = apiKeyInput.trim();
+    if (!nextApiKey) return;
     setValidating(true);
     try {
-      const result = await window.nai.validateApiKey(apiKeyInput.trim());
+      const result = await window.nai.validateApiKey(nextApiKey);
       if (result.valid) {
         const updated = await window.nai.updateConfig({
-          apiKey: apiKeyInput.trim(),
+          apiKey: nextApiKey,
         });
         setConfig(updated);
         setApiKeyValidated(true);
@@ -1669,9 +4007,9 @@ export function GenerationView({
     } finally {
       setValidating(false);
     }
-  };
+  }, [apiKeyInput]);
 
-  const handleSaveConfig = async () => {
+  const handleSaveConfig = useCallback(async () => {
     setConfigSaving(true);
     try {
       const updated = await window.nai.updateConfig({ apiKey: apiKeyInput });
@@ -1686,57 +4024,53 @@ export function GenerationView({
     } finally {
       setConfigSaving(false);
     }
-  };
+  }, [apiKeyInput, t]);
 
-  const expandGroupRefs = (text: string): string =>
-    text.replace(
-      /@\{([^:}]+)(?::([^}]*))?\}/g,
-      (_, name: string, overrideStr?: string) => {
-        if (overrideStr !== undefined) {
-          // Use local override tags embedded in the token
-          const tags = overrideStr
-            .split("|")
-            .map((t) => t.trim())
-            .filter((t) => t.length > 0);
-          return tags.join(", ");
-        }
-        const group = categories
-          .flatMap((c) => c.groups)
-          .find((g) => g.name === name);
-        if (!group || group.tokens.length === 0) return "";
-        return group.tokens.map((t) => t.label).join(", ");
-      },
-    );
+  const handleSelectOutputFolder = useCallback(async () => {
+    const dir = await window.dialog.selectDirectory();
+    if (dir) onOutputFolderChange(dir);
+  }, [onOutputFolderChange]);
 
-  const saveLastGenParams = (nextSeedInput = seedInput) => {
-    try {
-      localStorage.setItem(
-        LAST_GEN_PARAMS_KEY,
-        JSON.stringify({
-          prompt,
-          negativePrompt,
-          characterPrompts,
-          aiChoice,
-          seedInput: nextSeedInput,
-        }),
-      );
-    } catch {
-      /* ignore */
-    }
-  };
+  const saveLastGenParams = useCallback(
+    (nextSeedInput?: string) => {
+      const {
+        prompt: nextPrompt,
+        negativePrompt: nextNegativePrompt,
+        characterPrompts: nextCharacterPrompts,
+        aiChoice: nextAiChoice,
+        seedInput: currentSeedInput,
+      } = latestViewStateRef.current;
+      try {
+        localStorage.setItem(
+          LAST_GEN_PARAMS_KEY,
+          JSON.stringify({
+            prompt: nextPrompt,
+            negativePrompt: nextNegativePrompt,
+            characterPrompts: nextCharacterPrompts,
+            aiChoice: nextAiChoice,
+            seedInput: nextSeedInput ?? currentSeedInput,
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
+    },
+    [latestViewStateRef],
+  );
 
   const resolveSeedForGeneration = useCallback(
     (
       rawSeedInput: string,
       options?: { switchAutoSeedModeToRandom?: boolean },
     ) => {
+      const { t: translate } = latestViewStateRef.current;
       const parsedSeed = parseSeedInputValue(rawSeedInput);
       if (parsedSeed.kind !== "invalid") {
         return parsedSeed.kind === "valid" ? parsedSeed.value : undefined;
       }
 
       toast.warning(
-        t("generation.feedback.invalidSeedRange", {
+        translate("generation.feedback.invalidSeedRange", {
           min: NAI_SEED_MIN,
           max: NAI_SEED_MAX,
         }),
@@ -1747,18 +4081,22 @@ export function GenerationView({
       }
       return createRandomSeed();
     },
-    [],
+    [latestViewStateRef],
   );
 
-  const handleGenerate = async (force = false) => {
-    if (!prompt.trim()) return;
-    const seed = resolveSeedForGeneration(seedInput);
-    const validCharacterPrompts = characterPrompts.filter((c) =>
+  const handleGenerate = useCallback(async (force = false) => {
+    const current = latestViewStateRef.current;
+    if (!current.prompt.trim()) return;
+
+    const expandGroupRefs = (text: string) =>
+      expandGroupRefsFromCategories(text, current.categories);
+    const seed = resolveSeedForGeneration(current.seedInput);
+    const validCharacterPrompts = current.characterPrompts.filter((c) =>
       c.prompt.trim(),
     );
     const paramsKey = JSON.stringify({
-      prompt: expandGroupRefs(prompt),
-      negativePrompt: expandGroupRefs(negativePrompt),
+      prompt: expandGroupRefs(current.prompt),
+      negativePrompt: expandGroupRefs(current.negativePrompt),
       characterPrompts: validCharacterPrompts.map((c) =>
         expandGroupRefs(c.prompt.trim()),
       ),
@@ -1766,20 +4104,20 @@ export function GenerationView({
         expandGroupRefs(c.negativePrompt.trim()),
       ),
       characterPositions: validCharacterPrompts.map((c) => c.position),
-      model,
-      width,
-      height,
-      steps,
-      scale,
-      sampler,
-      noiseSchedule,
+      model: current.model,
+      width: current.width,
+      height: current.height,
+      steps: current.steps,
+      scale: current.scale,
+      sampler: current.sampler,
+      noiseSchedule: current.noiseSchedule,
       seed,
-      i2iName: i2iRef?.name,
-      i2iStrength: i2iRef?.strength,
-      i2iNoise: i2iRef?.noise,
-      vibes: vibes.map((v) => v.name + v.infoExtracted + v.strength),
-      preciseRefName: preciseRef?.name,
-      preciseRefFidelity: preciseRef?.fidelity,
+      i2iName: current.i2iRef?.name,
+      i2iStrength: current.i2iRef?.strength,
+      i2iNoise: current.i2iRef?.noise,
+      vibes: current.vibes.map((v) => v.name + v.infoExtracted + v.strength),
+      preciseRefName: current.preciseRef?.name,
+      preciseRefFidelity: current.preciseRef?.fidelity,
     });
     if (!force && paramsKey === lastParamsKeyRef.current) {
       setDupAlert(true);
@@ -1792,8 +4130,8 @@ export function GenerationView({
     setPreviewSrc(null);
     try {
       const params: GenerateParams = {
-        prompt: expandGroupRefs(prompt),
-        negativePrompt: expandGroupRefs(negativePrompt),
+        prompt: expandGroupRefs(current.prompt),
+        negativePrompt: expandGroupRefs(current.negativePrompt),
         ...(validCharacterPrompts.length > 0 && {
           characterPrompts: validCharacterPrompts.map((c) =>
             expandGroupRefs(c.prompt.trim()),
@@ -1803,35 +4141,35 @@ export function GenerationView({
           ),
           characterPositions: validCharacterPrompts.map((c) => c.position),
         }),
-        outputFolder,
-        model,
-        width,
-        height,
-        steps,
-        scale,
-        cfgRescale,
-        varietyPlus,
-        sampler,
-        noiseSchedule,
+        outputFolder: current.outputFolder,
+        model: current.model,
+        width: current.width,
+        height: current.height,
+        steps: current.steps,
+        scale: current.scale,
+        cfgRescale: current.cfgRescale,
+        varietyPlus: current.varietyPlus,
+        sampler: current.sampler,
+        noiseSchedule: current.noiseSchedule,
         seed,
-        ...(i2iRef && {
+        ...(current.i2iRef && {
           i2i: {
-            imageData: i2iRef.data,
-            strength: i2iRef.strength,
-            noise: i2iRef.noise,
+            imageData: current.i2iRef.data,
+            strength: current.i2iRef.strength,
+            noise: current.i2iRef.noise,
           },
         }),
-        ...(vibes.length > 0 && {
-          vibes: vibes.map((v) => ({
+        ...(current.vibes.length > 0 && {
+          vibes: current.vibes.map((v) => ({
             imageData: v.data,
             infoExtracted: v.infoExtracted,
             strength: v.strength,
           })),
         }),
-        ...(preciseRef && {
+        ...(current.preciseRef && {
           preciseRef: {
-            imageData: preciseRef.data,
-            fidelity: preciseRef.fidelity,
+            imageData: current.preciseRef.data,
+            fidelity: current.preciseRef.fidelity,
           },
         }),
       };
@@ -1839,7 +4177,7 @@ export function GenerationView({
       const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
       setResultSrc(src);
       setRecentImages((prev) => [src, ...prev]);
-      saveLastGenParams(getStoredSeedInput(seedInput));
+      saveLastGenParams(getStoredSeedInput(current.seedInput));
       void window.image.readNaiMeta(filePath).then((meta) => {
         if (meta?.seed != null) {
           setRecentSeeds((prev) => new Map(prev).set(src, meta.seed!));
@@ -1851,37 +4189,46 @@ export function GenerationView({
       setGenerating(false);
       setPreviewSrc(null);
     }
-  };
+  }, [latestViewStateRef, resolveSeedForGeneration, saveLastGenParams]);
 
-  const handleAutoGenerate = async () => {
-    if (!autoGenPolicyAgreed) {
-      toast.error(t("generation.feedback.autoGenerateWarning"));
+  const handleAutoGenerate = useCallback(async () => {
+    const current = latestViewStateRef.current;
+    if (!current.autoGenPolicyAgreed) {
+      toast.error(current.t("generation.feedback.autoGenerateWarning"));
       return;
     }
-    if (!prompt.trim() || !config?.apiKey || !outputFolder) return;
+    if (!current.prompt.trim() || !current.apiKey || !current.outputFolder)
+      return;
+
+    const expandGroupRefs = (text: string) =>
+      expandGroupRefsFromCategories(text, current.categories);
     const cancelToken = { cancelled: false };
     autoCancelRef.current = cancelToken;
     const fixedSeed =
-      autoGenSeedMode === "fixed"
-        ? resolveSeedForGeneration(seedInput, {
+      current.autoGenSeedMode === "fixed"
+        ? resolveSeedForGeneration(current.seedInput, {
             switchAutoSeedModeToRandom: true,
           })
         : undefined;
     const useRandomSeed =
-      autoGenSeedMode === "random" || fixedSeed === undefined;
+      current.autoGenSeedMode === "random" || fixedSeed === undefined;
 
-    for (let i = 0; autoGenInfinite || i < autoGenCount; i++) {
+    for (
+      let i = 0;
+      current.autoGenInfinite || i < current.autoGenCount;
+      i++
+    ) {
       if (cancelToken.cancelled) break;
 
       const overrideSeed = useRandomSeed ? createRandomSeed() : fixedSeed;
 
-      const validCharacterPrompts = characterPrompts.filter((c) =>
+      const validCharacterPrompts = current.characterPrompts.filter((c) =>
         c.prompt.trim(),
       );
 
       setAutoGenProgress({
         current: i + 1,
-        total: autoGenInfinite ? null : autoGenCount,
+        total: current.autoGenInfinite ? null : current.autoGenCount,
       });
       setGenerating(true);
       setError(null);
@@ -1890,8 +4237,8 @@ export function GenerationView({
 
       try {
         const params: GenerateParams = {
-          prompt: expandGroupRefs(prompt),
-          negativePrompt: expandGroupRefs(negativePrompt),
+          prompt: expandGroupRefs(current.prompt),
+          negativePrompt: expandGroupRefs(current.negativePrompt),
           ...(validCharacterPrompts.length > 0 && {
             characterPrompts: validCharacterPrompts.map((c) =>
               expandGroupRefs(c.prompt.trim()),
@@ -1901,35 +4248,35 @@ export function GenerationView({
             ),
             characterPositions: validCharacterPrompts.map((c) => c.position),
           }),
-          outputFolder,
-          model,
-          width,
-          height,
-          steps,
-          scale,
-          cfgRescale,
-          varietyPlus,
-          sampler,
-          noiseSchedule,
+          outputFolder: current.outputFolder,
+          model: current.model,
+          width: current.width,
+          height: current.height,
+          steps: current.steps,
+          scale: current.scale,
+          cfgRescale: current.cfgRescale,
+          varietyPlus: current.varietyPlus,
+          sampler: current.sampler,
+          noiseSchedule: current.noiseSchedule,
           seed: overrideSeed,
-          ...(i2iRef && {
+          ...(current.i2iRef && {
             i2i: {
-              imageData: i2iRef.data,
-              strength: i2iRef.strength,
-              noise: i2iRef.noise,
+              imageData: current.i2iRef.data,
+              strength: current.i2iRef.strength,
+              noise: current.i2iRef.noise,
             },
           }),
-          ...(vibes.length > 0 && {
-            vibes: vibes.map((v) => ({
+          ...(current.vibes.length > 0 && {
+            vibes: current.vibes.map((v) => ({
               imageData: v.data,
               infoExtracted: v.infoExtracted,
               strength: v.strength,
             })),
           }),
-          ...(preciseRef && {
+          ...(current.preciseRef && {
             preciseRef: {
-              imageData: preciseRef.data,
-              fidelity: preciseRef.fidelity,
+              imageData: current.preciseRef.data,
+              fidelity: current.preciseRef.fidelity,
             },
           }),
         };
@@ -1937,7 +4284,7 @@ export function GenerationView({
         const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
         setResultSrc(src);
         setRecentImages((prev) => [src, ...prev]);
-        saveLastGenParams(getStoredSeedInput(seedInput));
+        saveLastGenParams(getStoredSeedInput(current.seedInput));
         void window.image.readNaiMeta(filePath).then((meta) => {
           if (meta?.seed != null) {
             setRecentSeeds((prev) => new Map(prev).set(src, meta.seed!));
@@ -1951,33 +4298,44 @@ export function GenerationView({
         setPreviewSrc(null);
       }
 
-      if ((autoGenInfinite || i < autoGenCount - 1) && !cancelToken.cancelled) {
+      if (
+        (current.autoGenInfinite || i < current.autoGenCount - 1) &&
+        !cancelToken.cancelled
+      ) {
         await new Promise<void>((resolve) =>
-          setTimeout(resolve, autoGenDelay * 1000),
+          setTimeout(resolve, current.autoGenDelay * 1000),
         );
       }
     }
 
     setAutoGenProgress(null);
     setAutoCancelPending(false);
-  };
+  }, [latestViewStateRef, resolveSeedForGeneration, saveLastGenParams]);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleCancelAutoGenerate = useCallback(() => {
+    autoCancelRef.current.cancelled = true;
+    setAutoCancelPending(true);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-  };
-  const handleDragEnter = (e: React.DragEvent) => {
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     dragCountRef.current++;
     setDragOver(true);
-  };
-  const handleDragLeave = () => {
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
     dragCountRef.current--;
     if (dragCountRef.current <= 0) {
       dragCountRef.current = 0;
       setDragOver(false);
     }
-  };
-  const handleDrop = (e: React.DragEvent) => {
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     dragCountRef.current = 0;
     setDragOver(false);
@@ -1994,27 +4352,27 @@ export function GenerationView({
       setDropItem({ kind: "file", file, name: file.name });
       setImportError(null);
     }
-  };
+  }, []);
 
-  const getDropItemData = async (item: DropItem): Promise<RefImage> => {
+  const getDropItemData = useCallback(async (item: DropItem): Promise<RefImage> => {
     if (item.kind === "file") {
       const data = new Uint8Array(await item.file.arrayBuffer());
       const objUrl = URL.createObjectURL(item.file);
       return { data, previewUrl: objUrl, name: item.name, isObjectUrl: true };
-    } else {
-      const path = item.kind === "image" ? item.image.path : item.path;
-      const src = item.kind === "image" ? item.image.src : item.src;
-      const buf = await window.image.readFile(path);
-      return {
-        data: new Uint8Array(buf),
-        previewUrl: src,
-        name: item.name,
-        isObjectUrl: false,
-      };
     }
-  };
 
-  const handleSetI2i = async () => {
+    const path = item.kind === "image" ? item.image.path : item.path;
+    const src = item.kind === "image" ? item.image.src : item.src;
+    const buf = await window.image.readFile(path);
+    return {
+      data: new Uint8Array(buf),
+      previewUrl: src,
+      name: item.name,
+      isObjectUrl: false,
+    };
+  }, []);
+
+  const handleSetI2i = useCallback(async () => {
     if (!dropItem || loadingAction) return;
     setLoadingAction("i2i");
     try {
@@ -2027,9 +4385,9 @@ export function GenerationView({
     } finally {
       setLoadingAction(null);
     }
-  };
+  }, [dropItem, getDropItemData, i2iRef, loadingAction]);
 
-  const handleAddVibe = async () => {
+  const handleAddVibe = useCallback(async () => {
     if (!dropItem || loadingAction) return;
     setLoadingAction("vibe");
     try {
@@ -2044,9 +4402,9 @@ export function GenerationView({
     } finally {
       setLoadingAction(null);
     }
-  };
+  }, [dropItem, getDropItemData, loadingAction]);
 
-  const handleSetPreciseRef = async () => {
+  const handleSetPreciseRef = useCallback(async () => {
     if (!dropItem || loadingAction) return;
     setLoadingAction("precise");
     try {
@@ -2059,9 +4417,9 @@ export function GenerationView({
     } finally {
       setLoadingAction(null);
     }
-  };
+  }, [dropItem, getDropItemData, loadingAction, preciseRef]);
 
-  const handleImportMetadata = async () => {
+  const handleImportMetadata = useCallback(async () => {
     if (!dropItem) return;
     setImporting(true);
     setImportError(null);
@@ -2124,9 +4482,24 @@ export function GenerationView({
     } finally {
       setImporting(false);
     }
-  };
+  }, [
+    dropItem,
+    importChecks,
+    setPrompt,
+    setNegativePrompt,
+    setCharacterPrompts,
+    setModel,
+    setSampler,
+    setSteps,
+    setScale,
+    setNoiseSchedule,
+    setWidth,
+    setHeight,
+    setSeedInput,
+    t,
+  ]);
 
-  const toggleCheck = (key: keyof ImportChecks) =>
+  const toggleCheck = useCallback((key: keyof ImportChecks) => {
     setImportChecks((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       if (key === "characters" && !next.characters)
@@ -2134,1436 +4507,159 @@ export function GenerationView({
       localStorage.setItem("konomi-import-checks", JSON.stringify(next));
       return next;
     });
-
-  const handleAddCharacterPrompt = (preset: CharacterPromptPreset) => {
-    const promptPrefix =
-      CHARACTER_PROMPT_PRESETS.find((x) => x.value === preset)?.promptPrefix ??
-      "";
-    setCharacterPrompts((prev) => [
-      ...prev,
-      createCharacterPromptInput(promptPrefix),
-    ]);
-    setCharacterAddOpen(false);
-  };
-
-  const handleSwapDimensions = useCallback(() => {
-    setWidth(height);
-    setHeight(width);
-  }, [height, width]);
-
-  const selectedPreset = SIZE_PRESETS.find(
-    (p) => p.width === width && p.height === height,
-  );
-  const canGenerate =
-    !generating &&
-    !autoGenProgress &&
-    !!config?.apiKey &&
-    !!outputFolder &&
-    !!prompt.trim();
-  const canAutoGenerate = canGenerate && autoGenPolicyAgreed;
+  }, []);
   // Vibe Transfer와 Precise Reference는 동시 사용 불가
   const vibeDisabled = preciseRef !== null;
   const preciseDisabled = vibes.length > 0;
+  const handleCloseDupAlert = useCallback(() => {
+    setDupAlert(false);
+  }, []);
+  const handleContinueAfterDuplicate = useCallback(() => {
+    setDupAlert(false);
+    void handleGenerate(true);
+  }, [handleGenerate]);
+  const handleCloseValidateResult = useCallback(() => {
+    setValidateResult(null);
+  }, []);
+  const handleCloseDropItem = useCallback(() => {
+    setDropItem(null);
+  }, []);
 
   return (
     <div className="flex flex-1 overflow-hidden">
-      {/* Left panel */}
-      <div
-        className="relative flex flex-col border-r border-border shrink-0 bg-sidebar overflow-hidden"
-        style={{
-          width: panelWidth,
-          minWidth: panelWidth,
-          maxWidth: panelWidth,
-        }}
-      >
-        {(!config?.apiKey || !outputFolder) && !tourActive && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 backdrop-blur-sm bg-sidebar/60 select-none">
-            <Settings className="h-8 w-8 text-muted-foreground/60" />
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-sm font-medium text-foreground/80">
-                {t("generation.state.configurationRequired")}
-              </span>
-              <span className="text-[11px] text-muted-foreground text-center leading-relaxed">
-                {t("generation.state.configurationMessage", {
-                  target:
-                    !config?.apiKey && !outputFolder
-                      ? t("generation.state.configurationApiKeyAndOutput")
-                      : !config?.apiKey
-                        ? t("generation.state.configurationApiKey")
-                        : t("generation.state.configurationOutputFolder"),
-                })}
-              </span>
-            </div>
-          </div>
-        )}
-        {/* 그룹 관리 (주석처리) */}
-        {/* <div className="px-4 py-3 flex items-center justify-between border-b border-border/40">
-          <span className="text-xs text-muted-foreground">그룹 관리</span>
-          <button
-            onClick={() => setGroupManagerOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {groups.length > 0 && (
-              <span className="text-[10px] text-muted-foreground/50">{groups.length}개</span>
-            )}
-            <Layers className="h-3.5 w-3.5" />
-          </button>
-        </div> */}
-
-        {/* 파라미터 영역 */}
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="p-4 space-y-5 w-full">
-            {/* 모델 */}
-            <div>
-              <SectionHeader label={t("generation.sections.model")} />
-              <Select value={model} onChange={setModel} options={MODELS} />
-            </div>
-
-            {/* 프롬프트 */}
-            <div data-tour="gen-prompt-input">
-              <SectionHeader label={t("generation.sections.prompt")} />
-              <div
-                className="mb-2 inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1"
-                role="radiogroup"
-                aria-label="Prompt input mode"
-              >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={promptInputMode === "prompt"}
-                  onClick={() => setPromptInputMode("prompt")}
-                  className={cn(
-                    "px-2.5 py-1 text-xs rounded-md transition-colors",
-                    promptInputMode === "prompt"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
-                  )}
-                >
-                  Prompt
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={promptInputMode === "negativePrompt"}
-                  onClick={() => setPromptInputMode("negativePrompt")}
-                  className={cn(
-                    "px-2.5 py-1 text-xs rounded-md transition-colors",
-                    promptInputMode === "negativePrompt"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
-                  )}
-                >
-                  Negative Prompt
-                </button>
-              </div>
-              <PromptInput
-                key={promptInputMode}
-                value={promptInputMode === "prompt" ? prompt : negativePrompt}
-                onChange={(nextValue) =>
-                  promptInputMode === "prompt"
-                    ? setPrompt(nextValue)
-                    : setNegativePrompt(nextValue)
-                }
-                placeholder={
-                  promptInputMode === "prompt"
-                    ? "1girl, beautiful, masterpiece, ..."
-                    : "nsfw, lowres, bad anatomy, ..."
-                }
-                minHeight={180}
-                maxHeight={460}
-                groups={promptGroups}
-                allowExternalDrop
-              />
-            </div>
-
-            {/* 캐릭터 프롬프트 */}
-            <div>
-              <SectionHeader
-                label={t("generation.sections.characters")}
-                action={
-                  <div className="relative">
-                    <button
-                      onClick={() => setCharacterAddOpen((v) => !v)}
-                      className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                    {characterAddOpen && (
-                      <div className="absolute right-0 top-full mt-1 w-28 rounded-lg border border-border/60 bg-popover shadow-lg overflow-hidden z-10">
-                        {CHARACTER_PROMPT_PRESETS.map((preset) => (
-                          <button
-                            key={preset.value}
-                            onClick={() =>
-                              handleAddCharacterPrompt(preset.value)
-                            }
-                            className="w-full text-left px-2.5 py-1.5 text-xs text-foreground/80 hover:bg-secondary transition-colors"
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                }
-              />
-              {characterPrompts.length > 0 && (
-                <div className="px-1 pb-1 space-y-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !aiChoice;
-                      setAiChoice(next);
-                      if (next) {
-                        setCharacterPrompts((prev) =>
-                          prev.map((c) => ({ ...c, position: "global" })),
-                        );
-                      } else {
-                        setCharacterPrompts((prev) =>
-                          prev.map((c) => ({
-                            ...c,
-                            position:
-                              c.position === "global" ? "C3" : c.position,
-                          })),
-                        );
-                      }
-                    }}
-                    className={cn(
-                      "flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition-colors",
-                      aiChoice
-                        ? "bg-primary/15 border-primary/40 text-primary"
-                        : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
-                    )}
-                  >
-                    <Check
-                      className={cn("h-3 w-3", !aiChoice && "opacity-20")}
-                    />
-                    Automatic Position
-                  </button>
-                  {duplicatePositions.size > 0 && (
-                    <div className="flex items-center gap-1 text-[11px] text-warning">
-                      <TriangleAlert className="h-3 w-3 shrink-0" />
-                      <span>{t("generation.character.duplicatePosition")}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              {characterPrompts.length === 0 ? (
-                <p className="text-xs text-muted-foreground/40 text-center py-2">
-                  {t("generation.character.empty")}
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {characterPrompts.map((character, i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        "rounded-lg border bg-secondary/20 p-2 space-y-2",
-                        !aiChoice && duplicatePositions.has(character.position)
-                          ? "border-warning/50"
-                          : "border-border/40",
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <div
-                          className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1"
-                          role="radiogroup"
-                          aria-label={`Character ${i + 1} input mode`}
-                        >
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={character.inputMode === "prompt"}
-                            onClick={() =>
-                              setCharacterPrompts((prev) =>
-                                prev.map((item, idx) =>
-                                  idx === i
-                                    ? { ...item, inputMode: "prompt" }
-                                    : item,
-                                ),
-                              )
-                            }
-                            className={cn(
-                              "px-2 py-1 text-[11px] rounded-md transition-colors",
-                              character.inputMode === "prompt"
-                                ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
-                            )}
-                          >
-                            Prompt
-                          </button>
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={
-                              character.inputMode === "negativePrompt"
-                            }
-                            onClick={() =>
-                              setCharacterPrompts((prev) =>
-                                prev.map((item, idx) =>
-                                  idx === i
-                                    ? { ...item, inputMode: "negativePrompt" }
-                                    : item,
-                                ),
-                              )
-                            }
-                            className={cn(
-                              "px-2 py-1 text-[11px] rounded-md transition-colors",
-                              character.inputMode === "negativePrompt"
-                                ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
-                            )}
-                          >
-                            Negative Prompt
-                          </button>
-                        </div>
-                        <div className="flex-1" />
-                        <button
-                          onClick={() =>
-                            setCharacterPrompts((prev) =>
-                              prev.filter((_, idx) => idx !== i),
-                            )
-                          }
-                          className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      {!aiChoice && (
-                        <PositionAdjustButton
-                          value={character.position}
-                          onChange={(pos) =>
-                            setCharacterPrompts((prev) =>
-                              prev.map((item, idx) =>
-                                idx === i ? { ...item, position: pos } : item,
-                              ),
-                            )
-                          }
-                        />
-                      )}
-                      <PromptInput
-                        key={character.inputMode}
-                        value={
-                          character.inputMode === "prompt"
-                            ? character.prompt
-                            : character.negativePrompt
-                        }
-                        onChange={(nextValue) =>
-                          setCharacterPrompts((prev) =>
-                            prev.map((item, idx) => {
-                              if (idx !== i) return item;
-                              return item.inputMode === "prompt"
-                                ? { ...item, prompt: nextValue }
-                                : { ...item, negativePrompt: nextValue };
-                            }),
-                          )
-                        }
-                          placeholder={
-                            character.inputMode === "prompt"
-                              ? t("generation.character.promptLabel", {
-                                  index: i + 1,
-                                })
-                              : t("generation.character.negativePromptLabel", {
-                                  index: i + 1,
-                                })
-                          }
-                        minHeight={110}
-                        maxHeight={300}
-                        className="min-w-0"
-                        groups={promptGroups}
-                        allowExternalDrop
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Image2Image */}
-            {i2iRef && (
-              <div>
-                <SectionHeader label="Image2Image" />
-                <RefCard
-                  previewUrl={i2iRef.previewUrl}
-                  onRemove={() => {
-                    if (i2iRef.isObjectUrl)
-                      URL.revokeObjectURL(i2iRef.previewUrl);
-                    setI2iRef(null);
-                  }}
-                >
-                  <div className="space-y-2">
-                    <div>
-                      <FieldLabel
-                        label="Strength"
-                        value={i2iRef.strength.toFixed(2)}
-                      />
-                      <Slider
-                        min={0.01}
-                        max={0.99}
-                        step={0.01}
-                        value={i2iRef.strength}
-                        onChange={(v) =>
-                          setI2iRef((p) => (p ? { ...p, strength: v } : p))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <FieldLabel
-                        label="Noise"
-                        value={i2iRef.noise.toFixed(2)}
-                      />
-                      <Slider
-                        min={0}
-                        max={0.99}
-                        step={0.01}
-                        value={i2iRef.noise}
-                        onChange={(v) =>
-                          setI2iRef((p) => (p ? { ...p, noise: v } : p))
-                        }
-                      />
-                    </div>
-                  </div>
-                </RefCard>
-              </div>
-            )}
-
-            {/* Vibe Transfer */}
-            {vibes.length > 0 && (
-              <div>
-                <SectionHeader label="Vibe Transfer" />
-                <div className="space-y-2">
-                  {vibes.map((vibe) => (
-                    <RefCard
-                      key={vibe.id}
-                      previewUrl={vibe.previewUrl}
-                      onRemove={() => {
-                        if (vibe.isObjectUrl)
-                          URL.revokeObjectURL(vibe.previewUrl);
-                        setVibes((prev) =>
-                          prev.filter((v) => v.id !== vibe.id),
-                        );
-                      }}
-                    >
-                      <div className="space-y-2">
-                        <div>
-                          <FieldLabel
-                            label="Info Extracted"
-                            value={vibe.infoExtracted.toFixed(2)}
-                          />
-                          <Slider
-                            min={0.01}
-                            max={1}
-                            step={0.01}
-                            value={vibe.infoExtracted}
-                            onChange={(v) =>
-                              setVibes((prev) =>
-                                prev.map((x) =>
-                                  x.id === vibe.id
-                                    ? { ...x, infoExtracted: v }
-                                    : x,
-                                ),
-                              )
-                            }
-                          />
-                        </div>
-                        <div>
-                          <FieldLabel
-                            label="Reference Strength"
-                            value={vibe.strength.toFixed(2)}
-                          />
-                          <Slider
-                            min={0.01}
-                            max={1}
-                            step={0.01}
-                            value={vibe.strength}
-                            onChange={(v) =>
-                              setVibes((prev) =>
-                                prev.map((x) =>
-                                  x.id === vibe.id ? { ...x, strength: v } : x,
-                                ),
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-                    </RefCard>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Precise Reference */}
-            {preciseRef && (
-              <div>
-                <SectionHeader label="Precise Reference" />
-                <RefCard
-                  previewUrl={preciseRef.previewUrl}
-                  onRemove={() => {
-                    if (preciseRef.isObjectUrl)
-                      URL.revokeObjectURL(preciseRef.previewUrl);
-                    setPreciseRef(null);
-                  }}
-                >
-                  <div>
-                    <FieldLabel
-                      label="Fidelity"
-                      value={preciseRef.fidelity.toFixed(2)}
-                    />
-                    <Slider
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={preciseRef.fidelity}
-                      onChange={(v) =>
-                        setPreciseRef((p) => (p ? { ...p, fidelity: v } : p))
-                      }
-                    />
-                  </div>
-                </RefCard>
-              </div>
-            )}
-
-            {/* 크기 */}
-            <div>
-              <SectionHeader label={t("generation.size.title")} />
-              <div className="flex gap-1.5">
-                {SIZE_PRESETS.map((p) => (
-                  <button
-                    key={p.key}
-                    onClick={() => {
-                      setWidth(p.width);
-                      setHeight(p.height);
-                    }}
-                    className={cn(
-                      "flex-1 py-1.5 text-xs rounded-lg border transition-colors",
-                      selectedPreset?.key === p.key
-                        ? "bg-primary/20 text-primary border-primary/50 font-medium"
-                        : "bg-secondary/60 text-muted-foreground border-border/60 hover:text-foreground hover:border-border",
-                    )}
-                  >
-                    {t(`generation.size.${p.key}`)}
-                  </button>
-                ))}
-                <div className="relative">
-                  <button
-                    onClick={() => setCustomSizesOpen((v) => !v)}
-                    className={cn(
-                      "px-2.5 py-1.5 text-xs rounded-lg border transition-colors whitespace-nowrap",
-                      customSizesOpen
-                        ? "bg-primary/20 text-primary border-primary/50 font-medium"
-                        : "bg-secondary/60 text-muted-foreground border-border/60 hover:text-foreground hover:border-border",
-                    )}
-                  >
-                    {t("generation.size.custom")}
-                  </button>
-                  {customSizesOpen && (
-                    <div className="absolute right-0 bottom-full mb-1 w-52 rounded-lg border border-border/60 bg-popover shadow-lg z-10 overflow-hidden">
-                      {customSizes.length === 0 ? (
-                        <p className="px-3 py-8 text-xs text-muted-foreground text-center">
-                          {t("generation.size.noSavedSizes")}
-                        </p>
-                      ) : (
-                        customSizes.map((s, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center gap-1 px-2 py-1.5 hover:bg-secondary transition-colors"
-                          >
-                            <button
-                              onClick={() => {
-                                setWidth(s.width);
-                                setHeight(s.height);
-                                setCustomSizesOpen(false);
-                              }}
-                              className="flex-1 text-left text-xs text-foreground/80 font-mono cursor-pointer"
-                            >
-                              {s.width} × {s.height}
-                            </button>
-                            <button
-                              onClick={() => {
-                                const next = customSizes.filter(
-                                  (_, j) => j !== i,
-                                );
-                                setCustomSizes(next);
-                                saveCustomSizes(next);
-                              }}
-                              className="text-muted-foreground/60 hover:text-destructive transition-colors"
-                              aria-label={t("generation.size.deleteAria")}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))
-                      )}
-                      <div className="border-t border-border/40 px-2 py-2 flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={customSizeAddW}
-                          onChange={(e) => setCustomSizeAddW(e.target.value)}
-                          placeholder="W"
-                          className="w-0 flex-1 min-w-0 bg-secondary/60 border border-border/60 rounded px-1.5 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary/50 cursor-text"
-                        />
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          ×
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={customSizeAddH}
-                          onChange={(e) => setCustomSizeAddH(e.target.value)}
-                          placeholder="H"
-                          className="w-0 flex-1 min-w-0 bg-secondary/60 border border-border/60 rounded px-1.5 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary/50 cursor-text"
-                        />
-                        <button
-                          onClick={() => {
-                            const w = parseInt(customSizeAddW, 10);
-                            const h = parseInt(customSizeAddH, 10);
-                            if (!w || !h || w <= 0 || h <= 0) return;
-                            const already = customSizes.some(
-                              (s) => s.width === w && s.height === h,
-                            );
-                            if (!already) {
-                              const next = [
-                                ...customSizes,
-                                { width: w, height: h },
-                              ];
-                              setCustomSizes(next);
-                              saveCustomSizes(next);
-                            }
-                            setCustomSizeAddW("");
-                            setCustomSizeAddH("");
-                          }}
-                          className="shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer"
-                          aria-label={t("generation.size.addAria")}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <DeferredNumberInput
-                  value={width}
-                  onChange={setWidth}
-                  className={cn(
-                    INPUT_CLS,
-                    "flex-1 min-w-0 font-mono text-center",
-                  )}
-                />
-                <button
-                  type="button"
-                  onClick={handleSwapDimensions}
-                  title={t("generation.size.swapTitle")}
-                  aria-label={t("generation.size.swapAria")}
-                  className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground transition-colors hover:border-border hover:bg-secondary hover:text-foreground"
-                >
-                  <ArrowRightLeft className="h-3.5 w-3.5" />
-                </button>
-                <DeferredNumberInput
-                  value={height}
-                  onChange={setHeight}
-                  className={cn(
-                    INPUT_CLS,
-                    "flex-1 min-w-0 font-mono text-center",
-                  )}
-                />
-              </div>
-            </div>
-          </div>
-        </ScrollArea>
-
-        {/* 고급 파라미터 (패널 하단 고정) */}
-        <div className="border-t border-border/40 bg-sidebar">
-          <AdvancedParamsSection
-            steps={steps}
-            setSteps={setSteps}
-            scale={scale}
-            setScale={setScale}
-            cfgRescale={cfgRescale}
-            setCfgRescale={setCfgRescale}
-            varietyPlus={varietyPlus}
-            setVarietyPlus={setVarietyPlus}
-            sampler={sampler}
-            setSampler={setSampler}
-            noiseSchedule={noiseSchedule}
-            setNoiseSchedule={setNoiseSchedule}
-            seedInput={seedInput}
-            setSeedInput={setSeedInput}
-            onReset={() => {
-              setSteps(NAI_GEN_DEFAULTS.steps);
-              setScale(NAI_GEN_DEFAULTS.scale);
-              setCfgRescale(NAI_GEN_DEFAULTS.cfgRescale);
-              setVarietyPlus(NAI_GEN_DEFAULTS.varietyPlus);
-              setSampler(NAI_GEN_DEFAULTS.sampler);
-              setNoiseSchedule(NAI_GEN_DEFAULTS.noiseSchedule);
-              setSeedInput("");
-            }}
-          />
-        </div>
-
-        {/* 자동 생성 */}
-        <div
-          className="border-t border-border/40 bg-sidebar"
-          data-tour="gen-auto-gen"
-        >
-          <AutoGenSection
-            count={autoGenCount}
-            setCount={setAutoGenCount}
-            delay={autoGenDelay}
-            setDelay={setAutoGenDelay}
-            seedMode={autoGenSeedMode}
-            setSeedMode={setAutoGenSeedMode}
-            infinite={autoGenInfinite}
-            setInfinite={setAutoGenInfinite}
-            policyAgreed={autoGenPolicyAgreed}
-            setPolicyAgreed={setAutoGenPolicyAgreed}
-          />
-        </div>
-
-        {/* 생성 버튼 */}
-        <div className="p-3 border-t border-border bg-sidebar">
-          {autoGenProgress ? (
-            <div className="space-y-2">
-              {autoGenProgress.total !== null ? (
-                <div className="w-full bg-secondary rounded-full h-1">
-                  <div
-                    className="bg-primary h-1 rounded-full transition-all duration-300"
-                    style={{
-                      width: `${(autoGenProgress.current / autoGenProgress.total) * 100}%`,
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="w-full bg-secondary rounded-full h-1 overflow-hidden">
-                  <div className="h-1 bg-primary/60 animate-pulse w-full" />
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground tabular-nums flex items-center gap-1.5">
-                  {generating && <Loader2 className="h-3 w-3 animate-spin" />}
-                  {autoGenProgress.current} / {autoGenProgress.total ?? "∞"}
-                </span>
-                <button
-                  type="button"
-                  disabled={autoCancelPending}
-                  onClick={() => {
-                    autoCancelRef.current.cancelled = true;
-                    setAutoCancelPending(true);
-                  }}
-                  className={cn(
-                    "flex items-center gap-1 text-xs transition-colors",
-                    autoCancelPending
-                      ? "text-muted-foreground/40 cursor-not-allowed"
-                      : "text-muted-foreground hover:text-destructive",
-                  )}
-                >
-                  <X className="h-3 w-3" />
-                  {autoCancelPending
-                    ? t("generation.actions.stopPending")
-                    : t("generation.actions.stop")}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div
-              className="relative flex gap-2"
-              data-tour="gen-generate-button"
-            >
-              <div className="group/gen relative flex-1">
-                {!canGenerate &&
-                  !generating &&
-                  !autoGenProgress &&
-                  !!config?.apiKey &&
-                  !!outputFolder &&
-                  !prompt.trim() && (
-                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden -translate-x-1/2 rounded-lg border border-border/60 bg-popover px-2.5 py-1.5 shadow-lg group-hover/gen:block">
-                      <p className="whitespace-nowrap text-[11px] text-foreground/85">
-                        {t("generation.actions.enterPrompt")}
-                      </p>
-                    </div>
-                  )}
-                <button
-                  onClick={() => void handleGenerate()}
-                  disabled={!canGenerate}
-                  className={cn(
-                    "w-full h-10 flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all",
-                    canGenerate
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
-                      : "bg-secondary/60 text-muted-foreground cursor-not-allowed",
-                  )}
-                >
-                  {generating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Wand2 className="h-4 w-4" />
-                  )}
-                  {generating
-                    ? t("generation.actions.generating")
-                    : t("generation.actions.generate")}
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleAutoGenerate()}
-                disabled={!canAutoGenerate}
-                title={
-                  autoGenPolicyAgreed
-                    ? t("generation.actions.autoGenerate")
-                    : t("generation.actions.autoGenerateNeedsWarning")
-                }
-                className={cn(
-                  "h-10 px-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-center",
-                  canAutoGenerate
-                    ? "border-primary/50 text-primary hover:bg-primary/10"
-                    : "border-border/40 text-muted-foreground cursor-not-allowed",
-                )}
-              >
-                <Sparkles className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
+      <LeftPanel
+        panelWidth={panelWidth}
+        hasApiKey={!!config?.apiKey}
+        outputFolder={outputFolder}
+        tourActive={!!tourActive}
+        model={model}
+        setModel={setModel}
+        promptInputMode={promptInputMode}
+        setPromptInputMode={setPromptInputMode}
+        prompt={prompt}
+        negativePrompt={negativePrompt}
+        setPrompt={setPrompt}
+        setNegativePrompt={setNegativePrompt}
+        promptGroups={promptGroups}
+        characterPrompts={characterPrompts}
+        setCharacterPrompts={setCharacterPrompts}
+        aiChoice={aiChoice}
+        setAiChoice={setAiChoice}
+        i2iRef={i2iRef}
+        setI2iRef={setI2iRef}
+        vibes={vibes}
+        setVibes={setVibes}
+        preciseRef={preciseRef}
+        setPreciseRef={setPreciseRef}
+        width={width}
+        setWidth={setWidth}
+        height={height}
+        setHeight={setHeight}
+        customSizes={customSizes}
+        setCustomSizes={setCustomSizes}
+        steps={steps}
+        setSteps={setSteps}
+        scale={scale}
+        setScale={setScale}
+        cfgRescale={cfgRescale}
+        setCfgRescale={setCfgRescale}
+        varietyPlus={varietyPlus}
+        setVarietyPlus={setVarietyPlus}
+        sampler={sampler}
+        setSampler={setSampler}
+        noiseSchedule={noiseSchedule}
+        setNoiseSchedule={setNoiseSchedule}
+        seedInput={seedInput}
+        setSeedInput={setSeedInput}
+        autoGenCount={autoGenCount}
+        setAutoGenCount={setAutoGenCount}
+        autoGenDelay={autoGenDelay}
+        setAutoGenDelay={setAutoGenDelay}
+        autoGenSeedMode={autoGenSeedMode}
+        setAutoGenSeedMode={setAutoGenSeedMode}
+        autoGenInfinite={autoGenInfinite}
+        setAutoGenInfinite={setAutoGenInfinite}
+        autoGenPolicyAgreed={autoGenPolicyAgreed}
+        setAutoGenPolicyAgreed={setAutoGenPolicyAgreed}
+        generating={generating}
+        autoGenProgress={autoGenProgress}
+        autoCancelPending={autoCancelPending}
+        onGenerate={handleGenerate}
+        onAutoGenerate={handleAutoGenerate}
+        onCancelAutoGenerate={handleCancelAutoGenerate}
+      />
       {/* Left panel resize handle */}
       <div
         onMouseDown={handleResizeStart}
         className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors"
       />
 
-      {/* Right side panel (adjacent to left panel) */}
-      {rightPanelVisible ? (
-        <>
-          <div
-            className="shrink-0 flex flex-col h-full bg-sidebar border-r border-border/40 overflow-hidden"
-            style={{ width: rightPanelWidth }}
-          >
-            {/* Tab header */}
-            <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border/40 shrink-0">
-              <button
-                onClick={() => setRightPanelVisible(false)}
-                title={t("generation.actions.collapsePanel")}
-                className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <div className="flex-1" />
-              {(
-                [
-                  { id: "settings", icon: Settings, title: t("settings.title") },
-                  {
-                    id: "prompt-group",
-                    icon: LayoutList,
-                    title: t("generation.actions.promptGroup"),
-                  },
-                  {
-                    id: "reference",
-                    icon: ImageIcon,
-                    title: t("generation.actions.referenceImage"),
-                  },
-                ] as const
-              ).map(({ id, icon: Icon, title }) => (
-                <button
-                  key={id}
-                  onClick={() => setRightPanelTab(id)}
-                  title={title}
-                  className={cn(
-                    "h-7 w-7 rounded flex items-center justify-center transition-colors",
-                    rightPanelTab === id
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                </button>
-              ))}
-              {rightPanelTab === "reference" && sourceImage && (
-                <button
-                  onClick={() => setSourceImage(null)}
-                  title={t("generation.actions.removeReferenceImage")}
-                  className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0 ml-0.5"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            {/* Body */}
-            {rightPanelTab === "prompt-group" && (
-              <div
-                data-tour="gen-prompt-group-panel"
-                className="flex-1 min-h-0"
-              >
-                <PromptGroupPanel
-                  categories={categories}
-                  onCategoriesChange={setCategories}
-                />
-              </div>
-            )}
-            {rightPanelTab === "settings" && (
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="divide-y divide-border/40 flex-1 overflow-y-auto">
-                  {/* NAI API Key */}
-                  <div className="px-4 py-3 space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-muted-foreground select-none">
-                        NovelAI API Key
-                      </span>
-                      <TooltipProvider delayDuration={0}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              // title="NovelAI API Key 안내"
-                              aria-label={t("generation.actions.apiKeyHelp")}
-                              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-transparent text-muted-foreground transition-colors hover:border-border hover:bg-secondary/40 hover:text-foreground"
-                            >
-                              <Info className="h-3 w-3" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side="top"
-                            sideOffset={8}
-                            className="max-w-80 text-foreground/85 p-2"
-                          >
-                            {t("generation.actions.apiKeyHelpDescription")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    {apiKeyValidated ? (
-                      <div className="flex gap-1.5">
-                        <input
-                          type="password"
-                          value={apiKeyInput}
-                          readOnly
-                          className={cn(INPUT_CLS, "flex-1 min-w-0")}
-                        />
-                        <button
-                          onClick={() => {
-                            setApiKeyInput("");
-                            setApiKeyValidated(false);
-                          }}
-                          className="shrink-0 h-8 px-2.5 rounded-lg border border-border/60 bg-secondary/60 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors"
-                        >
-                          {t("generation.actions.replace")}
-                        </button>
-                      </div>
-                    ) : (
-                      <input
-                        type="text"
-                        value={apiKeyInput}
-                        onChange={(e) => setApiKeyInput(e.target.value)}
-                        placeholder="API Key"
-                        className={cn(INPUT_CLS, "w-full")}
-                      />
-                    )}
-                    <button
-                      onClick={handleValidateApiKey}
-                      disabled={
-                        validating || !apiKeyInput.trim() || apiKeyValidated
-                      }
-                      className={cn(
-                        "mt-1.5 w-full h-8 flex items-center justify-center gap-1.5 rounded-lg border text-xs transition-colors disabled:opacity-40",
-                        apiKeyValidated
-                          ? "border-success/40 bg-success/10 text-success"
-                          : "border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border",
-                      )}
-                    >
-                      {validating ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : apiKeyValidated ? (
-                        <Check className="h-3.5 w-3.5" />
-                      ) : null}
-                      {apiKeyValidated
-                        ? t("generation.actions.loginSuccess")
-                        : t("generation.actions.login")}
-                    </button>
-                  </div>
+      <RightSidePanel
+        visible={rightPanelVisible}
+        width={rightPanelWidth}
+        tab={rightPanelTab}
+        setVisible={setRightPanelVisible}
+        setTab={setRightPanelTab}
+        sourceImage={sourceImage}
+        setSourceImage={setSourceImage}
+        categories={categories}
+        setCategories={setCategories}
+        apiKeyInput={apiKeyInput}
+        setApiKeyInput={setApiKeyInput}
+        apiKeyValidated={apiKeyValidated}
+        setApiKeyValidated={setApiKeyValidated}
+        validating={validating}
+        onValidateApiKey={handleValidateApiKey}
+        outputFolder={outputFolder}
+        onSelectOutputFolder={handleSelectOutputFolder}
+        configSaving={configSaving}
+        onSaveConfig={handleSaveConfig}
+        onResizeStart={handleRightResizeStart}
+      />
 
-                  {/* 다운로드 폴더 */}
-                  <div className="px-4 py-3 space-y-1.5">
-                    <span className="text-xs text-muted-foreground select-none">
-                      {t("generation.actions.outputFolder")}
-                    </span>
-                    <div className="flex gap-1.5">
-                      <input
-                        value={outputFolder}
-                        placeholder={t("generation.actions.outputFolderPlaceholder")}
-                        className={cn(INPUT_CLS, "flex-1 min-w-0")}
-                        readOnly
-                      />
-                      <button
-                        onClick={async () => {
-                          const dir = await window.dialog.selectDirectory();
-                          if (dir) onOutputFolderChange(dir);
-                        }}
-                        className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
-                      >
-                        <FolderOpen className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 저장 버튼 */}
-                <div className="px-4 py-3 border-t border-border/40 shrink-0">
-                  <button
-                    onClick={handleSaveConfig}
-                    disabled={configSaving}
-                    className="w-full h-9 flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40"
-                  >
-                    {configSaving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    {t("generation.actions.save")}
-                  </button>
-                </div>
-              </div>
-            )}
-            {rightPanelTab === "reference" &&
-              (sourceImage ? (
-                <PromptSourcePanel image={sourceImage} />
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center gap-2 select-none">
-                  <div className="h-12 w-12 rounded-xl bg-secondary/50 border border-border/30 flex items-center justify-center">
-                    <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
-                  </div>
-                  <p className="text-xs text-muted-foreground/40 text-center px-4">
-                    {t("generation.actions.sendToReferenceHint")}
-                  </p>
-                </div>
-              ))}
-          </div>
-        </>
-      ) : (
-        <button
-          onClick={() => setRightPanelVisible(true)}
-          title={t("generation.actions.openPanel")}
-          className="shrink-0 w-5 h-full flex items-center justify-center border-r border-border/40 bg-sidebar text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
-        >
-          <ChevronRight className="h-3.5 w-3.5" />
-        </button>
-      )}
-
-      {/* Resize handle */}
-      {rightPanelVisible && (
-        <div
-          onMouseDown={handleRightResizeStart}
-          className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors"
-        />
-      )}
-
-      {/* Result area */}
-      <div
-        className="flex-1 flex flex-col items-center justify-center overflow-hidden relative"
+      <ResultArea
+        dragOver={dragOver}
         onDragOver={handleDragOver}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-      >
-        {/* Grid bg */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              "linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
-          }}
-        />
+        generating={generating}
+        previewSrc={previewSrc}
+        error={error}
+        resultSrc={resultSrc}
+        recentSeeds={recentSeeds}
+        setSeedInput={setSeedInput}
+        recentImages={recentImages}
+        setResultSrc={setResultSrc}
+      />
 
-        {/* Drag overlay */}
-        {dragOver && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-primary/5 border-2 border-dashed border-primary/40 rounded-none transition-all">
-            <div className="h-14 w-14 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center mb-3">
-              <ImagePlus className="h-7 w-7 text-primary/70" />
-            </div>
-          <p className="text-sm font-medium text-primary/70">
-              {t("generation.actions.dropHere")}
-            </p>
-          </div>
-        )}
+      <DuplicateGenerationModal
+        open={dupAlert}
+        onClose={handleCloseDupAlert}
+        onContinue={handleContinueAfterDuplicate}
+      />
 
-        {/* Main content */}
-        <div className="relative z-10 flex flex-col items-center justify-center w-full h-full">
-          {generating ? (
-            previewSrc ? (
-              <div className="relative w-full h-full flex items-center justify-center">
-                <img
-                  src={previewSrc}
-                  alt={t("generation.actions.generatingPreviewAlt")}
-                  className="w-full h-full object-contain rounded-sm"
-                />
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/70 backdrop-blur-sm border border-border/40">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                  <span className="text-xs text-muted-foreground">
-                    {t("generation.actions.generating")}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-4">
-                <div className="h-16 w-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Loader2 className="h-7 w-7 text-primary animate-spin" />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-foreground">
-                    {t("generation.actions.generatingNow")}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {t("generation.actions.generatingWait")}
-                  </p>
-                </div>
-              </div>
-            )
-          ) : error ? (
-            <div className="max-w-sm w-full mx-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-center">
-              <p className="text-sm font-medium text-destructive mb-1.5">
-                {t("generation.actions.generationFailed")}
-              </p>
-              <p className="text-xs text-muted-foreground break-all leading-relaxed">
-                {error}
-              </p>
-            </div>
-          ) : resultSrc ? (
-            <>
-              <img
-                src={resultSrc}
-                alt={t("generation.actions.resultAlt")}
-                className="max-w-full max-h-full object-contain rounded-sm"
-              />
-              {recentSeeds.get(resultSrc) != null && (
-                <div
-                  ref={seedDropdownRef}
-                  className="absolute bottom-3 right-3 z-20"
-                >
-                  <button
-                    onClick={() => setSeedDropdownOpen((o) => !o)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background/80 backdrop-blur-sm border border-border/50 text-xs font-mono tabular-nums text-foreground/80 hover:text-foreground hover:bg-background/95 transition-colors shadow-sm"
-                  >
-                    <Hash className="h-3 w-3 shrink-0" />
-                    {recentSeeds.get(resultSrc)}
-                  </button>
-                  {seedDropdownOpen && (
-                    <div className="absolute bottom-full right-0 mb-1.5 w-36 rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
-                      <button
-                        onClick={() => {
-                          void navigator.clipboard.writeText(
-                            String(recentSeeds.get(resultSrc)),
-                          );
-                          setSeedDropdownOpen(false);
-                          toast.success(t("generation.actions.seedCopied"));
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors"
-                      >
-                        <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        {t("generation.actions.copyToClipboard")}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSeedInput(String(recentSeeds.get(resultSrc)));
-                          setSeedDropdownOpen(false);
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-foreground hover:bg-accent transition-colors"
-                      >
-                        <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        {t("generation.actions.importSeed")}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex flex-col items-center gap-3 select-none">
-              <div className="h-16 w-16 rounded-2xl bg-secondary/50 border border-border/30 flex items-center justify-center">
-                <Wand2 className="h-7 w-7 text-muted-foreground/80" />
-              </div>
-              <p className="text-xs text-muted-foreground/80">
-                {t("generation.actions.emptyState")}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+      <ValidateResultModal
+        result={validateResult}
+        onClose={handleCloseValidateResult}
+      />
 
-      {/* Recent images panel */}
-      <div className="w-24 shrink-0 border-l border-border/60 bg-card/70 flex flex-col">
-        <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest text-center pt-3 pb-1 shrink-0">
-          {t("generation.actions.recent")}
-        </p>
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          {recentImages.length > 0 ? (
-            <div className="p-2 space-y-1.5">
-              {recentImages.map((src, i) => (
-                <RecentThumb
-                  key={src + i}
-                  src={src}
-                  isCurrent={src === resultSrc}
-                  onClick={() => setResultSrc(src)}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="text-[10px] text-muted-foreground/40 text-center px-2 pt-4">
-              {t("generation.actions.noRecent")}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* 중복 생성 방지 Modal */}
-      {dupAlert && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 backdrop-blur-sm">
-          <div className="w-80 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
-              <p className="text-sm font-semibold text-foreground">
-                {t("generation.dialogs.duplicateTitle")}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {t("generation.dialogs.duplicateDescription")}
-              </p>
-            </div>
-            <div className="flex gap-2 p-3">
-              <button
-                onClick={() => setDupAlert(false)}
-                className="flex-1 h-9 rounded-lg border border-border/60 bg-secondary/60 text-sm text-foreground hover:bg-secondary transition-colors"
-              >
-                {t("common.cancel")}
-              </button>
-              <button
-                onClick={() => {
-                  setDupAlert(false);
-                  void handleGenerate(true);
-                }}
-                className="flex-1 h-9 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                {t("generation.dialogs.continueGenerate")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* API 검증 결과 Modal */}
-      {validateResult && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 backdrop-blur-sm">
-          <div className="w-80 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-border flex items-center gap-3">
-              <div
-                className={cn(
-                  "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                  validateResult.valid
-                    ? "bg-success/15 text-success"
-                    : "bg-destructive/15 text-destructive",
-                )}
-              >
-                {validateResult.valid ? (
-                  <Save className="h-4 w-4" />
-                ) : (
-                  <X className="h-4 w-4" />
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  {validateResult.valid
-                    ? t("generation.dialogs.validApiKey")
-                    : t("generation.dialogs.invalidApiKey")}
-                </p>
-                {validateResult.valid && validateResult.tier && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {t("generation.dialogs.subscriptionTier", {
-                      tier: validateResult.tier,
-                    })}
-                  </p>
-                )}
-                {!validateResult.valid && validateResult.error && (
-                  <p className="text-xs text-muted-foreground mt-0.5 break-all">
-                    {validateResult.error}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="px-5 py-3 flex justify-end">
-              <button
-                onClick={() => setValidateResult(null)}
-                className="px-4 h-8 rounded-lg bg-secondary text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors"
-              >
-                {t("generation.dialogs.confirm")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Drop modal */}
-      {dropItem && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 backdrop-blur-sm">
-          <div className="w-100 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  {t("generation.dialogs.imageAction")}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-70">
-                  {dropItem.name}
-                </p>
-              </div>
-              <button
-                onClick={() => setDropItem(null)}
-                className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Image preview */}
-            {previewUrl && (
-              <div
-                className="bg-secondary/20 flex items-center justify-center"
-                style={{ maxHeight: 220 }}
-              >
-                <img
-                  src={previewUrl}
-                  alt={t("generation.dialogs.previewAlt")}
-                  className="max-w-full object-contain"
-                  style={{ maxHeight: 220 }}
-                />
-              </div>
-            )}
-
-            {/* Action buttons */}
-            <div className="px-5 py-4 border-b border-border/50">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-3">
-                {t("generation.dialogs.actionSelect")}
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                {(
-                  [
-                    {
-                      icon: ImagePlus,
-                      label: "Image2Image",
-                      action: handleSetI2i,
-                      key: "i2i",
-                      disabled: false,
-                    },
-                    {
-                      icon: Sparkles,
-                      label: "Vibe Transfer",
-                      action: handleAddVibe,
-                      key: "vibe",
-                      disabled: vibeDisabled,
-                    },
-                    {
-                      icon: Crosshair,
-                      label: "Precise Ref",
-                      action: handleSetPreciseRef,
-                      key: "precise",
-                      disabled: preciseDisabled,
-                    },
-                  ] as const
-                ).map(({ icon: Icon, label, action, key, disabled }) => (
-                  <button
-                    key={label}
-                    onClick={action}
-                    disabled={disabled || !!loadingAction}
-                    className={cn(
-                      "flex flex-col items-center gap-1.5 py-3 rounded-xl border transition-colors relative overflow-hidden",
-                      disabled
-                        ? "border-border/40 bg-secondary/30 text-muted-foreground/40 cursor-not-allowed"
-                        : "border-border/60 bg-secondary/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-secondary cursor-pointer",
-                    )}
-                  >
-                    {loadingAction === key ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <Icon className="h-5 w-5" />
-                    )}
-                    <span className="text-[10px] font-medium">{label}</span>
-                    {disabled && (
-                      <span className="absolute top-1 right-1 text-[8px] bg-border/60 text-muted-foreground/60 px-1 py-0.5 rounded font-medium leading-none">
-                        {t("generation.dialogs.disabled")}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              {vibeDisabled && (
-                <p className="text-[10px] text-muted-foreground/50 mt-2">
-                  {t("generation.dialogs.preciseDisablesVibe")}
-                </p>
-              )}
-              {preciseDisabled && (
-                <p className="text-[10px] text-muted-foreground/50 mt-2">
-                  {t("generation.dialogs.vibeDisablesPrecise")}
-                </p>
-              )}
-            </div>
-
-            {/* Import metadata */}
-            <div className="px-5 py-4">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-3">
-                {t("generation.dialogs.importMetadata")}
-              </p>
-              <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 mb-4">
-                <Checkbox
-                  checked={importChecks.prompt}
-                  onChange={() => toggleCheck("prompt")}
-                  label="Prompt"
-                />
-                <Checkbox
-                  checked={importChecks.negativePrompt}
-                  onChange={() => toggleCheck("negativePrompt")}
-                  label="Negative Prompt"
-                />
-                <Checkbox
-                  checked={importChecks.characters}
-                  onChange={() => toggleCheck("characters")}
-                  label="Characters"
-                />
-                <Checkbox
-                  checked={importChecks.charactersAppend}
-                  onChange={() => toggleCheck("charactersAppend")}
-                  label="Append"
-                  disabled={!importChecks.characters}
-                />
-                <Checkbox
-                  checked={importChecks.settings}
-                  onChange={() => toggleCheck("settings")}
-                  label="Settings"
-                />
-                <Checkbox
-                  checked={importChecks.seed}
-                  onChange={() => toggleCheck("seed")}
-                  label="Seed"
-                />
-              </div>
-              {importError && (
-                <p className="text-xs text-destructive mb-3 bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2">
-                  {importError}
-                </p>
-              )}
-              <button
-                onClick={handleImportMetadata}
-                disabled={
-                  importing || Object.values(importChecks).every((v) => !v)
-                }
-                className="w-full h-9 flex items-center justify-center gap-2 rounded-lg bg-primary/15 border border-primary/30 text-primary text-sm font-medium hover:bg-primary/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {importing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : null}
-                {importing
-                  ? t("generation.dialogs.importingMetadata")
-                  : t("generation.dialogs.importMetadata")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DropImportModal
+        dropItem={dropItem}
+        previewUrl={previewUrl}
+        loadingAction={loadingAction}
+        vibeDisabled={vibeDisabled}
+        preciseDisabled={preciseDisabled}
+        importChecks={importChecks}
+        importing={importing}
+        importError={importError}
+        onClose={handleCloseDropItem}
+        onSetI2i={handleSetI2i}
+        onAddVibe={handleAddVibe}
+        onSetPreciseRef={handleSetPreciseRef}
+        onToggleCheck={toggleCheck}
+        onImportMetadata={handleImportMetadata}
+      />
     </div>
   );
 }
