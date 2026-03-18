@@ -73,11 +73,6 @@ export default defineConfig({
         "@preload": resolve("src/preload"),
       },
     },
-    server: useStandaloneReactDevTools
-      ? {
-          hmr: false,
-        }
-      : undefined,
     plugins: [tailwindcss(), standaloneReactDevToolsPlugin(), react()],
   },
 });
