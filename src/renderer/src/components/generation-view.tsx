@@ -1118,9 +1118,11 @@ function AutoGenSection({
                       </button>
                     </TooltipTrigger>
                     <TooltipContent
-                      side="left"
+                      side="top"
+                      align="end"
                       sideOffset={8}
-                      className="select-none text-foreground/85"
+                      collisionPadding={12}
+                      className="max-w-56 select-none whitespace-normal text-left leading-relaxed text-foreground/85"
                     >
                       {t("generation.advanced.warningRequired")}
                     </TooltipContent>
