@@ -21,6 +21,13 @@ import { Button } from "@/components/ui/button";
 import { DuplicateResolutionDialog } from "@/components/duplicate-resolution-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -30,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { Category } from "@preload/index.d";
+import type { Category, Folder as FolderRecord } from "@preload/index.d";
 import { useTranslation } from "react-i18next";
 
 interface SidebarProps {
@@ -41,6 +48,7 @@ interface SidebarProps {
   onFolderRemoved?: (id: number) => void;
   onFolderAdded?: (folderId: number) => void;
   onFolderCancelled?: (id: number) => void;
+  onFolderRescan?: (id: number) => void;
   rollbackRequest?: { id: number; folderIds: number[] } | null;
   scanningFolderIds?: Set<number>;
   scanning?: boolean;
@@ -71,6 +79,7 @@ export function Sidebar({
   onFolderRemoved,
   onFolderAdded,
   onFolderCancelled,
+  onFolderRescan,
   rollbackRequest,
   scanningFolderIds,
   scanning,
@@ -132,6 +141,7 @@ export function Sidebar({
   const duplicateResolution = useDuplicateResolutionDialog({
     addFolder,
     onFolderAdded,
+    onFolderRescan,
   });
   const folder = useFolderDialog(
     duplicateResolution.handleFolderAddWithDuplicateCheck,
@@ -203,6 +213,23 @@ export function Sidebar({
       }
     },
     [onFolderCancelled, removeFolder, t],
+  );
+
+  const handleFolderRescanRequest = useCallback(
+    async (folderToRescan: FolderRecord) => {
+      try {
+        await duplicateResolution.handleFolderRescanWithDuplicateCheck(
+          folderToRescan,
+        );
+      } catch (e: unknown) {
+        toast.error(
+          t("error.scanFailed", {
+            message: e instanceof Error ? e.message : String(e),
+          }),
+        );
+      }
+    },
+    [duplicateResolution, t],
   );
 
   useEffect(() => {
@@ -358,121 +385,160 @@ export function Sidebar({
                       draggingFolderId !== f.id &&
                       folderDropTargetId === f.id;
                     return (
-                      <div
-                        key={f.id}
-                        draggable={editingId !== f.id}
-                        onDragStart={(e) => {
-                          setDraggingFolderId(f.id);
-                          e.dataTransfer.effectAllowed = "move";
-                        }}
-                        onDragOver={(e) => {
-                          if (
-                            draggingFolderId === null ||
-                            draggingFolderId === f.id
-                          )
-                            return;
-                          e.preventDefault();
-                          if (folderDropTargetId !== f.id) {
-                            setFolderDropTargetId(f.id);
-                          }
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          handleFolderDrop(f.id);
-                        }}
-                        onDragEnd={handleFolderDragEnd}
-                        className={cn(
-                          "group flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-sidebar-accent",
-                          isDragTarget &&
-                            "bg-sidebar-accent ring-1 ring-primary/40",
-                          draggingFolderId === f.id && "opacity-60",
-                        )}
-                      >
-                        <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0 cursor-grab active:cursor-grabbing" />
-                        <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        {editingId === f.id ? (
-                          <input
-                            ref={inputRef}
-                            className="flex-1 min-w-0 text-sm bg-transparent border-b border-primary outline-none text-foreground"
-                            value={editingName}
-                            autoFocus
-                            onChange={(e) => setEditingName(e.target.value)}
-                            onBlur={async () => {
+                      <ContextMenu key={f.id}>
+                        <ContextMenuTrigger asChild>
+                          <div
+                            draggable={editingId !== f.id}
+                            onDragStart={(e) => {
+                              setDraggingFolderId(f.id);
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={(e) => {
                               if (
-                                editingName.trim() &&
-                                editingName.trim() !== f.name
-                              ) {
-                                try {
-                                  await renameFolder(f.id, editingName.trim());
-                                } catch (e: unknown) {
-                                  toast.error(
-                                    t("sidebar.errors.folderRenameFailed", {
-                                      message:
-                                        e instanceof Error
-                                          ? e.message
-                                          : String(e),
-                                    }),
-                                  );
-                                  setEditingName(f.name);
-                                }
-                              }
-                              setEditingId(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") inputRef.current?.blur();
-                              if (e.key === "Escape") {
-                                setEditingName(f.name);
-                                setEditingId(null);
+                                draggingFolderId === null ||
+                                draggingFolderId === f.id
+                              )
+                                return;
+                              e.preventDefault();
+                              if (folderDropTargetId !== f.id) {
+                                setFolderDropTargetId(f.id);
                               }
                             }}
-                          />
-                        ) : (
-                          <span
-                            className="flex-1 min-w-0 text-sm text-foreground truncate cursor-text"
-                            onClick={() => {
-                              if (!isScanning) {
-                                setEditingId(f.id);
-                                setEditingName(f.name);
-                              }
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              handleFolderDrop(f.id);
+                            }}
+                            onDragEnd={handleFolderDragEnd}
+                            className={cn(
+                              "group flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-sidebar-accent",
+                              isDragTarget &&
+                                "bg-sidebar-accent ring-1 ring-primary/40",
+                              draggingFolderId === f.id && "opacity-60",
+                            )}
+                          >
+                            <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0 cursor-grab active:cursor-grabbing" />
+                            <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            {editingId === f.id ? (
+                              <input
+                                ref={inputRef}
+                                className="flex-1 min-w-0 text-sm bg-transparent border-b border-primary outline-none text-foreground"
+                                value={editingName}
+                                autoFocus
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onBlur={async () => {
+                                  if (
+                                    editingName.trim() &&
+                                    editingName.trim() !== f.name
+                                  ) {
+                                    try {
+                                      await renameFolder(
+                                        f.id,
+                                        editingName.trim(),
+                                      );
+                                    } catch (e: unknown) {
+                                      toast.error(
+                                        t("sidebar.errors.folderRenameFailed", {
+                                          message:
+                                            e instanceof Error
+                                              ? e.message
+                                              : String(e),
+                                        }),
+                                      );
+                                      setEditingName(f.name);
+                                    }
+                                  }
+                                  setEditingId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter")
+                                    inputRef.current?.blur();
+                                  if (e.key === "Escape") {
+                                    setEditingName(f.name);
+                                    setEditingId(null);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <span
+                                className="flex-1 min-w-0 text-sm text-foreground truncate cursor-text"
+                                onClick={() => {
+                                  if (!isScanning) {
+                                    setEditingId(f.id);
+                                    setEditingName(f.name);
+                                  }
+                                }}
+                              >
+                                {f.name}
+                              </span>
+                            )}
+                            {editingId === f.id ? null : isScanning ? (
+                              <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />
+                            ) : (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn(
+                                    "h-5 w-5",
+                                    isSelected
+                                      ? "text-primary"
+                                      : "text-muted-foreground hover:text-primary",
+                                  )}
+                                  onClick={() => onFolderToggle?.(f.id)}
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                                  onClick={() =>
+                                    setDeleteFolderTarget({
+                                      id: f.id,
+                                      name: f.name,
+                                    })
+                                  }
+                                  disabled={scanning}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-48">
+                          <ContextMenuItem
+                            disabled={scanning || isAnalyzing}
+                            onSelect={() => {
+                              void handleFolderRescanRequest(f);
                             }}
                           >
-                            {f.name}
-                          </span>
-                        )}
-                        {editingId === f.id ? null : isScanning ? (
-                          <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />
-                        ) : (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={cn(
-                                "h-5 w-5",
-                                isSelected
-                                  ? "text-primary"
-                                  : "text-muted-foreground hover:text-primary",
-                              )}
-                              onClick={() => onFolderToggle?.(f.id)}
-                            >
-                              <Eye className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-                              onClick={() =>
-                                setDeleteFolderTarget({
-                                  id: f.id,
-                                  name: f.name,
-                                })
-                              }
-                              disabled={scanning}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                            {t("sidebar.folders.rescan")}
+                          </ContextMenuItem>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem
+                            disabled={isScanning}
+                            onSelect={() => {
+                              setEditingId(f.id);
+                              setEditingName(f.name);
+                            }}
+                          >
+                            {t("sidebar.folders.rename")}
+                          </ContextMenuItem>
+                          <ContextMenuItem
+                            className="text-destructive focus:text-destructive"
+                            disabled={scanning}
+                            onSelect={() =>
+                              setDeleteFolderTarget({
+                                id: f.id,
+                                name: f.name,
+                              })
+                            }
+                          >
+                            {t("sidebar.folders.delete")}
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
                     );
                   })}
                 </div>

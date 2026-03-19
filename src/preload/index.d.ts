@@ -239,6 +239,7 @@ declare global {
       listByIds: (ids: number[]) => Promise<ImageRow[]>;
       scan: (options?: {
         detectDuplicates?: boolean;
+        folderIds?: number[];
         orderedFolderIds?: number[];
       }) => Promise<void>;
       setFavorite: (id: number, isFavorite: boolean) => Promise<void>;

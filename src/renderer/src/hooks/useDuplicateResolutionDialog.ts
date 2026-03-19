@@ -7,7 +7,7 @@ import type {
   FolderDuplicateGroupResolution,
 } from "@preload/index.d";
 
-export type DuplicateResolutionMode = "folderAdd" | "watch";
+export type DuplicateResolutionMode = "folderAdd" | "watch" | "rescan";
 export type DuplicateBulkDecision =
   | "existing"
   | "incoming"
@@ -47,9 +47,16 @@ export type DuplicateResolutionDialogModel = {
 type UseDuplicateResolutionDialogOptions = {
   addFolder: (name: string, path: string) => Promise<Folder>;
   onFolderAdded?: (folderId: number) => void;
+  onFolderRescan?: (folderId: number) => void;
 };
 
 type FolderAddPendingInfo = {
+  name: string;
+  path: string;
+};
+
+type FolderRescanPendingInfo = {
+  id: number;
   name: string;
   path: string;
 };
@@ -165,11 +172,13 @@ export class DuplicateResolutionRequiredError extends Error {
 export function useDuplicateResolutionDialog({
   addFolder,
   onFolderAdded,
+  onFolderRescan,
 }: UseDuplicateResolutionDialogOptions): {
   handleFolderAddWithDuplicateCheck: (
     name: string,
     path: string,
   ) => Promise<void>;
+  handleFolderRescanWithDuplicateCheck: (folder: Folder) => Promise<void>;
   folderAddResolvedSeq: number;
   dialog: DuplicateResolutionDialogModel;
 } {
@@ -177,6 +186,8 @@ export function useDuplicateResolutionDialog({
   const [mode, setMode] = useState<DuplicateResolutionMode>("folderAdd");
   const [folderAddPendingInfo, setFolderAddPendingInfo] =
     useState<FolderAddPendingInfo | null>(null);
+  const [folderRescanPendingInfo, setFolderRescanPendingInfo] =
+    useState<FolderRescanPendingInfo | null>(null);
   const [items, setItems] = useState<FolderDuplicateGroup[]>([]);
   const [choices, setChoices] = useState<
     Record<string, "existing" | "incoming" | "ignore">
@@ -195,6 +206,7 @@ export function useDuplicateResolutionDialog({
     setOpen(false);
     setMode("folderAdd");
     setFolderAddPendingInfo(null);
+    setFolderRescanPendingInfo(null);
     setItems([]);
     setChoices({});
     setBulkDecision("existing");
@@ -206,6 +218,7 @@ export function useDuplicateResolutionDialog({
     (name: string, path: string, duplicates: FolderDuplicateGroup[]) => {
       setMode("folderAdd");
       setFolderAddPendingInfo({ name, path });
+      setFolderRescanPendingInfo(null);
       setItems(duplicates);
       const nextChoices = createChoicesForItems(duplicates, "existing");
       setChoices(nextChoices);
@@ -221,6 +234,7 @@ export function useDuplicateResolutionDialog({
     if (duplicates.length === 0) return;
     setMode("watch");
     setFolderAddPendingInfo(null);
+    setFolderRescanPendingInfo(null);
     setItems(duplicates);
     const nextChoices = createChoicesForItems(duplicates, "existing");
     setChoices(nextChoices);
@@ -254,6 +268,39 @@ export function useDuplicateResolutionDialog({
     [addFolder, onFolderAdded, openFolderAddDialog],
   );
 
+  const openFolderRescanDialog = useCallback(
+    (folder: Folder, duplicates: FolderDuplicateGroup[]) => {
+      setMode("rescan");
+      setFolderAddPendingInfo(null);
+      setFolderRescanPendingInfo({
+        id: folder.id,
+        name: folder.name,
+        path: folder.path,
+      });
+      setItems(duplicates);
+      const nextChoices = createChoicesForItems(duplicates, "existing");
+      setChoices(nextChoices);
+      setBulkDecision(getInitialBulkDecision(duplicates));
+      setPageIndex(0);
+      setPreview(null);
+      setOpen(true);
+    },
+    [],
+  );
+
+  const handleFolderRescanWithDuplicateCheck = useCallback(
+    async (folder: Folder) => {
+      const duplicates = await window.folder.findDuplicates(folder.path);
+      if (duplicates.length > 0) {
+        openFolderRescanDialog(folder, duplicates);
+        return;
+      }
+
+      onFolderRescan?.(folder.id);
+    },
+    [onFolderRescan, openFolderRescanDialog],
+  );
+
   const onApplyAll = useCallback(
     (keep: "existing" | "incoming" | "ignore") => {
       setChoices(createChoicesForItems(items, keep));
@@ -277,6 +324,7 @@ export function useDuplicateResolutionDialog({
   const onResolve = useCallback(async () => {
     if (items.length === 0) return;
     if (mode === "folderAdd" && !folderAddPendingInfo) return;
+    if (mode === "rescan" && !folderRescanPendingInfo) return;
 
     setResolving(true);
     try {
@@ -295,6 +343,8 @@ export function useDuplicateResolutionDialog({
 
       await window.folder.resolveDuplicates(resolutions);
 
+      const pendingRescanFolderId = folderRescanPendingInfo?.id ?? null;
+
       if (mode === "folderAdd" && folderAddPendingInfo) {
         const createdFolder = await addFolder(
           folderAddPendingInfo.name,
@@ -305,6 +355,9 @@ export function useDuplicateResolutionDialog({
       }
 
       resetDialogState();
+      if (mode === "rescan" && pendingRescanFolderId !== null) {
+        onFolderRescan?.(pendingRescanFolderId);
+      }
     } catch (e: unknown) {
       toast.error(
         i18n.t("duplicateResolution.resolveFailed", {
@@ -318,9 +371,11 @@ export function useDuplicateResolutionDialog({
     addFolder,
     choices,
     folderAddPendingInfo,
+    folderRescanPendingInfo,
     items,
     mode,
     onFolderAdded,
+    onFolderRescan,
     resetDialogState,
   ]);
 
@@ -399,6 +454,7 @@ export function useDuplicateResolutionDialog({
 
   return {
     handleFolderAddWithDuplicateCheck,
+    handleFolderRescanWithDuplicateCheck,
     folderAddResolvedSeq,
     dialog: {
       open,

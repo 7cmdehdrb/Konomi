@@ -179,9 +179,13 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
       return listImagesByIds(ids);
     }
     case "image:scan": {
-      const { detectDuplicates = false, orderedFolderIds } =
+      const { detectDuplicates = false, folderIds, orderedFolderIds } =
         (payload as
-          | { detectDuplicates?: boolean; orderedFolderIds?: number[] }
+          | {
+              detectDuplicates?: boolean;
+              folderIds?: number[];
+              orderedFolderIds?: number[];
+            }
           | undefined) ?? {};
       scanCancelToken = { cancelled: false };
       try {
@@ -201,6 +205,7 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
           detectDuplicates
             ? (group) => utilitySender.send("image:watchDuplicate", group)
             : undefined,
+          folderIds,
           orderedFolderIds,
           emitSearchStatsProgress,
         );

@@ -1753,6 +1753,7 @@ export async function syncAllFolders(
   onFolderEnd?: (folderId: number) => void,
   signal?: CancelToken,
   onDuplicateGroup?: (group: FolderDuplicateGroup) => void,
+  folderIds?: number[],
   orderedFolderIds?: number[],
   onSearchStatsProgress?: SearchStatsProgressCallback,
 ): Promise<void> {
@@ -1770,18 +1771,27 @@ export async function syncAllFolders(
 
   try {
     const rawFolders = await getFolders();
+    const requestedFolderIds =
+      folderIds && folderIds.length > 0 ? new Set(folderIds) : null;
+    const candidateFolders = requestedFolderIds
+      ? rawFolders.filter((folder) => requestedFolderIds.has(folder.id))
+      : rawFolders;
     const folders =
       orderedFolderIds && orderedFolderIds.length > 0
         ? (() => {
-            const folderMap = new Map(rawFolders.map((f) => [f.id, f]));
+            const folderMap = new Map(candidateFolders.map((f) => [f.id, f]));
             const ordered = orderedFolderIds
               .map((id) => folderMap.get(id))
-              .filter((f): f is (typeof rawFolders)[0] => f !== undefined);
+              .filter(
+                (f): f is (typeof candidateFolders)[0] => f !== undefined,
+              );
             const orderedSet = new Set(orderedFolderIds);
-            const remaining = rawFolders.filter((f) => !orderedSet.has(f.id));
+            const remaining = candidateFolders.filter(
+              (f) => !orderedSet.has(f.id),
+            );
             return [...ordered, ...remaining];
           })()
-        : rawFolders;
+        : candidateFolders;
     folderCount = folders.length;
     const db = getDB();
 

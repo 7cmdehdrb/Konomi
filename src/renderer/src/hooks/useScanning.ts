@@ -75,6 +75,7 @@ export function useScanning({
   const runScan = useCallback(
     (options?: {
       detectDuplicates?: boolean;
+      folderIds?: number[];
       refreshPage?: boolean;
       refreshSearchPresetStats?: boolean;
     }): Promise<boolean> => {
@@ -84,6 +85,7 @@ export function useScanning({
       }
       const {
         detectDuplicates,
+        folderIds,
         refreshPage = true,
         refreshSearchPresetStats = true,
       } = options ?? {};
@@ -105,7 +107,7 @@ export function useScanning({
         }
       })();
       const scanPromise = window.image
-        .scan({ detectDuplicates, orderedFolderIds })
+        .scan({ detectDuplicates, folderIds, orderedFolderIds })
         .then(() => {
           log.info("Scan completed", { elapsedMs: Date.now() - startedAt });
           if (refreshPage) {

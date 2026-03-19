@@ -271,11 +271,14 @@ const en = {
     title: {
       watch: "Duplicate Image Detected",
       folderAdd: "Resolve Duplicate Images",
+      rescan: "Resolve Duplicate Images",
     },
     description: {
       watch: "Some files need your attention.",
       folderAdd:
         "Found {{count}} duplicate images. Choose which files to keep before finishing folder import.",
+      rescan:
+        "Found {{count}} duplicate images. Choose which files to keep before rescanning this folder.",
     },
     bulkLabel: "Bulk Actions",
     bulk: {
@@ -298,6 +301,7 @@ const en = {
     manualEmpty: "Bulk actions do not show individual previews.",
     applySelection: "Apply Selection",
     resolveAndAddFolder: "Resolve and Add Folder",
+    resolveAndRescanFolder: "Resolve and Rescan Folder",
     confirmDelete: {
       title: "Confirm File Deletion",
       description:
@@ -671,6 +675,9 @@ const en = {
       addByPrompt: "Add by Prompt",
     },
     folders: {
+      rescan: "Rescan Folder",
+      rename: "Rename Folder",
+      delete: "Delete Folder",
       empty: "No folders added",
       addDisabled:
         "You cannot add folders while similarity analysis is running",

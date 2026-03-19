@@ -141,8 +141,16 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("image:listByIds", (_, ids: number[]) =>
     bridge.request("image:listByIds", { ids }),
   );
-  ipcMain.handle("image:scan", (_, options?: { detectDuplicates?: boolean }) =>
-    bridge.request("image:scan", options ?? {}, 0),
+  ipcMain.handle(
+    "image:scan",
+    (
+      _,
+      options?: {
+        detectDuplicates?: boolean;
+        folderIds?: number[];
+        orderedFolderIds?: number[];
+      },
+    ) => bridge.request("image:scan", options ?? {}, 0),
   );
   ipcMain.handle("image:cancelScan", () => bridge.request("image:cancelScan"));
   ipcMain.handle("image:setFavorite", (_, id: number, isFavorite: boolean) =>

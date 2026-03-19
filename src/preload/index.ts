@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld("image", {
   listByIds: (ids: number[]) => ipcRenderer.invoke("image:listByIds", ids),
   scan: (options?: {
     detectDuplicates?: boolean;
+    folderIds?: number[];
     orderedFolderIds?: number[];
   }) => ipcRenderer.invoke("image:scan", options),
   setFavorite: (id: number, isFavorite: boolean) =>

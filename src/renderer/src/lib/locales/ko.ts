@@ -269,10 +269,13 @@ const ko = {
   },
   duplicateResolution: {
     title: {
+      rescan: "중복 이미지 처리",
       watch: "중복 이미지 감지",
       folderAdd: "중복 이미지 처리",
     },
     description: {
+      rescan:
+        "중복 이미지 {{count}}개를 찾았습니다. 이 폴더를 다시 스캔하기 전에 어떤 파일을 유지할지 선택해 주세요.",
       watch: "작업이 필요한 파일이 있습니다.",
       folderAdd:
         "중복 이미지 {{count}}개를 찾았습니다. 폴더 추가를 완료하려면 어떤 파일을 남길지 선택해 주세요.",
@@ -297,6 +300,7 @@ const ko = {
     manualEmpty: "일괄 작업에서는 개별 파일을 미리 볼 수 없습니다.",
     applySelection: "선택 적용",
     resolveAndAddFolder: "중복 처리 후 폴더 추가",
+    resolveAndRescanFolder: "중복 처리 후 폴더 재스캔",
     confirmDelete: {
       title: "삭제 포함 작업 확인",
       description:
@@ -665,6 +669,9 @@ const ko = {
       addByPrompt: "프롬프트로 추가",
     },
     folders: {
+      rescan: "폴더 재스캔",
+      rename: "폴더 이름 변경",
+      delete: "폴더 삭제",
       empty: "추가된 폴더가 없습니다",
       addDisabled: "유사 이미지 분석 중에는 폴더를 추가할 수 없습니다",
     },

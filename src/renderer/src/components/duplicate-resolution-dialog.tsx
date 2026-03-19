@@ -91,13 +91,19 @@ export function DuplicateResolutionDialog({
             <DialogTitle className="-mb-6">
               {mode === "watch"
                 ? t("duplicateResolution.title.watch")
-                : t("duplicateResolution.title.folderAdd")}
+                : mode === "rescan"
+                  ? t("duplicateResolution.title.rescan")
+                  : t("duplicateResolution.title.folderAdd")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground select-none">
               {mode === "watch"
                 ? t("duplicateResolution.description.watch")
+                : mode === "rescan"
+                  ? t("duplicateResolution.description.rescan", {
+                      count: items.length,
+                    })
                 : t("duplicateResolution.description.folderAdd", {
                     count: items.length,
                   })}
@@ -275,7 +281,7 @@ export function DuplicateResolutionDialog({
             </div>
           </div>
           <DialogFooter>
-            {mode === "folderAdd" && (
+            {mode !== "watch" && (
               <Button
                 variant="ghost"
                 onClick={() => onOpenChange(false)}
@@ -293,7 +299,9 @@ export function DuplicateResolutionDialog({
               ) : null}
               {mode === "watch"
                 ? t("duplicateResolution.applySelection")
-                : t("duplicateResolution.resolveAndAddFolder")}
+                : mode === "rescan"
+                  ? t("duplicateResolution.resolveAndRescanFolder")
+                  : t("duplicateResolution.resolveAndAddFolder")}
             </Button>
           </DialogFooter>
         </DialogContent>

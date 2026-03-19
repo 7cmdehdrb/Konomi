@@ -706,6 +706,30 @@ export default function App() {
     ],
   );
 
+  const handleFolderRescan = useCallback(
+    (id: number) => {
+      if (scanningRef.current || isAnalyzing) return;
+      log.info("Folder rescan requested", { folderId: id });
+      setActiveScanFolderIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+      void runScan({ folderIds: [id] }).then((ok) => {
+        if (ok) {
+          scheduleAnalysis(0);
+        }
+      });
+    },
+    [
+      isAnalyzing,
+      runScan,
+      scheduleAnalysis,
+      scanningRef,
+      setActiveScanFolderIds,
+    ],
+  );
+
   const handleCategorySelect = useCallback((id: number | null) => {
     log.debug("Category selected", { categoryId: id });
     setSelectedCategoryId(id);
@@ -1176,6 +1200,7 @@ export default function App() {
               onFolderRemoved={handleFolderRemoved}
               onFolderAdded={handleFolderAdded}
               onFolderCancelled={handleFolderCancelled}
+              onFolderRescan={handleFolderRescan}
               scanningFolderIds={activeScanFolderIds}
               scanning={scanning}
               categories={categories}
