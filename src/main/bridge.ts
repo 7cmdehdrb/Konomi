@@ -20,6 +20,7 @@ type PendingRequest = {
   timeout: ReturnType<typeof setTimeout> | null;
 };
 
+// 요청이 영원히 안 끝나는걸 방지하는 Timeout Default 값인데 작업이 120초보다 오래 걸리면 중간에 지맘대로 뒤져버리는 문제가 있음
 const DEFAULT_REQUEST_TIMEOUT_MS = 120000;
 const RESTART_DELAY_MS = 1000;
 
@@ -155,6 +156,7 @@ class UtilityBridge {
     this.log.info("Bound renderer webContents");
   }
 
+  // timeoutMs: bridge에 요청할 때 작업이 영원히 돌아가는걸 방지하는 일종의 timeout 안전장치인데, 정작 오래걸리는 작업을 지맘대로 캔슬시키는 문제가 있음. 0이면 무한
   request<T>(type: string, payload?: unknown, timeoutMs?: number): Promise<T> {
     return new Promise((resolve, reject) => {
       const child = this.child;

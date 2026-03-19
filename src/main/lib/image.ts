@@ -234,7 +234,7 @@ type ExistingSizeBuckets = Map<number, FolderDuplicateExistingEntry[]>;
 type IncomingSizeBuckets = Map<number, FolderDuplicateIncomingEntry[]>;
 
 async function buildExistingSizeBuckets(
-  rows: Array<{ id: number; path: string }>,
+  rows: Array<{ id: number; path: string; fileSize: number }>,
   signal?: CancelToken,
 ): Promise<ExistingSizeBuckets> {
   const buckets: ExistingSizeBuckets = new Map();
@@ -242,7 +242,10 @@ async function buildExistingSizeBuckets(
     rows,
     SIZE_SCAN_CONCURRENCY,
     async (row) => {
-      const size = await fileSize(row.path);
+      const size =
+        Number.isFinite(row.fileSize) && row.fileSize > 0
+          ? row.fileSize
+          : await fileSize(row.path);
       if (size === null) return;
       const bucket = buckets.get(size) ?? [];
       bucket.push({
@@ -1551,7 +1554,7 @@ export async function findFolderDuplicateImages(
 
   const incomingPathSet = new Set(incomingPaths);
   const existingRows = await db.image.findMany({
-    select: { id: true, path: true },
+    select: { id: true, path: true, fileSize: true },
   });
   const existingSizeBuckets = await buildExistingSizeBuckets(
     existingRows,
@@ -1800,7 +1803,7 @@ export async function syncAllFolders(
 
     if (onDuplicateGroup && !signal?.cancelled) {
       const existingRows = await db.image.findMany({
-        select: { id: true, path: true },
+        select: { id: true, path: true, fileSize: true },
       });
       const existingPathSet = new Set(existingRows.map((row) => row.path));
       const incomingCandidates: string[] = [];

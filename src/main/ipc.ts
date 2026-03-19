@@ -81,7 +81,7 @@ export function registerIpcHandlers(): void {
     bridge.request("folder:create", { name, path }),
   );
   ipcMain.handle("folder:findDuplicates", (_, path: string) =>
-    bridge.request("folder:findDuplicates", { path }),
+    bridge.request("folder:findDuplicates", { path }, 0),
   );
   ipcMain.handle(
     "folder:resolveDuplicates",
