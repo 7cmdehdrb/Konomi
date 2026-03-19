@@ -216,6 +216,15 @@ function TokenChipCore({
   };
 
   useEffect(() => {
+    if (!resolvedEditorOpen) return;
+    suppressTagSuggestOnceRef.current = true;
+    setTagSuggestions([]);
+    setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
+    setTagSuggestionOpen(false);
+    setTagSuggestionIndex(0);
+  }, [resolvedEditorOpen]);
+
+  useEffect(() => {
     const canSuggest = inlineEditOpen || resolvedEditorOpen;
     const prefix = draftText.trim();
 
@@ -789,6 +798,10 @@ function TokenChipCore({
             onChange={(e) => setDraftText(e.target.value)}
             onKeyDown={handleInlineKeyDown}
             onBlur={handleInlineBlur}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             className="bg-transparent outline-none text-xs min-w-[2ch]"
             size={Math.max(2, draftText.length + 1)}
           />
@@ -912,6 +925,10 @@ function TokenChipCore({
                   onChange={(e) => setDraftText(e.target.value)}
                   onKeyDown={handleTagInputKeyDown}
                   placeholder={t("tokenChip.editor.tagPlaceholder")}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-primary/60"
                 />
                 {tagSuggestionOpen && tagSuggestions.length > 0 ? (
