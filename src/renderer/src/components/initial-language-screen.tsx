@@ -1,7 +1,7 @@
 import { Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import backgroundImageUrl from "@/assets/images/welcome.webp";
+import backgroundImageUrl from "@/assets/images/splash.webp";
 import type { AppLanguage } from "@/lib/language";
 import { SUPPORTED_APP_LANGUAGES } from "@/lib/language";
 import { cn } from "@/lib/utils";
