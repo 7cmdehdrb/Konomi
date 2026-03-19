@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useDeferredValue,
   startTransition,
 } from "react";
 import { toast } from "sonner";
@@ -279,6 +280,11 @@ export default function App({ initialFolderCount = null }: AppProps) {
     [categories, selectedCategoryId],
   );
   const selectedImageId = selectedImage?.id ?? null;
+  const deferredDetailContentImageId = useDeferredValue(
+    isDetailOpen ? selectedImageId : null,
+  );
+  const detailContentReady =
+    !!selectedImageId && deferredDetailContentImageId === selectedImageId;
   const selectedBuiltinCategory = useMemo(
     () => getBuiltinCategoryKind(selectedCategory),
     [selectedCategory],
@@ -952,7 +958,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     setSimilarImages([]);
     setSimilarReasons({});
 
-    if (!selectedImageId) {
+    if (!selectedImageId || !isDetailOpen || !detailContentReady) {
       setSimilarImagesLoading(false);
       return;
     }
@@ -1005,7 +1011,14 @@ export default function App({ initialFolderCount = null }: AppProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedImageId, similarGroups, visualThresholdRef, promptThresholdRef]);
+  }, [
+    detailContentReady,
+    isDetailOpen,
+    selectedImageId,
+    similarGroups,
+    visualThresholdRef,
+    promptThresholdRef,
+  ]);
 
   const selectedIndex = useMemo(
     () =>
@@ -1261,6 +1274,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
         similarImages={similarImages}
         similarReasons={similarReasons}
         similarImagesLoading={similarImagesLoading}
+        detailContentReady={detailContentReady}
         onSimilarImageClick={setSelectedImage}
         similarPageSize={settings.similarPageSize}
       />

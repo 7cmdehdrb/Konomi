@@ -90,6 +90,7 @@ interface ImageDetailProps {
   similarImages?: ImageData[];
   similarReasons?: Record<string, SimilarityReason>;
   similarImagesLoading?: boolean;
+  detailContentReady?: boolean;
   onSimilarImageClick?: (image: ImageData) => void;
   similarPageSize?: number;
 }
@@ -109,6 +110,7 @@ export function ImageDetail({
   similarImages,
   similarReasons,
   similarImagesLoading = false,
+  detailContentReady = true,
   onSimilarImageClick,
   similarPageSize = 10,
 }: ImageDetailProps) {
@@ -188,6 +190,7 @@ export function ImageDetail({
       )
     : [];
   const hasSeed = Number.isFinite(image.seed);
+  const isPanelLoading = !detailContentReady;
 
   return (
     <div
@@ -279,7 +282,7 @@ export function ImageDetail({
             {t("imageDetail.similarImages")}
           </p>
           <div className="flex-1 min-h-0 overflow-y-auto">
-            {similarImagesLoading ? (
+            {isPanelLoading || similarImagesLoading ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 px-2 text-muted-foreground/70">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <p className="text-[10px]">{t("common.loading")}</p>
@@ -410,51 +413,27 @@ export function ImageDetail({
 
         {/* Info Panel */}
         <div className="w-80 shrink-0 border-l border-border/60 bg-card/70">
-          <ScrollArea className="h-full">
-            <div className="p-4 space-y-3">
-              {/* Prompt */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
-                    Prompt
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 px-1.5 py-0 text-muted-foreground hover:text-foreground"
-                    onClick={() => handleCopy("prompt", image.prompt)}
-                  >
-                    {copiedKey === "prompt" ? (
-                      <Check className="h-3 w-3 text-success" />
-                    ) : (
-                      <Copy className="h-3 w-3" />
-                    )}
-                  </Button>
-                </div>
-                <TokenContainer
-                  tokens={image.tokens}
-                  isEditable={false}
-                  onAddTagToSearch={onAddTagToSearch}
-                  onAddTagToGeneration={onAddTagToGenerator}
-                />
-              </div>
-
-              {/* Negative Prompt */}
-              {image.negativePrompt && (
-                <div className="space-y-1 border-t border-border/60 pt-3">
+          {isPanelLoading ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-muted-foreground/70">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <p className="text-xs">{t("common.loading")}</p>
+            </div>
+          ) : (
+            <ScrollArea className="h-full">
+              <div className="p-4 space-y-3">
+                {/* Prompt */}
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
-                      Negative
+                      Prompt
                     </p>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-5 px-1.5 py-0 text-muted-foreground hover:text-foreground"
-                      onClick={() =>
-                        handleCopy("negative", image.negativePrompt!)
-                      }
+                      onClick={() => handleCopy("prompt", image.prompt)}
                     >
-                      {copiedKey === "negative" ? (
+                      {copiedKey === "prompt" ? (
                         <Check className="h-3 w-3 text-success" />
                       ) : (
                         <Copy className="h-3 w-3" />
@@ -462,32 +441,29 @@ export function ImageDetail({
                     </Button>
                   </div>
                   <TokenContainer
-                    tokens={image.negativeTokens}
+                    tokens={image.tokens}
                     isEditable={false}
                     onAddTagToSearch={onAddTagToSearch}
                     onAddTagToGeneration={onAddTagToGenerator}
                   />
                 </div>
-              )}
 
-              {/* Character Prompts */}
-              {image.characterPrompts &&
-                image.characterPrompts.map((cp, i) => (
-                  <div
-                    key={i}
-                    className="space-y-1 border-t border-border/60 pt-3"
-                  >
+                {/* Negative Prompt */}
+                {image.negativePrompt && (
+                  <div className="space-y-1 border-t border-border/60 pt-3">
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
-                        Char {i + 1}
+                        Negative
                       </p>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-5 px-1.5 py-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => handleCopy(`char-${i}`, cp)}
+                        onClick={() =>
+                          handleCopy("negative", image.negativePrompt!)
+                        }
                       >
-                        {copiedKey === `char-${i}` ? (
+                        {copiedKey === "negative" ? (
                           <Check className="h-3 w-3 text-success" />
                         ) : (
                           <Copy className="h-3 w-3" />
@@ -495,120 +471,156 @@ export function ImageDetail({
                       </Button>
                     </div>
                     <TokenContainer
-                      tokens={parsePromptTokens(cp).filter(
-                        (t): t is PromptToken => !isGroupRef(t),
-                      )}
+                      tokens={image.negativeTokens}
                       isEditable={false}
                       onAddTagToSearch={onAddTagToSearch}
                       onAddTagToGeneration={onAddTagToGenerator}
                     />
                   </div>
-                ))}
+                )}
 
-              {/* Metadata */}
-              <div className="border-t border-border/60 pt-3 space-y-1">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-                  Info
-                </p>
-                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-                  <span className="text-muted-foreground/70">
-                    {t("imageDetail.info.model")}
-                  </span>
-                  <span className="text-foreground/80 truncate">
-                    {image.model || t("imageDetail.info.unavailable")}
-                  </span>
-                  <span className="text-muted-foreground/70">
-                    {t("imageDetail.info.seed")}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="font-mono text-foreground/80">
-                      {hasSeed ? image.seed : t("imageDetail.info.unavailable")}
-                    </span>
-                    {hasSeed ? (
-                      <button
-                        className="text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={() => handleCopy("seed", String(image.seed))}
-                      >
-                        {copiedKey === "seed" ? (
-                          <Check className="h-3 w-3 text-success" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
+                {/* Character Prompts */}
+                {image.characterPrompts &&
+                  image.characterPrompts.map((cp, i) => (
+                    <div
+                      key={i}
+                      className="space-y-1 border-t border-border/60 pt-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+                          Char {i + 1}
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 px-1.5 py-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => handleCopy(`char-${i}`, cp)}
+                        >
+                          {copiedKey === `char-${i}` ? (
+                            <Check className="h-3 w-3 text-success" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
+                      <TokenContainer
+                        tokens={parsePromptTokens(cp).filter(
+                          (t): t is PromptToken => !isGroupRef(t),
                         )}
-                      </button>
-                    ) : null}
-                  </span>
-                  <span className="text-muted-foreground/70">
-                    {t("imageDetail.info.size")}
-                  </span>
-                  <span className="font-mono text-foreground/80">
-                    {image.width}×{image.height}
-                  </span>
-                  <span className="text-muted-foreground/70">
-                    {t("imageDetail.info.sampler")}
-                  </span>
-                  <span className="text-foreground/80 truncate">
-                    {image.sampler || t("imageDetail.info.unavailable")}
-                  </span>
-                  <span className="text-muted-foreground/70">
-                    {t("imageDetail.info.steps")}
-                  </span>
-                  <span className="font-mono text-foreground/80">
-                    {image.steps || t("imageDetail.info.unavailable")}
-                  </span>
-                  <span className="text-muted-foreground/70">
-                    {t("imageDetail.info.cfg")}
-                  </span>
-                  <span className="font-mono text-foreground/80">
-                    {image.cfgScale || t("imageDetail.info.unavailable")}
-                  </span>
-                  {image.cfgRescale ? (
-                    <>
-                      <span className="text-muted-foreground/70">
-                        {t("imageDetail.info.cfgRescale")}
-                      </span>
+                        isEditable={false}
+                        onAddTagToSearch={onAddTagToSearch}
+                        onAddTagToGeneration={onAddTagToGenerator}
+                      />
+                    </div>
+                  ))}
+
+                {/* Metadata */}
+                <div className="border-t border-border/60 pt-3 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                    Info
+                  </p>
+                  <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+                    <span className="text-muted-foreground/70">
+                      {t("imageDetail.info.model")}
+                    </span>
+                    <span className="text-foreground/80 truncate">
+                      {image.model || t("imageDetail.info.unavailable")}
+                    </span>
+                    <span className="text-muted-foreground/70">
+                      {t("imageDetail.info.seed")}
+                    </span>
+                    <span className="flex items-center gap-1.5">
                       <span className="font-mono text-foreground/80">
-                        {image.cfgRescale}
+                        {hasSeed
+                          ? image.seed
+                          : t("imageDetail.info.unavailable")}
                       </span>
-                    </>
-                  ) : null}
-                  {image.noiseSchedule ? (
-                    <>
-                      <span className="text-muted-foreground/70">
-                        {t("imageDetail.info.noiseSchedule")}
-                      </span>
-                      <span className="text-foreground/80 truncate">
-                        {image.noiseSchedule}
-                      </span>
-                    </>
-                  ) : null}
-                  {image.varietyPlus ? (
-                    <>
-                      <span className="text-muted-foreground/70">
-                        {t("imageDetail.info.varietyPlus")}
-                      </span>
-                      <span className="text-foreground/80">ON</span>
-                    </>
-                  ) : null}
-                  <span className="text-muted-foreground/70">
-                    {t("imageDetail.info.date")}
-                  </span>
-                  <span className="text-foreground/80">
-                    {formatDate(image.fileModifiedAt)}
-                  </span>
-                  {image.pHash ? (
-                    <>
-                      <span className="text-muted-foreground/70">
-                        {t("imageDetail.info.phash")}
-                      </span>
-                      <span className="font-mono text-muted-foreground/80 truncate">
-                        {image.pHash}
-                      </span>
-                    </>
-                  ) : null}
+                      {hasSeed ? (
+                        <button
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => handleCopy("seed", String(image.seed))}
+                        >
+                          {copiedKey === "seed" ? (
+                            <Check className="h-3 w-3 text-success" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </button>
+                      ) : null}
+                    </span>
+                    <span className="text-muted-foreground/70">
+                      {t("imageDetail.info.size")}
+                    </span>
+                    <span className="font-mono text-foreground/80">
+                      {image.width}×{image.height}
+                    </span>
+                    <span className="text-muted-foreground/70">
+                      {t("imageDetail.info.sampler")}
+                    </span>
+                    <span className="text-foreground/80 truncate">
+                      {image.sampler || t("imageDetail.info.unavailable")}
+                    </span>
+                    <span className="text-muted-foreground/70">
+                      {t("imageDetail.info.steps")}
+                    </span>
+                    <span className="font-mono text-foreground/80">
+                      {image.steps || t("imageDetail.info.unavailable")}
+                    </span>
+                    <span className="text-muted-foreground/70">
+                      {t("imageDetail.info.cfg")}
+                    </span>
+                    <span className="font-mono text-foreground/80">
+                      {image.cfgScale || t("imageDetail.info.unavailable")}
+                    </span>
+                    {image.cfgRescale ? (
+                      <>
+                        <span className="text-muted-foreground/70">
+                          {t("imageDetail.info.cfgRescale")}
+                        </span>
+                        <span className="font-mono text-foreground/80">
+                          {image.cfgRescale}
+                        </span>
+                      </>
+                    ) : null}
+                    {image.noiseSchedule ? (
+                      <>
+                        <span className="text-muted-foreground/70">
+                          {t("imageDetail.info.noiseSchedule")}
+                        </span>
+                        <span className="text-foreground/80 truncate">
+                          {image.noiseSchedule}
+                        </span>
+                      </>
+                    ) : null}
+                    {image.varietyPlus ? (
+                      <>
+                        <span className="text-muted-foreground/70">
+                          {t("imageDetail.info.varietyPlus")}
+                        </span>
+                        <span className="text-foreground/80">ON</span>
+                      </>
+                    ) : null}
+                    <span className="text-muted-foreground/70">
+                      {t("imageDetail.info.date")}
+                    </span>
+                    <span className="text-foreground/80">
+                      {formatDate(image.fileModifiedAt)}
+                    </span>
+                    {image.pHash ? (
+                      <>
+                        <span className="text-muted-foreground/70">
+                          {t("imageDetail.info.phash")}
+                        </span>
+                        <span className="font-mono text-muted-foreground/80 truncate">
+                          {image.pHash}
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </div>
-            </div>
-          </ScrollArea>
+            </ScrollArea>
+          )}
         </div>
       </div>
     </div>
