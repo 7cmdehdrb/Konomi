@@ -24,15 +24,16 @@ export function InitialLanguageScreen({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-140 flex items-center justify-center bg-background/88 px-6 py-10 backdrop-blur-md">
-      <div className="w-full max-w-4xl overflow-hidden rounded-4xl border border-border/60 bg-background shadow-2xl">
+    <div className="fixed inset-0 z-140 flex items-center justify-center bg-background/94 px-6 py-10 backdrop-blur-lg dark:bg-background/88 dark:backdrop-blur-md">
+      <div className="w-full max-w-4xl overflow-hidden rounded-4xl border border-border/70 bg-background/96 shadow-2xl shadow-black/8 dark:border-border/60 dark:bg-background dark:shadow-black/20">
         <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="relative overflow-hidden bg-primary/8 px-8 py-10 sm:px-10 sm:py-12">
+          <div className="relative overflow-hidden bg-primary/10 px-8 py-10 sm:px-10 sm:py-12 dark:bg-primary/8">
             <div
-              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-45 saturate-105 brightness-105 dark:opacity-100 dark:saturate-100 dark:brightness-100"
               style={{ backgroundImage: `url(${backgroundImageUrl})` }}
             />
-            <div className="absolute inset-0 bg-background/40 backdrop-blur-xs" />
+            <div className="absolute inset-0 bg-background/68 backdrop-blur-sm dark:bg-background/40 dark:backdrop-blur-xs" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--color-background)_8%,transparent)_0%,color-mix(in_oklab,var(--color-background)_18%,transparent)_100%)] dark:bg-none" />
 
             <div className="relative z-10">
               <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/24">
@@ -52,7 +53,7 @@ export function InitialLanguageScreen({
             </div>
           </div>
 
-          <div className="px-8 py-10 sm:px-10 sm:py-12">
+          <div className="bg-background/72 px-8 py-10 sm:px-10 sm:py-12 dark:bg-background">
             <div className="space-y-3">
               {SUPPORTED_APP_LANGUAGES.map((item) => (
                 <button
@@ -62,8 +63,8 @@ export function InitialLanguageScreen({
                   className={cn(
                     "w-full rounded-2xl border px-5 py-4 text-left transition-colors",
                     language === item
-                      ? "border-primary bg-primary/10 text-foreground shadow-sm"
-                      : "border-border bg-secondary/35 text-muted-foreground hover:border-foreground/15 hover:bg-secondary/55 hover:text-foreground",
+                      ? "border-primary bg-primary/12 text-foreground shadow-sm dark:bg-primary/10"
+                      : "border-border bg-background/74 text-muted-foreground hover:border-foreground/15 hover:bg-secondary/50 hover:text-foreground dark:bg-secondary/35 dark:hover:bg-secondary/55",
                   )}
                 >
                   <div className="text-base font-medium">
