@@ -15,21 +15,20 @@ const ko = {
       },
     },
     splash: {
-      title: "라이브러리 준비 중",
+      title: "앱 시작 준비 중",
       status: {
-        checkingFolders: "등록된 폴더를 확인하고 첫 화면을 준비하고 있습니다.",
+        checkingFolders: "등록된 폴더를 확인하고 앱을 시작할 준비를 하고 있습니다.",
         preparingOnboarding:
-          "시작 화면을 구성하고 바로 폴더를 추가할 수 있게 준비하고 있습니다.",
-        syncingLibrary:
-          "등록된 이미지를 스캔하고 라이브러리 상태를 동기화하고 있습니다.",
-        finalizing: "라이브러리 검색 화면을 마무리하고 있습니다.",
+          "시작 화면을 준비하고 바로 폴더를 추가할 수 있게 하고 있습니다.",
+        syncingLibrary: "등록된 이미지를 확인하고 앱 상태를 불러오고 있습니다.",
+        finalizing: "마지막 준비를 마무리하고 있습니다.",
       },
       detail: {
-        scanFolders: "{{folderLabel}} 스캔 {{done}}/{{total}}",
-        scanImages: "이미지 스캔 {{done}}/{{total}}",
+        scanFolders: "{{folderLabel}} 확인 중 {{done}}/{{total}}",
+        scanImages: "이미지 확인 중 {{done}}/{{total}}",
         loadingFolders: "폴더 목록을 불러오는 중입니다.",
-        preparingOnboarding: "온보딩 화면을 준비하는 중입니다.",
-        loadingLibraryState: "첫 라이브러리 상태를 불러오는 중입니다.",
+        preparingOnboarding: "시작 화면을 준비하는 중입니다.",
+        loadingLibraryState: "앱 상태를 불러오는 중입니다.",
       },
     },
   },

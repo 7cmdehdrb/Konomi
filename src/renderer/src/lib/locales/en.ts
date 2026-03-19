@@ -15,21 +15,20 @@ const en = {
       },
     },
     splash: {
-      title: "Preparing Library",
+      title: "Getting Konomi Ready",
       status: {
-        checkingFolders:
-          "Checking your folders and preparing the first screen.",
+        checkingFolders: "Checking your folders and getting the app ready.",
         preparingOnboarding:
           "Preparing the start screen so you can add a folder right away.",
-        syncingLibrary: "Scanning registered images and syncing library state.",
-        finalizing: "Finishing the library search screen.",
+        syncingLibrary: "Checking registered images and restoring app state.",
+        finalizing: "Wrapping things up before launch.",
       },
       detail: {
-        scanFolders: "Scanning {{folderLabel}} {{done}}/{{total}}",
-        scanImages: "Scanning images {{done}}/{{total}}",
-        loadingFolders: "Loading folder list.",
-        preparingOnboarding: "Preparing onboarding screen.",
-        loadingLibraryState: "Loading initial library state.",
+        scanFolders: "Checking {{folderLabel}} {{done}}/{{total}}",
+        scanImages: "Checking images {{done}}/{{total}}",
+        loadingFolders: "Loading your folder list.",
+        preparingOnboarding: "Preparing the start screen.",
+        loadingLibraryState: "Restoring app state.",
       },
     },
   },
