@@ -22,7 +22,7 @@ export const DEFAULTS: Settings = {
   visualSimilarityThreshold: 12,
   promptSimilarityThreshold: 0.6,
   similarPageSize: 10,
-  theme: "auto",
+  theme: "dark",
   language: "system",
 };
 
