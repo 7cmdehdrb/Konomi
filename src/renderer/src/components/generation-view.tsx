@@ -4291,18 +4291,18 @@ export const GenerationView = memo(function GenerationView({
     [latestViewStateRef],
   );
 
-  const handleGenerate = useCallback(
-    async (force = false) => {
-      const current = latestViewStateRef.current;
-      if (!current.prompt.trim()) return;
-
+  const buildGenerateParamsKey = useCallback(
+    (
+      current: typeof latestViewStateRef.current,
+      resolvedSeed?: number,
+    ) => {
       const expandGroupRefs = (text: string) =>
         expandGroupRefsFromCategories(text, current.categories);
-      const seed = resolveSeedForGeneration(current.seedInput);
       const validCharacterPrompts = current.characterPrompts.filter((c) =>
         c.prompt.trim(),
       );
-      const paramsKey = JSON.stringify({
+
+      return JSON.stringify({
         prompt: expandGroupRefs(current.prompt),
         negativePrompt: expandGroupRefs(current.negativePrompt),
         characterPrompts: validCharacterPrompts.map((c) =>
@@ -4317,17 +4317,40 @@ export const GenerationView = memo(function GenerationView({
         height: current.height,
         steps: current.steps,
         scale: current.scale,
+        cfgRescale: current.cfgRescale,
+        varietyPlus: current.varietyPlus,
         sampler: current.sampler,
         noiseSchedule: current.noiseSchedule,
-        seed,
+        seed: resolvedSeed,
         i2iName: current.i2iRef?.name,
         i2iStrength: current.i2iRef?.strength,
         i2iNoise: current.i2iRef?.noise,
-        vibes: current.vibes.map((v) => v.name + v.infoExtracted + v.strength),
+        vibes: current.vibes.map((v) => ({
+          name: v.name,
+          infoExtracted: v.infoExtracted,
+          strength: v.strength,
+        })),
         preciseRefName: current.preciseRef?.name,
         preciseRefFidelity: current.preciseRef?.fidelity,
       });
-      if (!force && paramsKey === lastParamsKeyRef.current) {
+    },
+    [latestViewStateRef],
+  );
+
+  const handleGenerate = useCallback(
+    async (force = false) => {
+      const skipDuplicateCheck = force === true;
+      const current = latestViewStateRef.current;
+      if (!current.prompt.trim()) return;
+
+      const expandGroupRefs = (text: string) =>
+        expandGroupRefsFromCategories(text, current.categories);
+      const seed = resolveSeedForGeneration(current.seedInput);
+      const validCharacterPrompts = current.characterPrompts.filter((c) =>
+        c.prompt.trim(),
+      );
+      const paramsKey = buildGenerateParamsKey(current, seed);
+      if (!skipDuplicateCheck && paramsKey === lastParamsKeyRef.current) {
         setDupAlert(true);
         return;
       }
@@ -4394,6 +4417,12 @@ export const GenerationView = memo(function GenerationView({
         void window.image.readNaiMeta(filePath).then((meta) => {
           if (meta?.seed != null) {
             setRecentSeeds((prev) => new Map(prev).set(src, meta.seed!));
+            if (lastParamsKeyRef.current === paramsKey) {
+              lastParamsKeyRef.current = buildGenerateParamsKey(
+                current,
+                meta.seed,
+              );
+            }
           }
         });
       } catch (e: unknown) {
@@ -4404,7 +4433,12 @@ export const GenerationView = memo(function GenerationView({
         setPreviewSrc(null);
       }
     },
-    [latestViewStateRef, resolveSeedForGeneration, saveLastGenParams],
+    [
+      buildGenerateParamsKey,
+      latestViewStateRef,
+      resolveSeedForGeneration,
+      saveLastGenParams,
+    ],
   );
 
   const handleAutoGenerate = useCallback(async () => {
@@ -4690,6 +4724,8 @@ export const GenerationView = memo(function GenerationView({
           setSampler(meta.sampler);
         if (meta.steps) setSteps(meta.steps);
         if (meta.cfgScale) setScale(meta.cfgScale);
+        if (meta.cfgRescale != null) setCfgRescale(meta.cfgRescale);
+        if (meta.varietyPlus != null) setVarietyPlus(meta.varietyPlus);
         if (meta.noiseSchedule && NOISE_SCHEDULES.includes(meta.noiseSchedule))
           setNoiseSchedule(meta.noiseSchedule);
         if (meta.width) setWidth(meta.width);
@@ -4713,6 +4749,8 @@ export const GenerationView = memo(function GenerationView({
     setSampler,
     setSteps,
     setScale,
+    setCfgRescale,
+    setVarietyPlus,
     setNoiseSchedule,
     setWidth,
     setHeight,
@@ -4809,7 +4847,7 @@ export const GenerationView = memo(function GenerationView({
         generating={generating}
         autoGenProgress={autoGenProgress}
         autoCancelPending={autoCancelPending}
-        onGenerate={handleGenerate}
+        onGenerate={() => void handleGenerate()}
         onAutoGenerate={handleAutoGenerate}
         onCancelAutoGenerate={handleCancelAutoGenerate}
       />
