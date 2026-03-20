@@ -67,6 +67,18 @@ function includesSimilaritySettingsReset(keys?: (keyof Settings)[]): boolean {
   return keys.some((key) => SIMILARITY_SETTING_KEYS.has(key));
 }
 
+function resolveIsDarkTheme(theme: Settings["theme"] | undefined): boolean {
+  const resolvedTheme = theme ?? "dark";
+  if (resolvedTheme === "auto") {
+    return (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches
+    );
+  }
+
+  return resolvedTheme === "dark";
+}
+
 function readCategoryOrder(): number[] {
   try {
     const raw = localStorage.getItem(CATEGORY_ORDER_STORAGE_KEY);
@@ -149,6 +161,9 @@ export default function App({ initialFolderCount = null }: AppProps) {
   const [activePanel, setActivePanel] = useState<
     "gallery" | "generator" | "settings"
   >("gallery");
+  const [isDarkTheme, setIsDarkTheme] = useState(() =>
+    resolveIsDarkTheme(settings.theme),
+  );
   const [folderCount, setFolderCount] = useState<number | null>(
     initialFolderCount,
   );
@@ -437,6 +452,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     const applyTheme = (isDark: boolean) => {
       document.documentElement.dataset.theme = isDark ? "dark" : "white";
       document.documentElement.classList.toggle("dark", isDark);
+      setIsDarkTheme(isDark);
     };
     if (theme === "auto") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -1105,6 +1121,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
             outputFolder={outputFolder}
             onOutputFolderChange={setOutputFolder}
             appendPromptTagRequest={appendPromptTagRequest}
+            isDarkTheme={isDarkTheme}
             tourActive={tourOpen && !initialLanguageScreenOpen}
             tourAction={tourAction}
           />

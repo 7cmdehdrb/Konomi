@@ -53,6 +53,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import novelAiLogomarkAlt from "@/assets/images/novelai_logomark_alt.png";
+import novelAiLogomarkDark from "@/assets/images/novelai_logomark_dark.png";
 
 import { cn } from "@/lib/utils";
 import type {
@@ -600,6 +602,7 @@ interface GenerationViewProps {
   outputFolder: string;
   onOutputFolderChange: (folder: string) => void;
   appendPromptTagRequest?: AppendPromptTagRequest | null;
+  isDarkTheme: boolean;
   tourActive?: boolean;
   tourAction?: string | null;
 }
@@ -2701,6 +2704,7 @@ interface LeftPanelProps {
   panelWidth: number;
   selectedService: GenerationService;
   setSelectedService: Dispatch<SetStateAction<GenerationService>>;
+  isDarkTheme: boolean;
   hasApiKey: boolean;
   outputFolder: string;
   tourActive: boolean;
@@ -2761,13 +2765,24 @@ interface LeftPanelProps {
   onCancelAutoGenerate: () => void;
 }
 
+// 원래 NAI/WebUI/Midjourney 생성 같이 가져가려고 했는데 이런저런 이유로 NAI만 남긴 흔적임
 function GenerationServiceSelector({
   selectedService,
   setSelectedService,
+  isDarkTheme,
 }: {
   selectedService: GenerationService;
   setSelectedService: Dispatch<SetStateAction<GenerationService>>;
+  isDarkTheme: boolean;
 }) {
+  void setSelectedService;
+  const selectedServiceLabel =
+    GENERATION_SERVICES.find((service) => service.id === selectedService)
+      ?.label ?? "NovelAI";
+  const logoSrc = isDarkTheme ? novelAiLogomarkAlt : novelAiLogomarkDark;
+
+  /*
+  Legacy generation service selector UI:
   const { t } = useTranslation();
 
   return (
@@ -2818,12 +2833,30 @@ function GenerationServiceSelector({
       </TooltipProvider>
     </div>
   );
+  */
+
+  return (
+    <div className="border-b border-border/40 px-4 py-3 shrink-0 bg-sidebar">
+      <div
+        className="flex items-center justify-start"
+        aria-label={`Generation service: ${selectedServiceLabel}`}
+      >
+        <img
+          src={logoSrc}
+          alt="NovelAI"
+          className="block h-auto w-auto max-h-5 max-w-24 object-contain select-none"
+          draggable={false}
+        />
+      </div>
+    </div>
+  );
 }
 
 const LeftPanel = memo(function LeftPanel({
   panelWidth,
   selectedService,
   setSelectedService,
+  isDarkTheme,
   hasApiKey,
   outputFolder,
   tourActive,
@@ -2915,6 +2948,7 @@ const LeftPanel = memo(function LeftPanel({
       <GenerationServiceSelector
         selectedService={selectedService}
         setSelectedService={setSelectedService}
+        isDarkTheme={isDarkTheme}
       />
 
       <div className="relative flex flex-1 min-h-0 flex-col">
@@ -3608,6 +3642,7 @@ export const GenerationView = memo(function GenerationView({
   outputFolder,
   onOutputFolderChange,
   appendPromptTagRequest,
+  isDarkTheme,
   tourActive,
   tourAction,
 }: GenerationViewProps) {
@@ -4646,6 +4681,7 @@ export const GenerationView = memo(function GenerationView({
         panelWidth={panelWidth}
         selectedService={selectedService}
         setSelectedService={setSelectedService}
+        isDarkTheme={isDarkTheme}
         hasApiKey={!!config?.apiKey}
         outputFolder={outputFolder}
         tourActive={!!tourActive}
