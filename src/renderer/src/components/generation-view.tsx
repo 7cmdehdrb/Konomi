@@ -760,6 +760,38 @@ function RecentThumb({
   );
 }
 
+function PendingRecentThumb({
+  isCurrent,
+  onClick,
+  label,
+}: {
+  isCurrent: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className={cn(
+        "relative w-full aspect-square rounded-md overflow-hidden ring-2 transition-all block border border-border/50 bg-secondary/35",
+        isCurrent
+          ? "ring-primary"
+          : "ring-transparent hover:ring-primary/50",
+      )}
+      onClick={onClick}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.18),_transparent_55%)]" />
+      <div className="relative flex h-full w-full items-center justify-center">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/85 shadow-sm">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function DeferredNumberInput({
   value,
   onChange,
@@ -2442,6 +2474,7 @@ const GenerateActionsSection = memo(function GenerateActionsSection({
 
 interface ResultViewportProps {
   generating: boolean;
+  pendingResultSelected: boolean;
   previewSrc: string | null;
   error: string | null;
   resultSrc: string | null;
@@ -2451,6 +2484,7 @@ interface ResultViewportProps {
 
 const ResultViewport = memo(function ResultViewport({
   generating,
+  pendingResultSelected,
   previewSrc,
   error,
   resultSrc,
@@ -2460,6 +2494,7 @@ const ResultViewport = memo(function ResultViewport({
   const { t } = useTranslation();
   const [seedDropdownOpen, setSeedDropdownOpen] = useState(false);
   const seedDropdownRef = useRef<HTMLDivElement | null>(null);
+  const showGeneratingPreview = generating && (pendingResultSelected || !resultSrc);
 
   useEffect(() => {
     if (!seedDropdownOpen) return;
@@ -2477,7 +2512,7 @@ const ResultViewport = memo(function ResultViewport({
 
   return (
     <div className="relative z-10 flex flex-col items-center justify-center w-full h-full">
-      {generating ? (
+      {showGeneratingPreview ? (
         previewSrc ? (
           <div className="relative w-full h-full flex items-center justify-center">
             <img
@@ -2580,17 +2615,24 @@ const ResultViewport = memo(function ResultViewport({
 });
 
 interface RecentImagesPanelProps {
+  generating: boolean;
+  pendingResultSelected: boolean;
   recentImages: string[];
   resultSrc: string | null;
-  setResultSrc: Dispatch<SetStateAction<string | null>>;
+  onSelectPendingResult: () => void;
+  onSelectResult: (src: string) => void;
 }
 
 const RecentImagesPanel = memo(function RecentImagesPanel({
+  generating,
+  pendingResultSelected,
   recentImages,
   resultSrc,
-  setResultSrc,
+  onSelectPendingResult,
+  onSelectResult,
 }: RecentImagesPanelProps) {
   const { t } = useTranslation();
+  const hasRecentItems = generating || recentImages.length > 0;
 
   return (
     <div className="w-24 shrink-0 border-l border-border/60 bg-card/70 flex flex-col">
@@ -2598,14 +2640,21 @@ const RecentImagesPanel = memo(function RecentImagesPanel({
         {t("generation.actions.recent")}
       </p>
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {recentImages.length > 0 ? (
+        {hasRecentItems ? (
           <div className="p-2 space-y-1.5">
+            {generating && (
+              <PendingRecentThumb
+                isCurrent={pendingResultSelected || !resultSrc}
+                onClick={onSelectPendingResult}
+                label={t("generation.actions.generating")}
+              />
+            )}
             {recentImages.map((src, index) => (
               <RecentThumb
                 key={src + index}
                 src={src}
-                isCurrent={src === resultSrc}
-                onClick={() => setResultSrc(src)}
+                isCurrent={!pendingResultSelected && src === resultSrc}
+                onClick={() => onSelectResult(src)}
               />
             ))}
           </div>
@@ -2626,13 +2675,15 @@ interface ResultAreaProps {
   onDragLeave: () => void;
   onDrop: (event: React.DragEvent) => void;
   generating: boolean;
+  pendingResultSelected: boolean;
   previewSrc: string | null;
   error: string | null;
   resultSrc: string | null;
   recentSeeds: Map<string, number>;
   setSeedInput: Dispatch<SetStateAction<string>>;
   recentImages: string[];
-  setResultSrc: Dispatch<SetStateAction<string | null>>;
+  onSelectPendingResult: () => void;
+  onSelectResult: (src: string) => void;
 }
 
 const ResultArea = memo(function ResultArea({
@@ -2642,13 +2693,15 @@ const ResultArea = memo(function ResultArea({
   onDragLeave,
   onDrop,
   generating,
+  pendingResultSelected,
   previewSrc,
   error,
   resultSrc,
   recentSeeds,
   setSeedInput,
   recentImages,
-  setResultSrc,
+  onSelectPendingResult,
+  onSelectResult,
 }: ResultAreaProps) {
   const { t } = useTranslation();
 
@@ -2683,6 +2736,7 @@ const ResultArea = memo(function ResultArea({
 
         <ResultViewport
           generating={generating}
+          pendingResultSelected={pendingResultSelected}
           previewSrc={previewSrc}
           error={error}
           resultSrc={resultSrc}
@@ -2692,9 +2746,12 @@ const ResultArea = memo(function ResultArea({
       </div>
 
       <RecentImagesPanel
+        generating={generating}
+        pendingResultSelected={pendingResultSelected}
         recentImages={recentImages}
         resultSrc={resultSrc}
-        setResultSrc={setResultSrc}
+        onSelectPendingResult={onSelectPendingResult}
+        onSelectResult={onSelectResult}
       />
     </>
   );
@@ -3711,11 +3768,14 @@ export const GenerationView = memo(function GenerationView({
   const [generating, setGenerating] = useState(false);
   const [resultSrc, setResultSrc] = useState<string | null>(null);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [pendingResultSelected, setPendingResultSelected] = useState(false);
   const [recentImages, setRecentImages] = useState<string[]>([]);
   const [recentSeeds, setRecentSeeds] = useState<Map<string, number>>(
     new Map(),
   );
   const [error, setError] = useState<string | null>(null);
+  const pendingResultSelectedRef = useLatestRef(pendingResultSelected);
+  const resultSrcRef = useLatestRef(resultSrc);
 
   // Right side panel
   const [sourceImage, setSourceImage] = useState<ImageData | null>(null);
@@ -4272,9 +4332,9 @@ export const GenerationView = memo(function GenerationView({
         return;
       }
       lastParamsKeyRef.current = paramsKey;
+      setPendingResultSelected(true);
       setGenerating(true);
       setError(null);
-      setResultSrc(null);
       setPreviewSrc(null);
       try {
         const params: GenerateParams = {
@@ -4323,7 +4383,12 @@ export const GenerationView = memo(function GenerationView({
         };
         const filePath = await window.nai.generate(params);
         const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
-        setResultSrc(src);
+        const shouldShowNewResult =
+          pendingResultSelectedRef.current || !resultSrcRef.current;
+        if (shouldShowNewResult) {
+          setResultSrc(src);
+          setPendingResultSelected(false);
+        }
         setRecentImages((prev) => [src, ...prev]);
         saveLastGenParams(getStoredSeedInput(current.seedInput));
         void window.image.readNaiMeta(filePath).then((meta) => {
@@ -4332,6 +4397,7 @@ export const GenerationView = memo(function GenerationView({
           }
         });
       } catch (e: unknown) {
+        setPendingResultSelected(false);
         setError(e instanceof Error ? e.message : String(e));
       } finally {
         setGenerating(false);
@@ -4376,9 +4442,9 @@ export const GenerationView = memo(function GenerationView({
         current: i + 1,
         total: current.autoGenInfinite ? null : current.autoGenCount,
       });
+      setPendingResultSelected(true);
       setGenerating(true);
       setError(null);
-      setResultSrc(null);
       setPreviewSrc(null);
 
       try {
@@ -4428,7 +4494,12 @@ export const GenerationView = memo(function GenerationView({
         };
         const filePath = await window.nai.generate(params);
         const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
-        setResultSrc(src);
+        const shouldShowNewResult =
+          pendingResultSelectedRef.current || !resultSrcRef.current;
+        if (shouldShowNewResult) {
+          setResultSrc(src);
+          setPendingResultSelected(false);
+        }
         setRecentImages((prev) => [src, ...prev]);
         saveLastGenParams(getStoredSeedInput(current.seedInput));
         void window.image.readNaiMeta(filePath).then((meta) => {
@@ -4437,6 +4508,7 @@ export const GenerationView = memo(function GenerationView({
           }
         });
       } catch (e: unknown) {
+        setPendingResultSelected(false);
         setError(e instanceof Error ? e.message : String(e));
         break;
       } finally {
@@ -4779,13 +4851,18 @@ export const GenerationView = memo(function GenerationView({
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             generating={generating}
+            pendingResultSelected={pendingResultSelected}
             previewSrc={previewSrc}
             error={error}
             resultSrc={resultSrc}
             recentSeeds={recentSeeds}
             setSeedInput={setSeedInput}
             recentImages={recentImages}
-            setResultSrc={setResultSrc}
+            onSelectPendingResult={() => setPendingResultSelected(true)}
+            onSelectResult={(src) => {
+              setPendingResultSelected(false);
+              setResultSrc(src);
+            }}
           />
 
           <DuplicateGenerationModal
