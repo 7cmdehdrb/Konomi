@@ -291,10 +291,10 @@ export const Header = memo(function Header({
     };
   }, [activeSearchToken, isSearchFocused]);
 
-  const commitSearch = () => {
+  const commitSearch = (query = inputValue) => {
     setTagSuggestionOpen(false);
     setTagSuggestionIndex(-1);
-    onSearchChange(inputValue);
+    onSearchChange(query);
   };
   const clearSearch = () => {
     setInputValue("");
@@ -305,11 +305,11 @@ export const Header = memo(function Header({
     onSearchChange("");
   };
 
-  const applyTagSuggestion = (suggestion: string) => {
+  const applyTagSuggestion = (suggestion: string): string | null => {
     const cursor =
       inputRef.current?.selectionStart ?? caretPosition ?? inputValue.length;
     const active = getActiveSearchToken(inputValue, cursor);
-    if (!active) return;
+    if (!active) return null;
     const leading = active.raw.match(/^\s*/)?.[0] ?? "";
     const trailing = active.raw.match(/\s*$/)?.[0] ?? "";
     const replacement = `${leading}${suggestion}${trailing}`;
@@ -329,6 +329,7 @@ export const Header = memo(function Header({
       node.focus();
       node.setSelectionRange(nextCursor, nextCursor);
     });
+    return nextValue;
   };
 
   const handlePanelClick = (panel: ActivePanel) => {
@@ -478,7 +479,10 @@ export const Header = memo(function Header({
                         const picked = tagSuggestions[index];
                         if (picked) {
                           e.preventDefault();
-                          applyTagSuggestion(picked.tag);
+                          const nextValue = applyTagSuggestion(picked.tag);
+                          if (e.key === "Enter" && nextValue !== null) {
+                            commitSearch(nextValue);
+                          }
                           return;
                         }
                       }
@@ -532,7 +536,7 @@ export const Header = memo(function Header({
                     variant="ghost"
                     size="icon"
                     className="shrink-0 h-9 w-9 text-muted-foreground hover:text-foreground"
-                    onClick={commitSearch}
+                    onClick={() => commitSearch()}
                   >
                     <Search className="h-4 w-4" />
                   </Button>
