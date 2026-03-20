@@ -88,6 +88,7 @@ type VibeRef = RefImage & {
 type PreciseRef = RefImage & { fidelity: number };
 
 type CharacterPromptMode = "prompt" | "negativePrompt";
+type GenerationService = "novelai" | "webui";
 
 type CharacterPosition =
   | "global"
@@ -119,6 +120,14 @@ type CharacterPosition =
 
 const POSITION_COLS = ["A", "B", "C", "D", "E"] as const;
 const POSITION_ROWS = [1, 2, 3, 4, 5] as const;
+const GENERATION_SERVICES: Array<{
+  id: GenerationService;
+  label: string;
+  disabled?: boolean;
+}> = [
+  { id: "novelai", label: "NovelAI" },
+  { id: "webui", label: "WebUI", disabled: true },
+];
 
 const POSITION_GRID_GAP = 6;
 const POSITION_GRID_EDGE_PAD = 8;
@@ -2690,6 +2699,8 @@ const ResultArea = memo(function ResultArea({
 
 interface LeftPanelProps {
   panelWidth: number;
+  selectedService: GenerationService;
+  setSelectedService: Dispatch<SetStateAction<GenerationService>>;
   hasApiKey: boolean;
   outputFolder: string;
   tourActive: boolean;
@@ -2750,8 +2761,69 @@ interface LeftPanelProps {
   onCancelAutoGenerate: () => void;
 }
 
+function GenerationServiceSelector({
+  selectedService,
+  setSelectedService,
+}: {
+  selectedService: GenerationService;
+  setSelectedService: Dispatch<SetStateAction<GenerationService>>;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="border-b border-border/40 px-4 py-3 shrink-0 bg-sidebar">
+      <TooltipProvider delayDuration={0}>
+        <div
+          className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-secondary/30 p-1"
+          role="radiogroup"
+          aria-label="Generation service"
+        >
+          {GENERATION_SERVICES.map(({ id, label, disabled }) => {
+            const button = (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={selectedService === id}
+                aria-disabled={disabled}
+                disabled={disabled}
+                onClick={() => setSelectedService(id)}
+                className={cn(
+                  "px-2.5 py-1 text-xs rounded-md transition-colors",
+                  selectedService === id
+                    ? "bg-primary text-primary-foreground"
+                    : disabled
+                      ? "text-muted-foreground/40 cursor-not-allowed"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/70",
+                )}
+              >
+                {label}
+              </button>
+            );
+
+            if (!disabled) return button;
+
+            return (
+              <Tooltip key={id}>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">{button}</span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {t("generation.actions.webuiComingSoon")}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </div>
+      </TooltipProvider>
+    </div>
+  );
+}
+
 const LeftPanel = memo(function LeftPanel({
   panelWidth,
+  selectedService,
+  setSelectedService,
   hasApiKey,
   outputFolder,
   tourActive,
@@ -2812,6 +2884,7 @@ const LeftPanel = memo(function LeftPanel({
   onCancelAutoGenerate,
 }: LeftPanelProps) {
   const { t } = useTranslation();
+  const isNovelAIService = selectedService === "novelai";
   const handleResetAdvancedParams = useCallback(() => {
     setSteps(NAI_GEN_DEFAULTS.steps);
     setScale(NAI_GEN_DEFAULTS.scale);
@@ -2839,115 +2912,130 @@ const LeftPanel = memo(function LeftPanel({
         maxWidth: panelWidth,
       }}
     >
-      {(!hasApiKey || !outputFolder) && !tourActive && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 backdrop-blur-sm bg-sidebar/60 select-none">
-          <Settings className="h-8 w-8 text-muted-foreground/60" />
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-sm font-medium text-foreground/80">
-              {t("generation.state.configurationRequired")}
-            </span>
-            <span className="text-[11px] text-muted-foreground text-center leading-relaxed">
-              {t("generation.state.configurationMessage", {
-                target:
-                  !hasApiKey && !outputFolder
-                    ? t("generation.state.configurationApiKeyAndOutput")
-                    : !hasApiKey
-                      ? t("generation.state.configurationApiKey")
-                      : t("generation.state.configurationOutputFolder"),
-              })}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-4 space-y-5 w-full">
-          <ModelSection model={model} setModel={setModel} />
-          <PromptSection
-            promptInputMode={promptInputMode}
-            setPromptInputMode={setPromptInputMode}
-            prompt={prompt}
-            negativePrompt={negativePrompt}
-            setPrompt={setPrompt}
-            setNegativePrompt={setNegativePrompt}
-            promptGroups={promptGroups}
-          />
-          <CharacterPromptsSection
-            characterPrompts={characterPrompts}
-            setCharacterPrompts={setCharacterPrompts}
-            aiChoice={aiChoice}
-            setAiChoice={setAiChoice}
-            promptGroups={promptGroups}
-          />
-          <ReferenceSections
-            i2iRef={i2iRef}
-            setI2iRef={setI2iRef}
-            vibes={vibes}
-            setVibes={setVibes}
-            preciseRef={preciseRef}
-            setPreciseRef={setPreciseRef}
-          />
-          <SizeSection
-            width={width}
-            setWidth={setWidth}
-            height={height}
-            setHeight={setHeight}
-            customSizes={customSizes}
-            setCustomSizes={setCustomSizes}
-          />
-        </div>
-      </ScrollArea>
-
-      <div className="border-t border-border/40 bg-sidebar">
-        <AdvancedParamsSection
-          steps={steps}
-          setSteps={setSteps}
-          scale={scale}
-          setScale={setScale}
-          cfgRescale={cfgRescale}
-          setCfgRescale={setCfgRescale}
-          varietyPlus={varietyPlus}
-          setVarietyPlus={setVarietyPlus}
-          sampler={sampler}
-          setSampler={setSampler}
-          noiseSchedule={noiseSchedule}
-          setNoiseSchedule={setNoiseSchedule}
-          seedInput={seedInput}
-          setSeedInput={setSeedInput}
-          onReset={handleResetAdvancedParams}
-        />
-      </div>
-
-      <div
-        className="border-t border-border/40 bg-sidebar"
-        data-tour="gen-auto-gen"
-      >
-        <AutoGenSection
-          count={autoGenCount}
-          setCount={setAutoGenCount}
-          delay={autoGenDelay}
-          setDelay={setAutoGenDelay}
-          seedMode={autoGenSeedMode}
-          setSeedMode={setAutoGenSeedMode}
-          infinite={autoGenInfinite}
-          setInfinite={setAutoGenInfinite}
-          policyAgreed={autoGenPolicyAgreed}
-          setPolicyAgreed={setAutoGenPolicyAgreed}
-        />
-      </div>
-
-      <GenerateActionsSection
-        hasApiKey={hasApiKey}
-        outputFolder={outputFolder}
-        prompt={prompt}
-        generating={generating}
-        autoGenProgress={autoGenProgress}
-        autoCancelPending={autoCancelPending}
-        autoGenPolicyAgreed={autoGenPolicyAgreed}
-        onGenerate={onGenerate}
-        onAutoGenerate={onAutoGenerate}
-        onCancelAutoGenerate={onCancelAutoGenerate}
+      <GenerationServiceSelector
+        selectedService={selectedService}
+        setSelectedService={setSelectedService}
       />
+
+      <div className="relative flex flex-1 min-h-0 flex-col">
+        {isNovelAIService &&
+          (!hasApiKey || !outputFolder) &&
+          !tourActive && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 backdrop-blur-sm bg-sidebar/60 select-none">
+              <Settings className="h-8 w-8 text-muted-foreground/60" />
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-sm font-medium text-foreground/80">
+                  {t("generation.state.configurationRequired")}
+                </span>
+                <span className="text-[11px] text-muted-foreground text-center leading-relaxed">
+                  {t("generation.state.configurationMessage", {
+                    target:
+                      !hasApiKey && !outputFolder
+                        ? t("generation.state.configurationApiKeyAndOutput")
+                        : !hasApiKey
+                          ? t("generation.state.configurationApiKey")
+                          : t("generation.state.configurationOutputFolder"),
+                  })}
+                </span>
+              </div>
+            </div>
+          )}
+
+        {isNovelAIService ? (
+          <>
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-4 space-y-5 w-full">
+                <ModelSection model={model} setModel={setModel} />
+                <PromptSection
+                  promptInputMode={promptInputMode}
+                  setPromptInputMode={setPromptInputMode}
+                  prompt={prompt}
+                  negativePrompt={negativePrompt}
+                  setPrompt={setPrompt}
+                  setNegativePrompt={setNegativePrompt}
+                  promptGroups={promptGroups}
+                />
+                <CharacterPromptsSection
+                  characterPrompts={characterPrompts}
+                  setCharacterPrompts={setCharacterPrompts}
+                  aiChoice={aiChoice}
+                  setAiChoice={setAiChoice}
+                  promptGroups={promptGroups}
+                />
+                <ReferenceSections
+                  i2iRef={i2iRef}
+                  setI2iRef={setI2iRef}
+                  vibes={vibes}
+                  setVibes={setVibes}
+                  preciseRef={preciseRef}
+                  setPreciseRef={setPreciseRef}
+                />
+                <SizeSection
+                  width={width}
+                  setWidth={setWidth}
+                  height={height}
+                  setHeight={setHeight}
+                  customSizes={customSizes}
+                  setCustomSizes={setCustomSizes}
+                />
+              </div>
+            </ScrollArea>
+
+            <div className="border-t border-border/40 bg-sidebar">
+              <AdvancedParamsSection
+                steps={steps}
+                setSteps={setSteps}
+                scale={scale}
+                setScale={setScale}
+                cfgRescale={cfgRescale}
+                setCfgRescale={setCfgRescale}
+                varietyPlus={varietyPlus}
+                setVarietyPlus={setVarietyPlus}
+                sampler={sampler}
+                setSampler={setSampler}
+                noiseSchedule={noiseSchedule}
+                setNoiseSchedule={setNoiseSchedule}
+                seedInput={seedInput}
+                setSeedInput={setSeedInput}
+                onReset={handleResetAdvancedParams}
+              />
+            </div>
+
+            <div
+              className="border-t border-border/40 bg-sidebar"
+              data-tour="gen-auto-gen"
+            >
+              <AutoGenSection
+                count={autoGenCount}
+                setCount={setAutoGenCount}
+                delay={autoGenDelay}
+                setDelay={setAutoGenDelay}
+                seedMode={autoGenSeedMode}
+                setSeedMode={setAutoGenSeedMode}
+                infinite={autoGenInfinite}
+                setInfinite={setAutoGenInfinite}
+                policyAgreed={autoGenPolicyAgreed}
+                setPolicyAgreed={setAutoGenPolicyAgreed}
+              />
+            </div>
+
+            <GenerateActionsSection
+              hasApiKey={hasApiKey}
+              outputFolder={outputFolder}
+              prompt={prompt}
+              generating={generating}
+              autoGenProgress={autoGenProgress}
+              autoCancelPending={autoCancelPending}
+              autoGenPolicyAgreed={autoGenPolicyAgreed}
+              onGenerate={onGenerate}
+              onAutoGenerate={onAutoGenerate}
+              onCancelAutoGenerate={onCancelAutoGenerate}
+            />
+          </>
+        ) : (
+          <div className="flex-1 bg-sidebar" />
+        )}
+      </div>
     </div>
   );
 });
@@ -3526,6 +3614,8 @@ export function GenerationView({
   tourAction,
 }: GenerationViewProps) {
   const { t } = useTranslation();
+  const [selectedService, setSelectedService] =
+    useState<GenerationService>("novelai");
   const [config, setConfig] = useState<NaiConfig | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [configSaving, setConfigSaving] = useState(false);
@@ -4550,11 +4640,14 @@ export function GenerationView({
   const handleCloseDropItem = useCallback(() => {
     setDropItem(null);
   }, []);
+  const isNovelAIService = selectedService === "novelai";
 
   return (
     <div className="flex flex-1 overflow-hidden">
       <LeftPanel
         panelWidth={panelWidth}
+        selectedService={selectedService}
+        setSelectedService={setSelectedService}
         hasApiKey={!!config?.apiKey}
         outputFolder={outputFolder}
         tourActive={!!tourActive}
@@ -4620,72 +4713,78 @@ export function GenerationView({
         className="w-1 shrink-0 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors"
       />
 
-      <RightSidePanel
-        visible={rightPanelVisible}
-        width={rightPanelWidth}
-        tab={rightPanelTab}
-        setVisible={setRightPanelVisible}
-        setTab={setRightPanelTab}
-        sourceImage={sourceImage}
-        setSourceImage={setSourceImage}
-        categories={categories}
-        setCategories={setCategories}
-        apiKeyInput={apiKeyInput}
-        setApiKeyInput={setApiKeyInput}
-        apiKeyValidated={apiKeyValidated}
-        setApiKeyValidated={setApiKeyValidated}
-        validating={validating}
-        onValidateApiKey={handleValidateApiKey}
-        outputFolder={outputFolder}
-        onSelectOutputFolder={handleSelectOutputFolder}
-        configSaving={configSaving}
-        onSaveConfig={handleSaveConfig}
-        onResizeStart={handleRightResizeStart}
-      />
+      {isNovelAIService ? (
+        <>
+          <RightSidePanel
+            visible={rightPanelVisible}
+            width={rightPanelWidth}
+            tab={rightPanelTab}
+            setVisible={setRightPanelVisible}
+            setTab={setRightPanelTab}
+            sourceImage={sourceImage}
+            setSourceImage={setSourceImage}
+            categories={categories}
+            setCategories={setCategories}
+            apiKeyInput={apiKeyInput}
+            setApiKeyInput={setApiKeyInput}
+            apiKeyValidated={apiKeyValidated}
+            setApiKeyValidated={setApiKeyValidated}
+            validating={validating}
+            onValidateApiKey={handleValidateApiKey}
+            outputFolder={outputFolder}
+            onSelectOutputFolder={handleSelectOutputFolder}
+            configSaving={configSaving}
+            onSaveConfig={handleSaveConfig}
+            onResizeStart={handleRightResizeStart}
+          />
 
-      <ResultArea
-        dragOver={dragOver}
-        onDragOver={handleDragOver}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        generating={generating}
-        previewSrc={previewSrc}
-        error={error}
-        resultSrc={resultSrc}
-        recentSeeds={recentSeeds}
-        setSeedInput={setSeedInput}
-        recentImages={recentImages}
-        setResultSrc={setResultSrc}
-      />
+          <ResultArea
+            dragOver={dragOver}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            generating={generating}
+            previewSrc={previewSrc}
+            error={error}
+            resultSrc={resultSrc}
+            recentSeeds={recentSeeds}
+            setSeedInput={setSeedInput}
+            recentImages={recentImages}
+            setResultSrc={setResultSrc}
+          />
 
-      <DuplicateGenerationModal
-        open={dupAlert}
-        onClose={handleCloseDupAlert}
-        onContinue={handleContinueAfterDuplicate}
-      />
+          <DuplicateGenerationModal
+            open={dupAlert}
+            onClose={handleCloseDupAlert}
+            onContinue={handleContinueAfterDuplicate}
+          />
 
-      <ValidateResultModal
-        result={validateResult}
-        onClose={handleCloseValidateResult}
-      />
+          <ValidateResultModal
+            result={validateResult}
+            onClose={handleCloseValidateResult}
+          />
 
-      <DropImportModal
-        dropItem={dropItem}
-        previewUrl={previewUrl}
-        loadingAction={loadingAction}
-        vibeDisabled={vibeDisabled}
-        preciseDisabled={preciseDisabled}
-        importChecks={importChecks}
-        importing={importing}
-        importError={importError}
-        onClose={handleCloseDropItem}
-        onSetI2i={handleSetI2i}
-        onAddVibe={handleAddVibe}
-        onSetPreciseRef={handleSetPreciseRef}
-        onToggleCheck={toggleCheck}
-        onImportMetadata={handleImportMetadata}
-      />
+          <DropImportModal
+            dropItem={dropItem}
+            previewUrl={previewUrl}
+            loadingAction={loadingAction}
+            vibeDisabled={vibeDisabled}
+            preciseDisabled={preciseDisabled}
+            importChecks={importChecks}
+            importing={importing}
+            importError={importError}
+            onClose={handleCloseDropItem}
+            onSetI2i={handleSetI2i}
+            onAddVibe={handleAddVibe}
+            onSetPreciseRef={handleSetPreciseRef}
+            onToggleCheck={toggleCheck}
+            onImportMetadata={handleImportMetadata}
+          />
+        </>
+      ) : (
+        <div className="flex-1 bg-background" />
+      )}
     </div>
   );
 }

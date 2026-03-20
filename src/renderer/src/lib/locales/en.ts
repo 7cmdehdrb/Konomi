@@ -405,6 +405,7 @@ const en = {
       promptGroup: "Prompt Groups",
       referenceImage: "Reference Image",
       removeReferenceImage: "Remove reference image",
+      webuiComingSoon: "Planned for a future release",
       apiKeyHelp: "View NovelAI API key setup help",
       apiKeyHelpDescription:
         "In the NovelAI website menu, go to Account Settings and click Get Persistent API Token to get your API token.",

@@ -404,6 +404,7 @@ const ko = {
       promptGroup: "그룹 프롬프트",
       referenceImage: "참고 이미지",
       removeReferenceImage: "참고 이미지 제거",
+      webuiComingSoon: "추후 업데이트 예정",
       apiKeyHelp: "NovelAI API Key 설정 안내 보기",
       apiKeyHelpDescription:
         "NovelAI 웹페이지 메뉴에서 Account Settings → Get Persistent API Token 버튼을 클릭하면 API Token을 얻을 수 있습니다.",
