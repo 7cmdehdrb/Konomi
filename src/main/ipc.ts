@@ -152,6 +152,26 @@ export function registerIpcHandlers(): void {
       },
     ) => bridge.request("image:listPage", query),
   );
+  ipcMain.handle(
+    "image:listMatching",
+    (
+      _,
+      query: {
+        page?: number;
+        pageSize?: number;
+        folderIds?: number[];
+        searchQuery?: string;
+        sortBy?: "recent" | "oldest" | "favorites" | "name";
+        onlyRecent?: boolean;
+        recentDays?: number;
+        customCategoryId?: number | null;
+        builtinCategory?: "favorites" | "random" | null;
+        randomSeed?: number;
+        resolutionFilters?: Array<{ width: number; height: number }>;
+        modelFilters?: string[];
+      },
+    ) => bridge.request("image:listMatching", query),
+  );
   ipcMain.handle("image:listByIds", (_, ids: number[]) =>
     bridge.request("image:listByIds", { ids }),
   );

@@ -236,6 +236,7 @@ declare global {
         query: ImageTagSuggestQuery,
       ) => Promise<ImageTagSuggestion[]>;
       listPage: (query: ImageListQuery) => Promise<ImageListResult>;
+      listMatching: (query: ImageListQuery) => Promise<ImageRow[]>;
       listByIds: (ids: number[]) => Promise<ImageRow[]>;
       scan: (options?: {
         detectDuplicates?: boolean;

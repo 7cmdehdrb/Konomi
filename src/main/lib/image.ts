@@ -1526,6 +1526,23 @@ export async function listImagesPage(
   };
 }
 
+export async function listMatchingImages(
+  query?: ImageListQuery,
+): Promise<ImageRow[]> {
+  const normalized = normalizeImageListQuery(query);
+  if (normalized.folderIds.length === 0) return [];
+
+  if (normalized.builtinCategory === "random") {
+    const pageResult = await listImagesPage(query);
+    return pageResult.rows;
+  }
+
+  return (await getDB().image.findMany({
+    where: buildImageWhereInput(normalized),
+    orderBy: buildImageOrderBy(normalized.sortBy),
+  })) as unknown as ImageRow[];
+}
+
 export async function listImagesByIds(imageIds: number[]): Promise<ImageRow[]> {
   const ids = normalizeIntegerArray(imageIds);
   if (ids.length === 0) return [];

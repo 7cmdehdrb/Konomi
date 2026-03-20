@@ -14,6 +14,7 @@ import {
 import {
   listImages,
   listImagesPage,
+  listMatchingImages,
   listImagesByIds,
   listImageIdsForFolder,
   getImageSearchPresetStats,
@@ -174,19 +175,39 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
           modelFilters?: string[];
         }) ?? {},
       );
+    case "image:listMatching":
+      return listMatchingImages(
+        (payload as {
+          page?: number;
+          pageSize?: number;
+          folderIds?: number[];
+          searchQuery?: string;
+          sortBy?: "recent" | "oldest" | "favorites" | "name";
+          onlyRecent?: boolean;
+          recentDays?: number;
+          customCategoryId?: number | null;
+          builtinCategory?: "favorites" | "random" | null;
+          randomSeed?: number;
+          resolutionFilters?: Array<{ width: number; height: number }>;
+          modelFilters?: string[];
+        }) ?? {},
+      );
     case "image:listByIds": {
       const { ids } = payload as { ids: number[] };
       return listImagesByIds(ids);
     }
     case "image:scan": {
-      const { detectDuplicates = false, folderIds, orderedFolderIds } =
-        (payload as
-          | {
-              detectDuplicates?: boolean;
-              folderIds?: number[];
-              orderedFolderIds?: number[];
-            }
-          | undefined) ?? {};
+      const {
+        detectDuplicates = false,
+        folderIds,
+        orderedFolderIds,
+      } = (payload as
+        | {
+            detectDuplicates?: boolean;
+            folderIds?: number[];
+            orderedFolderIds?: number[];
+          }
+        | undefined) ?? {};
       scanCancelToken = { cancelled: false };
       try {
         return await syncAllFolders(

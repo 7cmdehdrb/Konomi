@@ -34,6 +34,20 @@ contextBridge.exposeInMainWorld("image", {
     resolutionFilters?: Array<{ width: number; height: number }>;
     modelFilters?: string[];
   }) => ipcRenderer.invoke("image:listPage", query),
+  listMatching: (query: {
+    page?: number;
+    pageSize?: number;
+    folderIds?: number[];
+    searchQuery?: string;
+    sortBy?: "recent" | "oldest" | "favorites" | "name";
+    onlyRecent?: boolean;
+    recentDays?: number;
+    customCategoryId?: number | null;
+    builtinCategory?: "favorites" | "random" | null;
+    randomSeed?: number;
+    resolutionFilters?: Array<{ width: number; height: number }>;
+    modelFilters?: string[];
+  }) => ipcRenderer.invoke("image:listMatching", query),
   listByIds: (ids: number[]) => ipcRenderer.invoke("image:listByIds", ids),
   scan: (options?: {
     detectDuplicates?: boolean;

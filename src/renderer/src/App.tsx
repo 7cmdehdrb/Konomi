@@ -373,6 +373,36 @@ export default function App({ initialFolderCount = null }: AppProps) {
     isLoading: isGalleryLoading,
     schedulePageRefresh,
   } = useGalleryImages(listBaseQuery);
+  const gallerySelectionScopeKey = useMemo(
+    () =>
+      JSON.stringify({
+        folderIds: [...selectedFolderIds].sort((a, b) => a - b),
+        searchQuery,
+        onlyRecent: activeView === "recent",
+        recentDays: settings.recentDays,
+        customCategoryId:
+          selectedCategory && !selectedCategory.isBuiltin
+            ? selectedCategory.id
+            : null,
+        builtinCategory: selectedBuiltinCategory,
+        randomSeed,
+        resolutionFilters,
+        modelFilters,
+        totalImageCount,
+      }),
+    [
+      activeView,
+      modelFilters,
+      randomSeed,
+      resolutionFilters,
+      searchQuery,
+      selectedBuiltinCategory,
+      selectedCategory,
+      selectedFolderIds,
+      settings.recentDays,
+      totalImageCount,
+    ],
+  );
 
   const clearPendingGalleryOverlayFrames = useCallback(() => {
     if (galleryOverlayEnterRafRef.current !== null) {
@@ -1043,6 +1073,20 @@ export default function App({ initialFolderCount = null }: AppProps) {
     handleSearchChange("");
   }, [handleSearchChange]);
 
+  const handleLoadAllSelectableImages = useCallback(async () => {
+    try {
+      const rows = await window.image.listMatching(listBaseQuery);
+      return rows.map(rowToImageData);
+    } catch (e: unknown) {
+      toast.error(
+        t("error.imageListLoadFailed", {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      );
+      throw e;
+    }
+  }, [listBaseQuery, t]);
+
   const handleAddFolderRequest = useCallback(() => {
     setFolderDialogRequest((n) => n + 1);
   }, []);
@@ -1318,6 +1362,8 @@ export default function App({ initialFolderCount = null }: AppProps) {
               onAddFolder={handleAddFolderRequest}
               isInitializing={!hasLoadedOnce && isGalleryLoading}
               isRefreshing={galleryOverlayState !== null}
+              selectionScopeKey={gallerySelectionScopeKey}
+              onLoadAllSelectableImages={handleLoadAllSelectableImages}
             />
           </div>
         </div>

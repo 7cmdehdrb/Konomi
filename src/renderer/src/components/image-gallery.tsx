@@ -55,6 +55,8 @@ interface ImageGalleryProps {
   onAddFolder?: () => void;
   isInitializing?: boolean;
   isRefreshing?: boolean;
+  selectionScopeKey?: string;
+  onLoadAllSelectableImages?: () => Promise<ImageData[]>;
 }
 
 export const ImageGallery = memo(function ImageGallery({
@@ -85,13 +87,20 @@ export const ImageGallery = memo(function ImageGallery({
   onAddFolder,
   isInitializing = false,
   isRefreshing = false,
+  selectionScopeKey,
+  onLoadAllSelectableImages,
 }: ImageGalleryProps) {
   const { t } = useTranslation();
   const [internalPage, setInternalPage] = useState(1);
   const [pageJumpValue, setPageJumpValue] = useState("1");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedImageMap, setSelectedImageMap] = useState<
+    Map<string, ImageData>
+  >(new Map());
+  const [selectingAllResults, setSelectingAllResults] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const selectAllRequestSeqRef = useRef(0);
   const controlledPagination =
     typeof page === "number" &&
     typeof totalPages === "number" &&
@@ -117,23 +126,34 @@ export const ImageGallery = memo(function ImageGallery({
   }, [currentPage]);
 
   useEffect(() => {
-    const imageIdSet = new Set(images.map((img) => img.id));
-    setSelectedIds((prev) => {
+    if (!selectionMode) {
+      selectAllRequestSeqRef.current += 1;
+      setSelectedIds(new Set());
+      setSelectedImageMap(new Map());
+      setSelectingAllResults(false);
+    }
+  }, [selectionMode]);
+
+  useEffect(() => {
+    selectAllRequestSeqRef.current += 1;
+    setSelectedIds(new Set());
+    setSelectedImageMap(new Map());
+    setSelectingAllResults(false);
+  }, [selectionScopeKey]);
+
+  useEffect(() => {
+    setSelectedImageMap((prev) => {
       let changed = false;
-      const next = new Set<string>();
-      for (const id of prev) {
-        if (imageIdSet.has(id)) next.add(id);
-        else changed = true;
+      const next = new Map(prev);
+      for (const image of images) {
+        if (!selectedIds.has(image.id)) continue;
+        if (next.get(image.id) === image) continue;
+        next.set(image.id, image);
+        changed = true;
       }
       return changed ? next : prev;
     });
-  }, [images]);
-
-  useEffect(() => {
-    if (!selectionMode) {
-      setSelectedIds(new Set());
-    }
-  }, [selectionMode]);
+  }, [images, selectedIds]);
 
   useEffect(() => {
     if (currentPage <= computedTotalPages) return;
@@ -159,19 +179,28 @@ export const ImageGallery = memo(function ImageGallery({
   );
 
   const selectedCount = selectedIds.size;
-  const allFilteredSelected =
-    images.length > 0 && selectedCount === images.length;
+  const allFilteredSelected = totalCount > 0 && selectedCount === totalCount;
   const allPageSelected =
     paged.length > 0 && paged.every((img) => selectedIds.has(img.id));
 
-  const handleSelectImage = useCallback((id: string, selected: boolean) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (selected) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
+  const handleSelectImage = useCallback(
+    (id: string, selected: boolean) => {
+      const targetImage = images.find((image) => image.id === id);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (selected) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+      setSelectedImageMap((prev) => {
+        const next = new Map(prev);
+        if (selected && targetImage) next.set(id, targetImage);
+        else next.delete(id);
+        return next;
+      });
+    },
+    [images],
+  );
 
   const handleSelectCurrentPage = useCallback(() => {
     setSelectedIds((prev) => {
@@ -183,22 +212,49 @@ export const ImageGallery = memo(function ImageGallery({
       }
       return next;
     });
+    setSelectedImageMap((prev) => {
+      const next = new Map(prev);
+      if (allPageSelected) {
+        paged.forEach((img) => next.delete(img.id));
+      } else {
+        paged.forEach((img) => next.set(img.id, img));
+      }
+      return next;
+    });
   }, [allPageSelected, paged]);
 
   const handleSelectAllFiltered = useCallback(() => {
     if (allFilteredSelected) {
       setSelectedIds(new Set());
+      setSelectedImageMap(new Map());
       return;
     }
-    setSelectedIds(new Set(images.map((img) => img.id)));
-  }, [allFilteredSelected, images]);
+    if (!onLoadAllSelectableImages) return;
+    const requestId = ++selectAllRequestSeqRef.current;
+    setSelectingAllResults(true);
+    void onLoadAllSelectableImages()
+      .then((loadedImages) => {
+        if (requestId !== selectAllRequestSeqRef.current) return;
+        setSelectedIds(new Set(loadedImages.map((img) => img.id)));
+        setSelectedImageMap(new Map(loadedImages.map((img) => [img.id, img])));
+      })
+      .catch(() => {
+        // Errors are handled by the caller.
+      })
+      .finally(() => {
+        if (requestId !== selectAllRequestSeqRef.current) return;
+        setSelectingAllResults(false);
+      });
+  }, [allFilteredSelected, onLoadAllSelectableImages]);
 
   const handleBulkCategory = useCallback(() => {
     if (selectedIds.size === 0) return;
-    const selected = images.filter((img) => selectedIds.has(img.id));
+    const selected = Array.from(selectedIds)
+      .map((id) => selectedImageMap.get(id))
+      .filter((image): image is ImageData => image !== undefined);
     if (selected.length === 0) return;
     onBulkChangeCategory(selected);
-  }, [images, onBulkChangeCategory, selectedIds]);
+  }, [onBulkChangeCategory, selectedIds, selectedImageMap]);
 
   const handleJumpToPage = useCallback(() => {
     const parsed = Number.parseInt(pageJumpValue, 10);
@@ -329,12 +385,19 @@ export const ImageGallery = memo(function ImageGallery({
                 variant="outline"
                 size="sm"
                 onClick={handleSelectAllFiltered}
-                disabled={images.length === 0}
+                disabled={
+                  totalCount === 0 ||
+                  selectingAllResults ||
+                  !onLoadAllSelectableImages
+                }
               >
+                {selectingAllResults && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
                 {allFilteredSelected
                   ? t("gallery.deselectAllResults")
                   : t("gallery.selectAllResults", {
-                      count: images.length,
+                      count: totalCount,
                     })}
               </Button>
               <Button
