@@ -17,7 +17,8 @@ const ko = {
     splash: {
       title: "앱 시작 준비 중",
       status: {
-        checkingFolders: "등록된 폴더를 확인하고 앱을 시작할 준비를 하고 있습니다.",
+        checkingFolders:
+          "등록된 폴더를 확인하고 앱을 시작할 준비를 하고 있습니다.",
         preparingOnboarding:
           "시작 화면을 준비하고 바로 폴더를 추가할 수 있게 하고 있습니다.",
         syncingLibrary: "등록된 이미지를 확인하고 앱 상태를 불러오고 있습니다.",
@@ -261,8 +262,19 @@ const ko = {
       single: "카테고리 변경",
       bulk: "카테고리 일괄 변경",
     },
+    singleDescription: "이 이미지에 적용할 카테고리를 선택하세요.",
     bulkDescription: "선택된 {{count}}개 이미지에 카테고리를 일괄 적용합니다.",
+    selectionLabel: "선택 대상",
+    categoriesLabel: "카테고리",
+    categoryCount: "{{count}}개 카테고리",
+    selectedCount: "{{count}}개 선택됨",
+    commonHint:
+      "체크된 항목만 선택한 이미지 전체에 공통으로 적용된 상태입니다.",
+    liveApply: "체크를 바꾸는 즉시 반영됩니다.",
+    loading: "현재 카테고리 상태를 불러오는 중입니다.",
     empty: "생성된 카테고리가 없습니다.",
+    emptyDescription: "사이드바에서 카테고리를 만든 뒤 다시 시도하세요.",
+    applied: "적용됨",
     addFailed: "카테고리 추가 실패: {{message}}",
     removeFailed: "카테고리 제거 실패: {{message}}",
   },
