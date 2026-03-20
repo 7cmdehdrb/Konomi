@@ -93,6 +93,7 @@ export const ImageGallery = memo(function ImageGallery({
   const { t } = useTranslation();
   const [internalPage, setInternalPage] = useState(1);
   const [pageJumpValue, setPageJumpValue] = useState("1");
+  const [pageJumpOpen, setPageJumpOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedImageMap, setSelectedImageMap] = useState<
@@ -100,6 +101,9 @@ export const ImageGallery = memo(function ImageGallery({
   >(new Map());
   const [selectingAllResults, setSelectingAllResults] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pageJumpButtonRef = useRef<HTMLButtonElement | null>(null);
+  const pageJumpPopoverRef = useRef<HTMLDivElement | null>(null);
+  const pageJumpInputRef = useRef<HTMLInputElement | null>(null);
   const selectAllRequestSeqRef = useRef(0);
   const controlledPagination =
     typeof page === "number" &&
@@ -124,6 +128,44 @@ export const ImageGallery = memo(function ImageGallery({
   useEffect(() => {
     setPageJumpValue(String(currentPage));
   }, [currentPage]);
+
+  useEffect(() => {
+    setPageJumpOpen(false);
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (!pageJumpOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (pageJumpButtonRef.current?.contains(target)) return;
+      if (pageJumpPopoverRef.current?.contains(target)) return;
+      setPageJumpOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setPageJumpOpen(false);
+      pageJumpButtonRef.current?.focus();
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [pageJumpOpen]);
+
+  useEffect(() => {
+    if (!pageJumpOpen) return;
+    const raf = window.requestAnimationFrame(() => {
+      pageJumpInputRef.current?.focus();
+      pageJumpInputRef.current?.select();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [pageJumpOpen]);
 
   useEffect(() => {
     if (!selectionMode) {
@@ -263,6 +305,7 @@ export const ImageGallery = memo(function ImageGallery({
       return;
     }
     updatePage(parsed);
+    setPageJumpOpen(false);
   }, [currentPage, pageJumpValue, updatePage]);
 
   return (
@@ -509,35 +552,59 @@ export const ImageGallery = memo(function ImageGallery({
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-muted-foreground">
-            <span className="text-foreground font-medium">{currentPage}</span> /{" "}
-            {computedTotalPages}
-          </span>
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/35 px-2 py-1">
-            <Input
-              type="number"
-              min={1}
-              max={computedTotalPages}
-              inputMode="numeric"
-              value={pageJumpValue}
-              onChange={(e) => setPageJumpValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleJumpToPage();
-                }
-              }}
+          <div className="relative">
+            <button
+              ref={pageJumpButtonRef}
+              type="button"
+              className="rounded-lg border border-border bg-secondary/35 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary/55 cursor-pointer"
               aria-label={t("gallery.jumpToPage")}
-              className="h-8 w-20 border-border bg-background px-2 text-center text-sm"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-3"
-              onClick={handleJumpToPage}
+              aria-haspopup="dialog"
+              aria-expanded={pageJumpOpen}
+              onClick={() => setPageJumpOpen((open) => !open)}
             >
-              {t("gallery.goToPage")}
-            </Button>
+              <span className="text-foreground font-medium">{currentPage}</span> /{" "}
+              {computedTotalPages}
+            </button>
+            {pageJumpOpen && (
+              <div
+                ref={pageJumpPopoverRef}
+                className="absolute bottom-full left-1/2 z-10 mb-3 w-44 -translate-x-1/2"
+              >
+                <div className="relative rounded-xl border border-border/80 bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
+                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                    {t("gallery.jumpToPage")}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      ref={pageJumpInputRef}
+                      type="number"
+                      min={1}
+                      max={computedTotalPages}
+                      inputMode="numeric"
+                      value={pageJumpValue}
+                      onChange={(e) => setPageJumpValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleJumpToPage();
+                        }
+                      }}
+                      aria-label={t("gallery.jumpToPage")}
+                      className="h-8 w-full border-border bg-background px-2 text-center text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 shrink-0 px-3"
+                      onClick={handleJumpToPage}
+                    >
+                      {t("gallery.goToPage")}
+                    </Button>
+                  </div>
+                  <div className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-border/80 bg-popover/95" />
+                </div>
+              </div>
+            )}
           </div>
           <Button
             variant="ghost"
