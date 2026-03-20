@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Toaster } from "sonner";
+import { toast, Toaster, useSonner } from "sonner";
 import { useTranslation } from "react-i18next";
 import App from "./App";
 import { AppSplash } from "@/components/app-splash";
@@ -13,6 +13,7 @@ const APP_SPLASH_MIN_VISIBLE_MS = 1900; // 사용자가 최소 1.9초는 Splash�
 const APP_SPLASH_COMPLETION_HOLD_MS = 180;
 const APP_SPLASH_FADE_OUT_MS = 240;
 const FOLDER_ORDER_STORAGE_KEY = "konomi-folder-order";
+const TOASTER_POSITION = "bottom-right";
 
 let initialFolderCountPromise: Promise<number | null> | null = null;
 let bootstrapPromise: Promise<number | null> | null = null;
@@ -96,6 +97,72 @@ function bindThemePreference(theme: ThemeId): () => void {
 
   applyTheme(theme === "dark");
   return () => undefined;
+}
+
+function ClickableToaster() {
+  const { toasts } = useSonner();
+  const toasterRef = useRef<HTMLElement | null>(null);
+  const toastIdByElementRef = useRef(new WeakMap<HTMLElement, string | number>());
+
+  useEffect(() => {
+    const toaster = toasterRef.current;
+    if (!toaster) return;
+
+    toastIdByElementRef.current = new WeakMap();
+    const [defaultYPosition, defaultXPosition] = TOASTER_POSITION.split("-");
+    const toasterLists = Array.from(
+      toaster.querySelectorAll<HTMLOListElement>("ol[data-sonner-toaster]"),
+    );
+
+    toasterLists.forEach((list) => {
+      const yPosition = list.dataset.yPosition ?? defaultYPosition;
+      const xPosition = list.dataset.xPosition ?? defaultXPosition;
+      const position = `${yPosition}-${xPosition}`;
+      const positionedToasts = toasts.filter(
+        (toastItem) => (toastItem.position ?? TOASTER_POSITION) === position,
+      );
+      const toastElements = Array.from(
+        list.querySelectorAll<HTMLElement>(":scope > [data-sonner-toast]"),
+      );
+
+      toastElements.forEach((element, index) => {
+        const toastItem = positionedToasts[index];
+        if (toastItem) {
+          toastIdByElementRef.current.set(element, toastItem.id);
+        }
+      });
+    });
+  }, [toasts]);
+
+  useEffect(() => {
+    const toaster = toasterRef.current;
+    if (!toaster) return;
+
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (
+        target.closest(
+          "button, a, input, textarea, select, label, [role='button']",
+        )
+      ) {
+        return;
+      }
+
+      const toastElement = target.closest<HTMLElement>("[data-sonner-toast]");
+      if (!toastElement || !toaster.contains(toastElement)) return;
+      if (toastElement.dataset.dismissible === "false") return;
+
+      const toastId = toastIdByElementRef.current.get(toastElement);
+      if (toastId == null) return;
+      toast.dismiss(toastId);
+    };
+
+    toaster.addEventListener("click", handleClick);
+    return () => toaster.removeEventListener("click", handleClick);
+  }, []);
+
+  return <Toaster ref={toasterRef} richColors position={TOASTER_POSITION} />;
 }
 
 export function BootstrapApp() {
@@ -266,7 +333,7 @@ export function BootstrapApp() {
 
   return (
     <>
-      <Toaster richColors position="bottom-right" />
+      <ClickableToaster />
       {mountApp && <App initialFolderCount={folderCount} />}
       {renderSplash && (
         <AppSplash
