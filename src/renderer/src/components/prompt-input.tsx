@@ -86,6 +86,19 @@ function toEditableTokens(tokens: AnyToken[]): EditableToken[] {
     .map((token) => ({ ...token, id: createTokenId() }));
 }
 
+function createEditableTokenFromChunk(chunk: string): EditableToken | null {
+  const normalizedChunk = chunk.trim();
+  if (!normalizedChunk) return null;
+  const raw =
+    normalizedChunk.includes("|") && !normalizedChunk.startsWith("%{")
+      ? `%{${normalizedChunk}}`
+      : normalizedChunk;
+  return {
+    ...parseRawToken(raw),
+    id: createTokenId(),
+  } as EditableToken;
+}
+
 function serializePrompt(tokens: EditableToken[], draft: string): string {
   const tokenText = tokens
     .filter(
@@ -460,6 +473,42 @@ export const PromptInput = memo(function PromptInput({
     }
   };
 
+  const insertTokensAtCursor = (
+    nextInsertedTokens: EditableToken[],
+    nextDraft = "",
+  ) => {
+    if (nextInsertedTokens.length === 0) {
+      emit(tokens, nextDraft);
+      return;
+    }
+    const nextTokens =
+      insertIndex !== null
+        ? [
+            ...tokens.slice(0, insertIndex),
+            ...nextInsertedTokens,
+            ...tokens.slice(insertIndex),
+          ]
+        : [...tokens, ...nextInsertedTokens];
+    if (insertIndex !== null) {
+      setInsertIndex(insertIndex + nextInsertedTokens.length);
+    }
+    emit(nextTokens, nextDraft);
+  };
+
+  const finalizeDraftAsToken = () => {
+    const nextToken = createEditableTokenFromChunk(draft);
+    if (!nextToken) return false;
+    insertTokensAtCursor([nextToken]);
+    setGroupDropdownOpen(false);
+    setGroupSearch("");
+    setTagSuggestions([]);
+    setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
+    setTagSuggestionOpen(false);
+    setTagSuggestionIndex(0);
+    requestAnimationFrame(() => inputRef.current?.focus());
+    return true;
+  };
+
   const handleUndo = () => {
     const stack = undoStackRef.current;
     if (stack.length === 0) return;
@@ -480,37 +529,18 @@ export const PromptInput = memo(function PromptInput({
       groupName,
       id: createTokenId(),
     };
-    const nextTokens =
-      insertIndex !== null
-        ? [
-            ...tokens.slice(0, insertIndex),
-            groupToken,
-            ...tokens.slice(insertIndex),
-          ]
-        : [...tokens, groupToken];
-    if (insertIndex !== null) setInsertIndex(insertIndex + 1);
-    emit(nextTokens, "");
+    insertTokensAtCursor([groupToken]);
     setGroupDropdownOpen(false);
     setGroupSearch("");
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const applyTagSuggestion = (suggestion: PromptTagSuggestion) => {
-    const nextToken = {
-      ...parseRawToken(suggestion.tag),
-      id: createTokenId(),
-    } as EditableToken;
-    const nextTokens =
-      insertIndex !== null
-        ? [
-            ...tokens.slice(0, insertIndex),
-            nextToken,
-            ...tokens.slice(insertIndex),
-          ]
-        : [...tokens, nextToken];
-    if (insertIndex !== null) setInsertIndex(insertIndex + 1);
-    emit(nextTokens, "");
+    const nextToken = createEditableTokenFromChunk(suggestion.tag);
+    if (!nextToken) return;
+    insertTokensAtCursor([nextToken]);
     setTagSuggestions([]);
+    setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
     setTagSuggestionOpen(false);
     setTagSuggestionIndex(0);
     requestAnimationFrame(() => inputRef.current?.focus());
@@ -551,21 +581,10 @@ export const PromptInput = memo(function PromptInput({
       return;
     }
 
-    const newTokens = finalized.map((chunk) => {
-      const raw =
-        chunk.includes("|") && !chunk.startsWith("%{") ? `%{${chunk}}` : chunk;
-      return { ...parseRawToken(raw), id: createTokenId() };
-    });
-    const nextTokens =
-      insertIndex !== null
-        ? [
-            ...tokens.slice(0, insertIndex),
-            ...newTokens,
-            ...tokens.slice(insertIndex),
-          ]
-        : [...tokens, ...newTokens];
-    if (insertIndex !== null) setInsertIndex(insertIndex + newTokens.length);
-    emit(nextTokens, nextDraft);
+    const newTokens = finalized
+      .map((chunk) => createEditableTokenFromChunk(chunk))
+      .filter((token): token is EditableToken => token !== null);
+    insertTokensAtCursor(newTokens, nextDraft);
   };
 
   const handleTokenChange = (id: string, nextToken: PromptToken) => {
@@ -616,6 +635,31 @@ export const PromptInput = memo(function PromptInput({
       const pos = cursor === "start" ? 0 : input.value.length;
       input.setSelectionRange(pos, pos);
     });
+  };
+
+  const focusInputAtIndex = (
+    index: number,
+    nextTokensArg = tokens,
+    cursor: "start" | "end" = "end",
+  ) => {
+    const clampedIndex = Math.max(0, Math.min(index, nextTokensArg.length));
+    setInlineEditTokenId(null);
+    setPopoverTokenId(null);
+    setChipCursorIndex(null);
+    setInsertIndex(clampedIndex);
+    requestAnimationFrame(() => {
+      const input = inputRef.current;
+      if (!input) return;
+      input.focus();
+      const pos = cursor === "start" ? 0 : input.value.length;
+      input.setSelectionRange(pos, pos);
+    });
+  };
+
+  const removeTokenAtIndex = (index: number) => {
+    const nextTokens = tokens.filter((_, i) => i !== index);
+    emit(nextTokens, draft);
+    focusInputAtIndex(index, nextTokens);
   };
 
   const focusTokenAtIndex = (index: number) => {
@@ -713,6 +757,17 @@ export const PromptInput = memo(function PromptInput({
       }
     }
 
+    if (
+      !groupDropdownOpen &&
+      draft.trim().length > 0 &&
+      (e.key === "Enter" || e.key === "Tab")
+    ) {
+      if (e.nativeEvent.isComposing) return;
+      e.preventDefault();
+      finalizeDraftAsToken();
+      return;
+    }
+
     if (e.key === "ArrowLeft") {
       const atStart =
         (e.currentTarget.selectionStart ?? 0) === 0 &&
@@ -758,16 +813,7 @@ export const PromptInput = memo(function PromptInput({
       ? [{ ...parseRawToken(draft.trim()), id: createTokenId() }]
       : [];
     const toInsert = [...draftToken, ...pastedTokens];
-    const nextTokens =
-      insertIndex !== null
-        ? [
-            ...tokens.slice(0, insertIndex),
-            ...toInsert,
-            ...tokens.slice(insertIndex),
-          ]
-        : [...tokens, ...toInsert];
-    if (insertIndex !== null) setInsertIndex(insertIndex + toInsert.length);
-    emit(nextTokens, "");
+    insertTokensAtCursor(toInsert);
   };
 
   const navigateVertical = (direction: "up" | "down", fromIndex: number) => {
@@ -863,23 +909,7 @@ export const PromptInput = memo(function PromptInput({
     }
     if (e.key === "Backspace" || e.key === "Delete") {
       e.preventDefault();
-      const nextTokens = tokens.filter((_, i) => i !== index);
-      emit(nextTokens, draft);
-      requestAnimationFrame(() => {
-        if (nextTokens.length === 0) {
-          focusInput("start");
-          return;
-        }
-        const nextIndex = Math.min(index, nextTokens.length - 1);
-        const nextId = nextTokens[nextIndex]?.id;
-        if (!nextId) {
-          focusInput("start");
-          return;
-        }
-        const nextNode = tokenRefs.current.get(nextId);
-        if (nextNode) nextNode.focus();
-        else focusInput("start");
-      });
+      removeTokenAtIndex(index);
     }
   };
 
@@ -1006,6 +1036,12 @@ export const PromptInput = memo(function PromptInput({
         )
       : null;
 
+  const showTrailingInput =
+    insertIndex === null &&
+    chipCursorIndex === null &&
+    inlineEditTokenId === null &&
+    popoverTokenId === null;
+
   return (
     <div
       className={cn(
@@ -1113,26 +1149,7 @@ export const PromptInput = memo(function PromptInput({
                       emit(nextTokens, draft);
                     }}
                     onDelete={() => {
-                      const nextTokens = tokens.filter((_, i) => i !== index);
-                      emit(nextTokens, draft);
-                      requestAnimationFrame(() => {
-                        if (nextTokens.length === 0) {
-                          focusInput("start");
-                          return;
-                        }
-                        const nextIndex = Math.min(
-                          index,
-                          nextTokens.length - 1,
-                        );
-                        const nextId = nextTokens[nextIndex]?.id;
-                        if (!nextId) {
-                          focusInput("start");
-                          return;
-                        }
-                        const nextNode = tokenRefs.current.get(nextId);
-                        if (nextNode) nextNode.focus();
-                        else focusInput("start");
-                      });
+                      removeTokenAtIndex(index);
                     }}
                     chipRef={(node) => setTokenRef(token.id, node)}
                     onTokenFocus={() => {
@@ -1164,11 +1181,7 @@ export const PromptInput = memo(function PromptInput({
                       handleWildcardChange(token.id, nextToken)
                     }
                     onDelete={() => {
-                      const nextTokens = tokens.filter(
-                        (t) => t.id !== token.id,
-                      );
-                      emit(nextTokens, draft);
-                      requestAnimationFrame(() => focusInput("end"));
+                      removeTokenAtIndex(index);
                     }}
                     onTokenFocus={() => setChipCursorIndex(index)}
                     onTokenKeyDown={(e) => handleTokenKeyDown(e, index)}
@@ -1232,11 +1245,7 @@ export const PromptInput = memo(function PromptInput({
                       handleTokenChange(token.id, nextToken)
                     }
                     onDelete={() => {
-                      const nextTokens = tokens.filter(
-                        (t) => t.id !== token.id,
-                      );
-                      emit(nextTokens, draft);
-                      requestAnimationFrame(() => focusInput("end"));
+                      removeTokenAtIndex(index);
                     }}
                     onApplyAdvance={() => {
                       if (index < tokens.length - 1) {
@@ -1298,7 +1307,7 @@ export const PromptInput = memo(function PromptInput({
               ),
             )}
 
-            {insertIndex === null && (
+            {showTrailingInput && (
               <div
                 className={cn(
                   "relative min-w-[3ch]",
