@@ -141,6 +141,10 @@ export default function App({ initialFolderCount = null }: AppProps) {
   const { t } = useTranslation();
   const { outputFolder, setOutputFolder } = useNaiGenSettings();
   const [searchQuery, setSearchQuery] = useState("");
+  const [galleryOverlayState, setGalleryOverlayState] = useState<{
+    reason: "page" | "search";
+    phase: "queued" | "loading";
+  } | null>(null);
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<number>>(
     () => {
       try {
@@ -289,6 +293,8 @@ export default function App({ initialFolderCount = null }: AppProps) {
   );
   const appendPromptTagRequestSeqRef = useRef(0);
   const similarRequestSeqRef = useRef(0);
+  const galleryOverlayEnterRafRef = useRef<number | null>(null);
+  const galleryOverlayActionRafRef = useRef<number | null>(null);
 
   const selectedCategory = useMemo(
     () => categories.find((cat) => cat.id === selectedCategoryId),
@@ -363,8 +369,58 @@ export default function App({ initialFolderCount = null }: AppProps) {
     galleryPage,
     setGalleryPage,
     galleryTotalPages,
+    hasLoadedOnce,
+    isLoading: isGalleryLoading,
     schedulePageRefresh,
   } = useGalleryImages(listBaseQuery);
+
+  const clearPendingGalleryOverlayFrames = useCallback(() => {
+    if (galleryOverlayEnterRafRef.current !== null) {
+      cancelAnimationFrame(galleryOverlayEnterRafRef.current);
+      galleryOverlayEnterRafRef.current = null;
+    }
+    if (galleryOverlayActionRafRef.current !== null) {
+      cancelAnimationFrame(galleryOverlayActionRafRef.current);
+      galleryOverlayActionRafRef.current = null;
+    }
+  }, []);
+
+  const queueGalleryBlockingAction = useCallback(
+    (reason: "page" | "search", action: () => void) => {
+      clearPendingGalleryOverlayFrames();
+      setGalleryOverlayState({ reason, phase: "queued" });
+      galleryOverlayEnterRafRef.current = requestAnimationFrame(() => {
+        galleryOverlayEnterRafRef.current = null;
+        galleryOverlayActionRafRef.current = requestAnimationFrame(() => {
+          galleryOverlayActionRafRef.current = null;
+          action();
+        });
+      });
+    },
+    [clearPendingGalleryOverlayFrames],
+  );
+
+  useEffect(
+    () => () => {
+      clearPendingGalleryOverlayFrames();
+    },
+    [clearPendingGalleryOverlayFrames],
+  );
+
+  useEffect(() => {
+    if (!galleryOverlayState) return;
+    if (isGalleryLoading) {
+      if (galleryOverlayState.phase !== "loading") {
+        setGalleryOverlayState((prev) =>
+          prev ? { ...prev, phase: "loading" } : prev,
+        );
+      }
+      return;
+    }
+    if (galleryOverlayState.phase === "loading") {
+      setGalleryOverlayState(null);
+    }
+  }, [galleryOverlayState, isGalleryLoading]);
 
   const loadSearchPresetStats = useCallback(async () => {
     try {
@@ -962,9 +1018,30 @@ export default function App({ initialFolderCount = null }: AppProps) {
     setPendingGeneratorSource(null);
   }, []);
 
+  const handleSearchChange = useCallback(
+    (nextQuery: string) => {
+      if (nextQuery === searchQuery) return;
+      queueGalleryBlockingAction("search", () => {
+        setGalleryPage(1);
+        setSearchQuery(nextQuery);
+      });
+    },
+    [queueGalleryBlockingAction, searchQuery, setGalleryPage],
+  );
+
+  const handleGalleryPageChange = useCallback(
+    (nextPage: number) => {
+      if (nextPage === galleryPage) return;
+      queueGalleryBlockingAction("page", () => {
+        setGalleryPage(nextPage);
+      });
+    },
+    [galleryPage, queueGalleryBlockingAction, setGalleryPage],
+  );
+
   const handleClearSearch = useCallback(() => {
-    setSearchQuery("");
-  }, []);
+    handleSearchChange("");
+  }, [handleSearchChange]);
 
   const handleAddFolderRequest = useCallback(() => {
     setFolderDialogRequest((n) => n + 1);
@@ -1089,7 +1166,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     <div className="h-screen bg-background flex flex-col">
       <Header
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={handleSearchChange}
         activePanel={activePanel}
         onPanelChange={handleHeaderPanelChange}
         scanning={scanning}
@@ -1234,11 +1311,13 @@ export default function App({ initialFolderCount = null }: AppProps) {
               pageSize={settings.pageSize}
               page={galleryPage}
               totalPages={galleryTotalPages}
-              onPageChange={setGalleryPage}
+              onPageChange={handleGalleryPageChange}
               searchQuery={searchQuery || undefined}
               onClearSearch={handleClearSearch}
               hasFolders={folderCount === null || folderCount > 0}
               onAddFolder={handleAddFolderRequest}
+              isInitializing={!hasLoadedOnce && isGalleryLoading}
+              isRefreshing={galleryOverlayState !== null}
             />
           </div>
         </div>

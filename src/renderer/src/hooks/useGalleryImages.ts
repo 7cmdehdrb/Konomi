@@ -21,6 +21,7 @@ export function useGalleryImages(
   const [galleryPage, setGalleryPage] = useState(1);
   const [galleryTotalPages, setGalleryTotalPages] = useState(1);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const pageRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -35,6 +36,9 @@ export function useGalleryImages(
       clearTimeout(pageRefreshTimerRef.current);
       pageRefreshTimerRef.current = null;
     }
+    if (!enabled) {
+      setIsLoading(false);
+    }
   }, [enabled]);
 
   useEffect(() => {
@@ -45,6 +49,7 @@ export function useGalleryImages(
   const loadImagesPage = useCallback(async () => {
     if (!enabled) return;
     const requestId = ++listRequestSeqRef.current;
+    setIsLoading(true);
     try {
       const result = await window.image.listPage({
         ...listBaseQuery,
@@ -68,6 +73,7 @@ export function useGalleryImages(
       );
     } finally {
       if (requestId === listRequestSeqRef.current) {
+        setIsLoading(false);
         setHasLoadedOnce(true);
       }
     }
@@ -107,6 +113,7 @@ export function useGalleryImages(
     setGalleryPage,
     galleryTotalPages,
     hasLoadedOnce,
+    isLoading,
     schedulePageRefresh,
   };
 }

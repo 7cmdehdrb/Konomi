@@ -51,6 +51,7 @@ interface ImageGalleryProps {
   hasFolders?: boolean;
   onAddFolder?: () => void;
   isInitializing?: boolean;
+  isRefreshing?: boolean;
 }
 
 export const ImageGallery = memo(function ImageGallery({
@@ -80,6 +81,7 @@ export const ImageGallery = memo(function ImageGallery({
   hasFolders = true,
   onAddFolder,
   isInitializing = false,
+  isRefreshing = false,
 }: ImageGalleryProps) {
   const { t } = useTranslation();
   const [internalPage, setInternalPage] = useState(1);
@@ -191,7 +193,10 @@ export const ImageGallery = memo(function ImageGallery({
   }, [images, onBulkChangeCategory, selectedIds]);
 
   return (
-    <div className="relative flex-1 flex flex-col">
+    <div
+      className="relative flex-1 flex flex-col"
+      aria-busy={isRefreshing || isInitializing}
+    >
       <div
         className="flex flex-col gap-3 p-4 border-b border-border bg-background"
         data-tour="gallery-toolbar"
@@ -424,6 +429,14 @@ export const ImageGallery = memo(function ImageGallery({
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
+        </div>
+      )}
+
+      {isRefreshing && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/36 backdrop-blur-sm">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border/70 bg-background/88 text-primary shadow-xl">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
         </div>
       )}
     </div>
