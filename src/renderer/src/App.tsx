@@ -5,7 +5,6 @@ import {
   useEffect,
   useRef,
   useDeferredValue,
-  startTransition,
 } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -33,20 +32,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { useSettings, type Settings } from "@/hooks/useSettings";
 import { useNaiGenSettings } from "@/hooks/useNaiGenSettings";
+import { useAppAppearance } from "@/hooks/useAppAppearance";
 import { useGalleryController } from "@/hooks/useGalleryController";
+import { useImageWatchBootstrap } from "@/hooks/useImageWatchBootstrap";
 import { useScanning } from "@/hooks/useScanning";
 import { useImageAnalysis } from "@/hooks/useImageAnalysis";
 import { useBrowseScope } from "@/hooks/useBrowseScope";
 import { useFolderController } from "@/hooks/useFolderController";
 import { useImageActions } from "@/hooks/useImageActions";
+import { useSearchPresetStats } from "@/hooks/useSearchPresetStats";
 import { useSidebarFolderActions } from "@/hooks/useSidebarFolderActions";
 import { useSimilarImages } from "@/hooks/useSimilarImages";
 import type { AdvancedFilter } from "@/lib/advanced-filter";
-import { createLogger } from "@/lib/logger";
-import { applyAppLanguagePreference } from "@/lib/i18n";
 import { useTranslation } from "react-i18next";
-
-const log = createLogger("renderer/App");
 const INITIAL_LANGUAGE_SCREEN_COMPLETED_KEY =
   "konomi-initial-language-selection-completed";
 const SIMILARITY_SETTING_KEYS = new Set<keyof Settings>([
@@ -65,18 +63,6 @@ function isSimilaritySettingsPatch(patch: Partial<Settings>): boolean {
 function includesSimilaritySettingsReset(keys?: (keyof Settings)[]): boolean {
   if (!keys || keys.length === 0) return true;
   return keys.some((key) => SIMILARITY_SETTING_KEYS.has(key));
-}
-
-function resolveIsDarkTheme(theme: Settings["theme"] | undefined): boolean {
-  const resolvedTheme = theme ?? "dark";
-  if (resolvedTheme === "auto") {
-    return (
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches
-    );
-  }
-
-  return resolvedTheme === "dark";
 }
 
 interface AppProps {
@@ -102,9 +88,6 @@ export default function App({ initialFolderCount = null }: AppProps) {
   const [activePanel, setActivePanel] = useState<
     "gallery" | "generator" | "settings"
   >("gallery");
-  const [isDarkTheme, setIsDarkTheme] = useState(() =>
-    resolveIsDarkTheme(settings.theme),
-  );
   const [tourOpen, setTourOpen] = useState(
     () => localStorage.getItem("konomi-tour-completed") !== "true",
   );
@@ -181,23 +164,20 @@ export default function App({ initialFolderCount = null }: AppProps) {
   }, []);
 
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilter[]>([]);
-  const [availableResolutions, setAvailableResolutions] = useState<
-    Array<{ width: number; height: number }>
-  >([]);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [searchStatsProgress, setSearchStatsProgress] = useState<{
-    done: number;
-    total: number;
-  } | null>(null);
-
-  const searchStatsRefreshTimerRef = useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
-  const searchStatsClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
   const generationViewRef = useRef<GenerationViewHandle | null>(null);
   const sidebarRef = useRef<SidebarHandle | null>(null);
+  const { isDarkTheme } = useAppAppearance({
+    theme: settings.theme,
+    language: settings.language,
+  });
+  const {
+    availableResolutions,
+    availableModels,
+    searchStatsProgress,
+    loadSearchPresetStats,
+    scheduleSearchStatsRefresh,
+    handleSearchStatsProgress,
+  } = useSearchPresetStats();
   const {
     categories,
     queryFragment,
@@ -244,33 +224,6 @@ export default function App({ initialFolderCount = null }: AppProps) {
     modelFilters,
     folderCount,
   });
-
-  const loadSearchPresetStats = useCallback(async () => {
-    try {
-      const stats = await window.image.getSearchPresetStats();
-      startTransition(() => {
-        setAvailableResolutions(stats.availableResolutions);
-        setAvailableModels(stats.availableModels);
-      });
-    } catch (e: unknown) {
-      log.warn("Failed to load search preset stats", {
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
-  }, []);
-
-  const scheduleSearchStatsRefresh = useCallback(
-    (delay = 220) => {
-      if (searchStatsRefreshTimerRef.current) {
-        clearTimeout(searchStatsRefreshTimerRef.current);
-      }
-      searchStatsRefreshTimerRef.current = setTimeout(() => {
-        searchStatsRefreshTimerRef.current = null;
-        void loadSearchPresetStats();
-      }, delay);
-    },
-    [loadSearchPresetStats],
-  );
 
   const {
     scanning,
@@ -339,28 +292,6 @@ export default function App({ initialFolderCount = null }: AppProps) {
     [resetSettings, pendingSimilarityRecalcRef],
   );
 
-  useEffect(() => {
-    void applyAppLanguagePreference(settings.language);
-  }, [settings.language]);
-
-  useEffect(() => {
-    const theme = settings.theme ?? "dark";
-    const applyTheme = (isDark: boolean) => {
-      document.documentElement.dataset.theme = isDark ? "dark" : "white";
-      document.documentElement.classList.toggle("dark", isDark);
-      setIsDarkTheme(isDark);
-    };
-    if (theme === "auto") {
-      const mq = window.matchMedia("(prefers-color-scheme: dark)");
-      applyTheme(mq.matches);
-      const handler = (e: MediaQueryListEvent) => applyTheme(e.matches);
-      mq.addEventListener("change", handler);
-      return () => mq.removeEventListener("change", handler);
-    }
-    applyTheme(theme === "dark");
-    return undefined;
-  }, [settings.theme]);
-
   const handlePanelChange = useCallback(
     async (nextPanel: "gallery" | "generator" | "settings") => {
       if (nextPanel === activePanel) return;
@@ -424,89 +355,14 @@ export default function App({ initialFolderCount = null }: AppProps) {
       visualThresholdRef,
       promptThresholdRef,
     });
-
-  useEffect(() => {
-    log.info("App mounted: loading initial data and starting watchers");
-    void loadSearchPresetStats();
-    scheduleAnalysis(0);
-
-    const offBatch = window.image.onBatch((rows) => {
-      if (rows.length === 0) return;
-      schedulePageRefresh(scanningRef.current ? 1500 : 150);
-      if (!scanningRef.current) {
-        scheduleAnalysis();
-        scheduleSearchStatsRefresh(180);
-      }
-    });
-
-    const offRemoved = window.image.onRemoved((ids) => {
-      if (ids.length === 0) return;
-      schedulePageRefresh(60);
-      scheduleAnalysis();
-      scheduleSearchStatsRefresh(120);
-    });
-
-    const offSearchStatsProgress = window.image.onSearchStatsProgress(
-      (data) => {
-        startTransition(() => setSearchStatsProgress(data));
-        if (searchStatsClearTimerRef.current) {
-          clearTimeout(searchStatsClearTimerRef.current);
-          searchStatsClearTimerRef.current = null;
-        }
-        if (data.total > 0 && data.done >= data.total) {
-          searchStatsClearTimerRef.current = setTimeout(() => {
-            setSearchStatsProgress(null);
-            searchStatsClearTimerRef.current = null;
-          }, 250);
-        }
-      },
-    );
-
-    let watchCancelled = false;
-    let watchRetryTimer: ReturnType<typeof setTimeout> | null = null;
-    const startWatch = (attempt = 0): void => {
-      void window.image.watch().catch((error: unknown) => {
-        if (watchCancelled) return;
-        const delayMs = Math.min(10000, 1000 * 2 ** attempt);
-        log.warn("Image watcher start failed; retry scheduled", {
-          attempt: attempt + 1,
-          delayMs,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        watchRetryTimer = setTimeout(() => {
-          watchRetryTimer = null;
-          startWatch(attempt + 1);
-        }, delayMs);
-      });
-    };
-    startWatch();
-
-    return () => {
-      log.info("App unmount cleanup");
-      watchCancelled = true;
-      if (watchRetryTimer) {
-        clearTimeout(watchRetryTimer);
-        watchRetryTimer = null;
-      }
-      if (searchStatsRefreshTimerRef.current) {
-        clearTimeout(searchStatsRefreshTimerRef.current);
-        searchStatsRefreshTimerRef.current = null;
-      }
-      if (searchStatsClearTimerRef.current) {
-        clearTimeout(searchStatsClearTimerRef.current);
-        searchStatsClearTimerRef.current = null;
-      }
-      offBatch();
-      offRemoved();
-      offSearchStatsProgress();
-    };
-  }, [
+  useImageWatchBootstrap({
     loadSearchPresetStats,
+    scheduleSearchStatsRefresh,
+    handleSearchStatsProgress,
     scanningRef,
     scheduleAnalysis,
     schedulePageRefresh,
-    scheduleSearchStatsRefresh,
-  ]);
+  });
 
   const handleTourAction = useCallback((action: string) => {
     if (action === "open-prompt-group-panel") {
