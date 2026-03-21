@@ -121,6 +121,10 @@ export function ImageDetail({
   const [imgLoaded, setImgLoaded] = useState(false);
   const [displaySrc, setDisplaySrc] = useState<string | null>(null);
   const [similarPage, setSimilarPage] = useState(0);
+  const hasSimilar = similarImages && similarImages.length > 1;
+  const totalPages = hasSimilar
+    ? Math.ceil(similarImages.length / similarPageSize)
+    : 0;
 
   // Reset displaySrc so the panel paints before fetching starts
   useEffect(() => {
@@ -142,6 +146,14 @@ export function ImageDetail({
   useEffect(() => {
     setSimilarPage(0);
   }, [image?.id]);
+
+  // Keep the current page valid when a refreshed similar list has fewer pages.
+  useEffect(() => {
+    setSimilarPage((page) => {
+      if (totalPages <= 1) return 0;
+      return Math.min(page, totalPages - 1);
+    });
+  }, [totalPages]);
 
   const handleCopy = useCallback(
     (key: string, text: string) => {
@@ -179,10 +191,6 @@ export function ImageDetail({
   // Never fully unmount — just hide with CSS so DOM isn't recreated on every open
   if (!image) return null;
 
-  const hasSimilar = similarImages && similarImages.length > 1;
-  const totalPages = hasSimilar
-    ? Math.ceil(similarImages.length / similarPageSize)
-    : 0;
   const pagedSimilar = hasSimilar
     ? similarImages.slice(
         similarPage * similarPageSize,
