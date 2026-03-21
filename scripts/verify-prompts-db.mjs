@@ -10,7 +10,7 @@ const promptsDBPath = path.resolve(
 
 if (!fs.existsSync(promptsDBPath)) {
   console.error(`Missing prompts DB: ${promptsDBPath}`);
-  console.error("Run `npm run db:prompts -- <csv-path>` before packaging.");
+  console.error("Run `bun run db:prompts -- <csv-path>` before packaging.");
   process.exit(1);
 }
 
@@ -49,7 +49,7 @@ try {
       `prompts.db is missing required metadata keys: ${missingKeys.join(", ")}`,
     );
     console.error(
-      "Rebuild the prompts DB with `npm run db:prompts -- <csv-path>`.",
+      "Rebuild the prompts DB with `bun run db:prompts -- <csv-path>`.",
     );
     process.exit(1);
   }
@@ -60,7 +60,7 @@ try {
       `prompts.db schema_version must be >= 3, got ${meta.get("schema_version")}`,
     );
     console.error(
-      "Rebuild the prompts DB with `npm run db:prompts -- <csv-path>`.",
+      "Rebuild the prompts DB with `bun run db:prompts -- <csv-path>`.",
     );
     process.exit(1);
   }

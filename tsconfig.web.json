@@ -1,6 +1,10 @@
 {
   "extends": "./node_modules/@electron-toolkit/tsconfig/tsconfig.json",
-  "include": ["src/renderer/src/**/*", "src/preload/index.d.ts", "src/tests/**/*"],
+  "include": [
+    "src/renderer/src/**/*",
+    "src/preload/index.d.ts",
+    "src/tests/frontend/**/*"
+  ],
   "compilerOptions": {
     "composite": true,
     "baseUrl": ".",

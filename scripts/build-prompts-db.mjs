@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_prompt_tag_search
 
 function printUsageAndExit() {
   console.error(
-    "Usage: npm run db:prompts -- <csv-path> [--out <output-db-path>]",
+    "Usage: bun run db:prompts -- <csv-path> [--out <output-db-path>]",
   );
   console.error(`Default output: ${DEFAULT_OUTPUT_PATH}`);
   process.exit(1);
