@@ -35,14 +35,12 @@ export function useGalleryController({
   folderCount,
 }: UseGalleryControllerOptions) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [galleryOverlayState, setGalleryOverlayState] = useState<{
-    reason: "page" | "search";
-    phase: "queued" | "loading";
-  } | null>(null);
+  const [galleryOverlayVisible, setGalleryOverlayVisible] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [sortBy, setSortBy] = useState<SortBy>("recent");
   const galleryOverlayEnterRafRef = useRef<number | null>(null);
   const galleryOverlayActionRafRef = useRef<number | null>(null);
+  const galleryOverlayPhaseRef = useRef<"queued" | "loading" | null>(null);
 
   const listBaseQuery = useMemo<Omit<ImageListQuery, "page">>(
     () => ({
@@ -122,12 +120,14 @@ export function useGalleryController({
       cancelAnimationFrame(galleryOverlayActionRafRef.current);
       galleryOverlayActionRafRef.current = null;
     }
+    galleryOverlayPhaseRef.current = null;
   }, []);
 
   const queueGalleryBlockingAction = useCallback(
-    (reason: "page" | "search", action: () => void) => {
+    (action: () => void) => {
       clearPendingGalleryOverlayFrames();
-      setGalleryOverlayState({ reason, phase: "queued" });
+      galleryOverlayPhaseRef.current = "queued";
+      setGalleryOverlayVisible(true);
       galleryOverlayEnterRafRef.current = requestAnimationFrame(() => {
         galleryOverlayEnterRafRef.current = null;
         galleryOverlayActionRafRef.current = requestAnimationFrame(() => {
@@ -147,24 +147,21 @@ export function useGalleryController({
   );
 
   useEffect(() => {
-    if (!galleryOverlayState) return;
+    if (!galleryOverlayVisible) return;
     if (isGalleryLoading) {
-      if (galleryOverlayState.phase !== "loading") {
-        setGalleryOverlayState((prev) =>
-          prev ? { ...prev, phase: "loading" } : prev,
-        );
-      }
+      galleryOverlayPhaseRef.current = "loading";
       return;
     }
-    if (galleryOverlayState.phase === "loading") {
-      setGalleryOverlayState(null);
+    if (galleryOverlayPhaseRef.current === "loading") {
+      galleryOverlayPhaseRef.current = null;
+      setGalleryOverlayVisible(false);
     }
-  }, [galleryOverlayState, isGalleryLoading]);
+  }, [galleryOverlayVisible, isGalleryLoading]);
 
   const handleSearchChange = useCallback(
     (nextQuery: string) => {
       if (nextQuery === searchQuery) return;
-      queueGalleryBlockingAction("search", () => {
+      queueGalleryBlockingAction(() => {
         setGalleryPage(1);
         setSearchQuery(nextQuery);
       });
@@ -175,7 +172,7 @@ export function useGalleryController({
   const handleGalleryPageChange = useCallback(
     (nextPage: number) => {
       if (nextPage === galleryPage) return;
-      queueGalleryBlockingAction("page", () => {
+      queueGalleryBlockingAction(() => {
         setGalleryPage(nextPage);
       });
     },
@@ -209,12 +206,12 @@ export function useGalleryController({
       searchQuery: searchQuery || undefined,
       hasFolders: folderCount === null || folderCount > 0,
       isInitializing: !hasLoadedOnce && isGalleryLoading,
-      isRefreshing: galleryOverlayState !== null,
+      isRefreshing: galleryOverlayVisible,
       selectionScopeKey: gallerySelectionScopeKey,
     }),
     [
       folderCount,
-      galleryOverlayState,
+      galleryOverlayVisible,
       gallerySelectionScopeKey,
       hasLoadedOnce,
       images,

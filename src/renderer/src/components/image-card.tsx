@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Heart,
   Copy,
@@ -89,7 +89,12 @@ export const ImageCard = memo(function ImageCard({
   const { formatDate, formatDateTime } = useLocaleFormatters();
   const TOKEN_PREVIEW_LIMIT = 10;
   const [imageLoaded, setImageLoaded] = useState(false);
-  const previewTokens = image.tokens.slice(0, TOKEN_PREVIEW_LIMIT);
+  const [hoverPreviewReady, setHoverPreviewReady] = useState(false);
+  const [contextMenuReady, setContextMenuReady] = useState(false);
+  const previewTokens = useMemo(
+    () => image.tokens.slice(0, TOKEN_PREVIEW_LIMIT),
+    [image.tokens],
+  );
   const hiddenTokenCount = Math.max(
     0,
     image.tokens.length - TOKEN_PREVIEW_LIMIT,
@@ -103,20 +108,33 @@ export const ImageCard = memo(function ImageCard({
     setImageLoaded(false);
   }, [image.src]);
 
-  const handleCardClick = () => {
+  const handleCardClick = useCallback(() => {
     if (selectionMode && onSelectChange) {
       onSelectChange(image.id, !selected);
       return;
     }
     onClick(image);
-  };
+  }, [image, onClick, onSelectChange, selected, selectionMode]);
 
-  const handleCheckboxChange = (checked: boolean) => {
-    if (!onSelectChange) return;
-    onSelectChange(image.id, checked);
-  };
+  const handleCheckboxChange = useCallback(
+    (checked: boolean) => {
+      if (!onSelectChange) return;
+      onSelectChange(image.id, checked);
+    },
+    [image.id, onSelectChange],
+  );
 
-  const contextMenuContent = (
+  const handleContextMenuOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      setContextMenuReady(true);
+    }
+  }, []);
+
+  const handleHoverPreviewActivate = useCallback(() => {
+    setHoverPreviewReady((prev) => prev || viewMode !== "list");
+  }, [viewMode]);
+
+  const contextMenuContent = contextMenuReady ? (
     <ContextMenuContent>
       <ContextMenuItem onSelect={() => onToggleFavorite(image.id)}>
         <Heart
@@ -163,11 +181,11 @@ export const ImageCard = memo(function ImageCard({
         {t("imageCard.menu.delete")}
       </ContextMenuItem>
     </ContextMenuContent>
-  );
+  ) : null;
 
   if (viewMode === "list") {
     return (
-      <ContextMenu>
+      <ContextMenu onOpenChange={handleContextMenuOpenChange}>
         <ContextMenuTrigger asChild>
           <div
             className="group flex items-center gap-3 px-3 py-2 rounded-lg bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer"
@@ -223,11 +241,12 @@ export const ImageCard = memo(function ImageCard({
   }
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={handleContextMenuOpenChange}>
       <ContextMenuTrigger asChild>
         <div
           className="group relative rounded-xl overflow-hidden bg-card border border-border hover:border-primary/50 transition-all duration-300 cursor-pointer"
           onClick={handleCardClick}
+          onPointerEnter={handleHoverPreviewActivate}
         >
           {/* Image */}
           <div className="aspect-[3/4] relative overflow-hidden">
@@ -265,8 +284,10 @@ export const ImageCard = memo(function ImageCard({
                   onContextMenu={(e) => e.preventDefault()}
                   className="relative max-h-28 overflow-hidden rounded-md border border-white/15 bg-black/55 p-2 shadow-lg backdrop-blur-sm"
                 >
-                  <TokenContainer tokens={previewTokens} isEditable={false} />
-                  {hiddenTokenCount > 0 && (
+                  {hoverPreviewReady && (
+                    <TokenContainer tokens={previewTokens} isEditable={false} />
+                  )}
+                  {hoverPreviewReady && hiddenTokenCount > 0 && (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end bg-gradient-to-t from-black/80 to-transparent px-2 pb-1 pt-5">
                       <span className="rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white/80">
                         {t("imageCard.moreTokens", { count: hiddenTokenCount })}

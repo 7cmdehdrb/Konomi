@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   ChevronsLeft,
   ChevronsRight,
@@ -27,10 +35,94 @@ import { OnboardingView } from "./onboarding-view";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 
+type ViewMode = "grid" | "compact" | "list";
+type SortBy = "recent" | "oldest" | "favorites" | "name";
+const GALLERY_GAP_PX = 16;
+const GALLERY_PADDING_PX = 16;
+const GRID_VIRTUAL_OVERSCAN_ROWS = 2;
+const LIST_VIRTUAL_OVERSCAN_ROWS = 4;
+const MIN_VIRTUALIZED_ROWS = 3;
+
+function getScrollAreaViewport(
+  root: HTMLElement | null,
+): HTMLDivElement | null {
+  if (!root) return null;
+  return root.querySelector<HTMLDivElement>(
+    '[data-slot="scroll-area-viewport"], [data-radix-scroll-area-viewport]',
+  );
+}
+
+function getGalleryColumnCount(
+  viewMode: ViewMode,
+  viewportWidth: number,
+): number {
+  if (viewMode === "list") return 1;
+  if (viewportWidth >= 1024) {
+    return viewMode === "compact" ? 6 : 4;
+  }
+  if (viewportWidth >= 768) {
+    return viewMode === "compact" ? 4 : 3;
+  }
+  return viewMode === "compact" ? 3 : 2;
+}
+
+function estimateGalleryRowHeight(
+  viewMode: ViewMode,
+  viewportWidth: number,
+  columnCount: number,
+): number {
+  if (viewMode === "list") {
+    return 80;
+  }
+  const contentWidth = Math.max(
+    0,
+    viewportWidth - GALLERY_PADDING_PX * 2 - GALLERY_GAP_PX * (columnCount - 1),
+  );
+  const cardWidth = columnCount > 0 ? contentWidth / columnCount : contentWidth;
+  const imageHeight = cardWidth * (4 / 3);
+  const footerHeight = viewMode === "compact" ? 72 : 84;
+  return Math.max(1, imageHeight + footerHeight + GALLERY_GAP_PX);
+}
+
+function getVisibleGalleryRowRange({
+  scrollTop,
+  viewportHeight,
+  rowHeight,
+  rowCount,
+  overscanRows,
+  shouldVirtualize,
+}: {
+  scrollTop: number;
+  viewportHeight: number;
+  rowHeight: number;
+  rowCount: number;
+  overscanRows: number;
+  shouldVirtualize: boolean;
+}) {
+  if (!shouldVirtualize) {
+    return {
+      startRow: 0,
+      endRow: rowCount,
+    };
+  }
+
+  return {
+    startRow: Math.max(
+      0,
+      Math.floor(scrollTop / Math.max(1, rowHeight)) - overscanRows,
+    ),
+    endRow: Math.min(
+      rowCount,
+      Math.ceil((scrollTop + viewportHeight) / Math.max(1, rowHeight)) +
+        overscanRows,
+    ),
+  };
+}
+
 interface ImageGalleryState {
   images: ImageData[];
-  viewMode: "grid" | "compact" | "list";
-  sortBy: "recent" | "oldest" | "favorites" | "name";
+  viewMode: ViewMode;
+  sortBy: SortBy;
   totalCount: number;
   searchQuery?: string;
   hasFolders?: boolean;
@@ -40,8 +132,8 @@ interface ImageGalleryState {
 }
 
 interface ImageGalleryActions {
-  onViewModeChange: (mode: "grid" | "compact" | "list") => void;
-  onSortChange: (sort: "recent" | "oldest" | "favorites" | "name") => void;
+  onViewModeChange: (mode: ViewMode) => void;
+  onSortChange: (sort: SortBy) => void;
   onToggleFavorite: (id: string) => void;
   onCopyPrompt: (prompt: string) => void;
   onImageClick: (image: ImageData) => void;
@@ -71,80 +163,486 @@ interface ImageGalleryProps {
   pagination?: ImageGalleryPagination;
 }
 
-export const ImageGallery = memo(function ImageGallery({
-  gallery,
-  actions,
-  pagination,
-}: ImageGalleryProps) {
-  const {
-    images,
-    viewMode,
-    sortBy,
-    totalCount,
-    searchQuery,
-    hasFolders = true,
-    isInitializing = false,
-    isRefreshing = false,
-    selectionScopeKey,
-  } = gallery;
-  const {
-    onViewModeChange,
-    onSortChange,
-    onToggleFavorite,
-    onCopyPrompt,
-    onImageClick,
-    onReveal,
-    onDelete,
-    onChangeCategory,
-    onBulkChangeCategory,
-    onSendToGenerator,
-    onSendToSource,
-    onAddTagToSearch,
-    onAddTagToGenerator,
-    onClearSearch,
-    onAddFolder,
-    onLoadAllSelectableImages,
-  } = actions;
-  const {
-    pageSize = 50,
-    page,
-    totalPages,
-    onPageChange,
-  } = pagination ?? {};
+interface GalleryToolbarProps {
+  totalCount: number;
+  searchQuery?: string;
+  selectionMode: boolean;
+  selectedCount: number;
+  sortBy: SortBy;
+  viewMode: ViewMode;
+  allPageSelected: boolean;
+  allFilteredSelected: boolean;
+  selectingAllResults: boolean;
+  canSelectAllResults: boolean;
+  onClearSearch?: () => void;
+  onSortChange: (sort: SortBy) => void;
+  onViewModeChange: (mode: ViewMode) => void;
+  onToggleSelectionMode: () => void;
+  onSelectCurrentPage: () => void;
+  onSelectAllFiltered: () => void;
+  onClearSelection: () => void;
+  onBulkCategory: () => void;
+}
+
+const GalleryToolbar = memo(function GalleryToolbar({
+  totalCount,
+  searchQuery,
+  selectionMode,
+  selectedCount,
+  sortBy,
+  viewMode,
+  allPageSelected,
+  allFilteredSelected,
+  selectingAllResults,
+  canSelectAllResults,
+  onClearSearch,
+  onSortChange,
+  onViewModeChange,
+  onToggleSelectionMode,
+  onSelectCurrentPage,
+  onSelectAllFiltered,
+  onClearSelection,
+  onBulkCategory,
+}: GalleryToolbarProps) {
   const { t } = useTranslation();
-  const [internalPage, setInternalPage] = useState(1);
-  const [pageJumpValue, setPageJumpValue] = useState("1");
+
+  return (
+    <div
+      className="flex flex-col gap-3 p-4 border-b border-border bg-background"
+      data-tour="gallery-toolbar"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-foreground select-none">
+            {t("gallery.totalImages", { count: totalCount })}
+          </span>
+          {searchQuery && (
+            <button
+              onClick={onClearSearch}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+            >
+              {t("gallery.resetSearch")}
+            </button>
+          )}
+          {selectionMode && (
+            <span className="text-sm text-muted-foreground select-none">
+              {t("gallery.selectedCount", { count: selectedCount })}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Select value={sortBy} onValueChange={onSortChange}>
+            <SelectTrigger className="w-36 bg-secondary border-border">
+              <SlidersHorizontal className="h-4 w-4 mr-2 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              <SelectItem value="recent">{t("gallery.sort.recent")}</SelectItem>
+              <SelectItem value="oldest">{t("gallery.sort.oldest")}</SelectItem>
+              <SelectItem value="name">{t("gallery.sort.name")}</SelectItem>
+              <SelectItem value="favorites">
+                {t("gallery.sort.favorites")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="flex items-center bg-secondary rounded-lg p-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-8 w-8",
+                viewMode === "grid"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => onViewModeChange("grid")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-8 w-8",
+                viewMode === "compact"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => onViewModeChange("compact")}
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-8 w-8",
+                viewMode === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => onViewModeChange("list")}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant={selectionMode ? "secondary" : "outline"}
+          size="sm"
+          onClick={onToggleSelectionMode}
+        >
+          <SquareCheckBig className="h-4 w-4" />
+          {selectionMode
+            ? t("gallery.exitSelectionMode")
+            : t("gallery.selectionMode")}
+        </Button>
+
+        {selectionMode && (
+          <>
+            <Button variant="outline" size="sm" onClick={onSelectCurrentPage}>
+              {allPageSelected
+                ? t("gallery.deselectCurrentPage")
+                : t("gallery.selectCurrentPage")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSelectAllFiltered}
+              disabled={!canSelectAllResults}
+            >
+              {selectingAllResults && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
+              {allFilteredSelected
+                ? t("gallery.deselectAllResults")
+                : t("gallery.selectAllResults", { count: totalCount })}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearSelection}
+              disabled={selectedCount === 0}
+            >
+              {t("gallery.clearSelection")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={onBulkCategory}
+              disabled={selectedCount === 0}
+            >
+              <Tags className="h-4 w-4" />
+              {t("gallery.changeCategoryForSelection")}
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
+interface GalleryResultsProps {
+  paged: ImageData[];
+  viewMode: ViewMode;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  onToggleFavorite: (id: string) => void;
+  onCopyPrompt: (prompt: string) => void;
+  onImageClick: (image: ImageData) => void;
+  onReveal: (path: string) => void;
+  onDelete: (id: string) => void;
+  onChangeCategory: (image: ImageData) => void;
+  onSendToGenerator?: (image: ImageData) => void;
+  onSendToSource?: (image: ImageData) => void;
+  onAddTagToSearch?: (tag: string) => void;
+  onAddTagToGenerator?: (tag: string) => void;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  onSelectChange: (id: string, selected: boolean) => void;
+  isInitializing: boolean;
+  hasFolders: boolean;
+  onAddFolder?: () => void;
+}
+
+const GalleryResults = memo(function GalleryResults({
+  paged,
+  viewMode,
+  scrollRef,
+  onToggleFavorite,
+  onCopyPrompt,
+  onImageClick,
+  onReveal,
+  onDelete,
+  onChangeCategory,
+  onSendToGenerator,
+  onSendToSource,
+  onAddTagToSearch,
+  onAddTagToGenerator,
+  selectionMode,
+  selectedIds,
+  onSelectChange,
+  isInitializing,
+  hasFolders,
+  onAddFolder,
+}: GalleryResultsProps) {
+  const { t } = useTranslation();
+  const [viewportSize, setViewportSize] = useState({
+    width: 0,
+    height: 0,
+  });
+  const [visibleRowRange, setVisibleRowRange] = useState({
+    startRow: 0,
+    endRow: 0,
+  });
+  const [measuredRowHeight, setMeasuredRowHeight] = useState<number | null>(
+    null,
+  );
+
+  const columnCount = useMemo(
+    () => getGalleryColumnCount(viewMode, viewportSize.width),
+    [viewMode, viewportSize.width],
+  );
+  const estimatedRowHeight = useMemo(
+    () => estimateGalleryRowHeight(viewMode, viewportSize.width, columnCount),
+    [columnCount, viewMode, viewportSize.width],
+  );
+  const rowHeight = measuredRowHeight ?? estimatedRowHeight;
+  const rowCount = Math.ceil(paged.length / columnCount);
+  const overscanRows =
+    viewMode === "list"
+      ? LIST_VIRTUAL_OVERSCAN_ROWS
+      : GRID_VIRTUAL_OVERSCAN_ROWS;
+  const shouldVirtualize =
+    viewportSize.height > 0 &&
+    paged.length > columnCount * MIN_VIRTUALIZED_ROWS;
+  const visibleStartRow = visibleRowRange.startRow;
+  const visibleEndRow = visibleRowRange.endRow || rowCount;
+  const visibleStartIndex = visibleStartRow * columnCount;
+  const visibleEndIndex = Math.min(paged.length, visibleEndRow * columnCount);
+  const visibleImages = shouldVirtualize
+    ? paged.slice(visibleStartIndex, visibleEndIndex)
+    : paged;
+  const topSpacerHeight = shouldVirtualize ? visibleStartRow * rowHeight : 0;
+  const bottomSpacerHeight = shouldVirtualize
+    ? Math.max(0, (rowCount - visibleEndRow) * rowHeight)
+    : 0;
+
+  const updateVisibleRows = useCallback(
+    (scrollTop: number, viewportHeight: number) => {
+      const next = getVisibleGalleryRowRange({
+        scrollTop,
+        viewportHeight,
+        rowHeight,
+        rowCount,
+        overscanRows,
+        shouldVirtualize,
+      });
+      setVisibleRowRange((prev) =>
+        prev.startRow === next.startRow && prev.endRow === next.endRow
+          ? prev
+          : next,
+      );
+    },
+    [overscanRows, rowCount, rowHeight, shouldVirtualize],
+  );
+
+  useEffect(() => {
+    const viewport = getScrollAreaViewport(scrollRef.current);
+    if (!viewport) return;
+
+    let rafId: number | null = null;
+    const updateViewportState = () => {
+      rafId = null;
+      const nextSize = {
+        width: viewport.clientWidth,
+        height: viewport.clientHeight,
+      };
+      setViewportSize((prev) =>
+        prev.width === nextSize.width && prev.height === nextSize.height
+          ? prev
+          : nextSize,
+      );
+      updateVisibleRows(viewport.scrollTop, nextSize.height);
+    };
+
+    const scheduleUpdate = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(updateViewportState);
+    };
+
+    updateViewportState();
+    viewport.addEventListener("scroll", scheduleUpdate, {
+      passive: true,
+    });
+    window.addEventListener("resize", scheduleUpdate);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleUpdate();
+      });
+      resizeObserver.observe(viewport);
+    }
+
+    return () => {
+      viewport.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      resizeObserver?.disconnect();
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [scrollRef, updateVisibleRows]);
+
+  useEffect(() => {
+    setMeasuredRowHeight(null);
+  }, [columnCount, viewMode]);
+
+  useEffect(() => {
+    if (!shouldVirtualize) return;
+    const root = scrollRef.current;
+    if (!root) return;
+
+    const raf = window.requestAnimationFrame(() => {
+      const measuredCard = root.querySelector<HTMLElement>(
+        '[data-gallery-card-measure="true"]',
+      );
+      if (!measuredCard) return;
+      const nextRowHeight =
+        measuredCard.getBoundingClientRect().height + GALLERY_GAP_PX;
+      setMeasuredRowHeight((prev) =>
+        prev !== null && Math.abs(prev - nextRowHeight) < 1
+          ? prev
+          : nextRowHeight,
+      );
+    });
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+    };
+  }, [
+    scrollRef,
+    shouldVirtualize,
+    viewMode,
+    viewportSize.width,
+    visibleEndRow,
+    visibleStartRow,
+  ]);
+
+  if (paged.length > 0) {
+    return (
+      <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
+        <div className="p-4">
+          {topSpacerHeight > 0 && (
+            <div style={{ height: topSpacerHeight }} aria-hidden="true" />
+          )}
+          <div
+            className={cn(
+              "grid gap-4",
+              viewMode === "grid" &&
+                "grid-cols-2 md:grid-cols-3 lg:grid-cols-4",
+              viewMode === "compact" &&
+                "grid-cols-3 md:grid-cols-4 lg:grid-cols-6",
+              viewMode === "list" && "grid-cols-1 w-full",
+            )}
+          >
+            {visibleImages.map((image, index) => {
+              const card = (
+                <ImageCard
+                  key={image.id}
+                  image={image}
+                  viewMode={viewMode}
+                  onToggleFavorite={onToggleFavorite}
+                  onCopyPrompt={onCopyPrompt}
+                  onClick={onImageClick}
+                  onReveal={onReveal}
+                  onDelete={onDelete}
+                  onChangeCategory={onChangeCategory}
+                  onSendToGenerator={onSendToGenerator}
+                  onSendToSource={onSendToSource}
+                  onAddTagToSearch={onAddTagToSearch}
+                  onAddTagToGenerator={onAddTagToGenerator}
+                  selectionMode={selectionMode}
+                  selected={selectedIds.has(image.id)}
+                  onSelectChange={onSelectChange}
+                />
+              );
+
+              if (index !== 0) {
+                return card;
+              }
+
+              return (
+                <div key={image.id} data-gallery-card-measure="true">
+                  {card}
+                </div>
+              );
+            })}
+          </div>
+          {bottomSpacerHeight > 0 && (
+            <div style={{ height: bottomSpacerHeight }} aria-hidden="true" />
+          )}
+        </div>
+      </ScrollArea>
+    );
+  }
+
+  if (isInitializing) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-4 select-none">
+        <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-medium text-foreground mb-2">
+          {t("gallery.initializingTitle")}
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          {t("gallery.initializingDescription")}
+        </p>
+      </div>
+    );
+  }
+
+  if (!hasFolders && onAddFolder) {
+    return <OnboardingView onAddFolder={onAddFolder} />;
+  }
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center p-4 select-none">
+      <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
+        <Grid3X3 className="h-8 w-8 text-muted-foreground" />
+      </div>
+      <h3 className="text-lg font-medium text-foreground mb-2">
+        {t("gallery.emptyTitle")}
+      </h3>
+      <p className="text-sm text-muted-foreground max-w-md">
+        {t("gallery.emptyDescription")}
+      </p>
+    </div>
+  );
+});
+
+interface GalleryPaginationProps {
+  currentPage: number;
+  computedTotalPages: number;
+  onPageChange: (page: number) => void;
+}
+
+const GalleryPagination = memo(function GalleryPagination({
+  currentPage,
+  computedTotalPages,
+  onPageChange,
+}: GalleryPaginationProps) {
+  const { t } = useTranslation();
+  const [pageJumpValue, setPageJumpValue] = useState(String(currentPage));
   const [pageJumpOpen, setPageJumpOpen] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectedImageMap, setSelectedImageMap] = useState<
-    Map<string, ImageData>
-  >(new Map());
-  const [selectingAllResults, setSelectingAllResults] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const pageJumpButtonRef = useRef<HTMLButtonElement | null>(null);
   const pageJumpPopoverRef = useRef<HTMLDivElement | null>(null);
   const pageJumpInputRef = useRef<HTMLInputElement | null>(null);
-  const selectAllRequestSeqRef = useRef(0);
-  const controlledPagination =
-    typeof page === "number" &&
-    typeof totalPages === "number" &&
-    typeof onPageChange === "function";
-  const currentPage = controlledPagination ? page : internalPage;
-  const computedTotalPages = controlledPagination
-    ? Math.max(1, totalPages)
-    : Math.max(1, Math.ceil(images.length / pageSize));
-
-  useEffect(() => {
-    if (!controlledPagination) setInternalPage(1);
-  }, [images, controlledPagination]);
-
-  useEffect(() => {
-    const viewport = scrollRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (viewport) viewport.scrollTop = 0;
-  }, [currentPage]);
 
   useEffect(() => {
     setPageJumpValue(String(currentPage));
@@ -188,21 +686,200 @@ export const ImageGallery = memo(function ImageGallery({
     return () => window.cancelAnimationFrame(raf);
   }, [pageJumpOpen]);
 
-  useEffect(() => {
-    if (!selectionMode) {
-      selectAllRequestSeqRef.current += 1;
-      setSelectedIds(new Set());
-      setSelectedImageMap(new Map());
-      setSelectingAllResults(false);
+  const handleJumpToPage = useCallback(() => {
+    const parsed = Number.parseInt(pageJumpValue, 10);
+    if (!Number.isFinite(parsed)) {
+      setPageJumpValue(String(currentPage));
+      return;
     }
-  }, [selectionMode]);
+    onPageChange(parsed);
+    setPageJumpOpen(false);
+  }, [currentPage, onPageChange, pageJumpValue]);
+
+  if (computedTotalPages <= 1) return null;
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-3 border-t border-border p-4">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        title={t("gallery.firstPage")}
+        aria-label={t("gallery.firstPage")}
+        disabled={currentPage === 1}
+        onClick={() => onPageChange(1)}
+      >
+        <ChevronsLeft className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        title={t("gallery.previousPage")}
+        aria-label={t("gallery.previousPage")}
+        disabled={currentPage === 1}
+        onClick={() => onPageChange(currentPage - 1)}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <div className="relative">
+        <button
+          ref={pageJumpButtonRef}
+          type="button"
+          className="rounded-lg border border-border bg-secondary/35 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary/55 cursor-pointer"
+          aria-label={t("gallery.jumpToPage")}
+          aria-haspopup="dialog"
+          aria-expanded={pageJumpOpen}
+          onClick={() => setPageJumpOpen((open) => !open)}
+        >
+          <span className="text-foreground font-medium">{currentPage}</span> /{" "}
+          {computedTotalPages}
+        </button>
+        {pageJumpOpen && (
+          <div
+            ref={pageJumpPopoverRef}
+            className="absolute bottom-full left-1/2 z-10 mb-3 w-44 -translate-x-1/2"
+          >
+            <div className="relative rounded-xl border border-border/80 bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                {t("gallery.jumpToPage")}
+              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  ref={pageJumpInputRef}
+                  type="number"
+                  min={1}
+                  max={computedTotalPages}
+                  inputMode="numeric"
+                  value={pageJumpValue}
+                  onChange={(e) => setPageJumpValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleJumpToPage();
+                    }
+                  }}
+                  aria-label={t("gallery.jumpToPage")}
+                  className="h-8 w-full border-border bg-background px-2 text-center text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 px-3"
+                  onClick={handleJumpToPage}
+                >
+                  {t("gallery.goToPage")}
+                </Button>
+              </div>
+              <div className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-border/80 bg-popover/95" />
+            </div>
+          </div>
+        )}
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        title={t("gallery.nextPage")}
+        aria-label={t("gallery.nextPage")}
+        disabled={currentPage === computedTotalPages}
+        onClick={() => onPageChange(currentPage + 1)}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        title={t("gallery.lastPage")}
+        aria-label={t("gallery.lastPage")}
+        disabled={currentPage === computedTotalPages}
+        onClick={() => onPageChange(computedTotalPages)}
+      >
+        <ChevronsRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+});
+
+export const ImageGallery = memo(function ImageGallery({
+  gallery,
+  actions,
+  pagination,
+}: ImageGalleryProps) {
+  const {
+    images,
+    viewMode,
+    sortBy,
+    totalCount,
+    searchQuery,
+    hasFolders = true,
+    isInitializing = false,
+    isRefreshing = false,
+    selectionScopeKey,
+  } = gallery;
+  const {
+    onViewModeChange,
+    onSortChange,
+    onToggleFavorite,
+    onCopyPrompt,
+    onImageClick,
+    onReveal,
+    onDelete,
+    onChangeCategory,
+    onBulkChangeCategory,
+    onSendToGenerator,
+    onSendToSource,
+    onAddTagToSearch,
+    onAddTagToGenerator,
+    onClearSearch,
+    onAddFolder,
+    onLoadAllSelectableImages,
+  } = actions;
+  const { pageSize = 50, page, totalPages, onPageChange } = pagination ?? {};
+  const [internalPage, setInternalPage] = useState(1);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedImageMap, setSelectedImageMap] = useState<
+    Map<string, ImageData>
+  >(new Map());
+  const [selectingAllResults, setSelectingAllResults] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const selectAllRequestSeqRef = useRef(0);
+  const controlledPagination =
+    typeof page === "number" &&
+    typeof totalPages === "number" &&
+    typeof onPageChange === "function";
+  const currentPage = controlledPagination ? page : internalPage;
+  const computedTotalPages = controlledPagination
+    ? Math.max(1, totalPages)
+    : Math.max(1, Math.ceil(images.length / pageSize));
 
   useEffect(() => {
+    if (!controlledPagination) setInternalPage(1);
+  }, [images, controlledPagination]);
+
+  useEffect(() => {
+    const viewport = getScrollAreaViewport(scrollRef.current);
+    if (viewport) viewport.scrollTop = 0;
+  }, [currentPage]);
+
+  const resetSelectionState = useCallback(() => {
     selectAllRequestSeqRef.current += 1;
     setSelectedIds(new Set());
     setSelectedImageMap(new Map());
     setSelectingAllResults(false);
-  }, [selectionScopeKey]);
+  }, []);
+
+  useEffect(() => {
+    if (!selectionMode) {
+      resetSelectionState();
+    }
+  }, [resetSelectionState, selectionMode]);
+
+  useEffect(() => {
+    resetSelectionState();
+  }, [resetSelectionState, selectionScopeKey]);
 
   useEffect(() => {
     setSelectedImageMap((prev) => {
@@ -319,338 +996,70 @@ export const ImageGallery = memo(function ImageGallery({
     onBulkChangeCategory(selected);
   }, [onBulkChangeCategory, selectedIds, selectedImageMap]);
 
-  const handleJumpToPage = useCallback(() => {
-    const parsed = Number.parseInt(pageJumpValue, 10);
-    if (!Number.isFinite(parsed)) {
-      setPageJumpValue(String(currentPage));
-      return;
-    }
-    updatePage(parsed);
-    setPageJumpOpen(false);
-  }, [currentPage, pageJumpValue, updatePage]);
+  const handleToggleSelectionMode = useCallback(() => {
+    setSelectionMode((prev) => !prev);
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    resetSelectionState();
+  }, [resetSelectionState]);
+
+  const canSelectAllResults =
+    totalCount > 0 && !selectingAllResults && !!onLoadAllSelectableImages;
 
   return (
     <div
       className="relative flex-1 flex flex-col"
       aria-busy={isRefreshing || isInitializing}
     >
-      <div
-        className="flex flex-col gap-3 p-4 border-b border-border bg-background"
-        data-tour="gallery-toolbar"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground select-none">
-              {t("gallery.totalImages", { count: totalCount })}
-            </span>
-            {searchQuery && (
-              <button
-                onClick={onClearSearch}
-                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-              >
-                {t("gallery.resetSearch")}
-              </button>
-            )}
-            {selectionMode && (
-              <span className="text-sm text-muted-foreground select-none">
-                {t("gallery.selectedCount", { count: selectedCount })}
-              </span>
-            )}
-          </div>
+      <GalleryToolbar
+        totalCount={totalCount}
+        searchQuery={searchQuery}
+        selectionMode={selectionMode}
+        selectedCount={selectedCount}
+        sortBy={sortBy}
+        viewMode={viewMode}
+        allPageSelected={allPageSelected}
+        allFilteredSelected={allFilteredSelected}
+        selectingAllResults={selectingAllResults}
+        canSelectAllResults={canSelectAllResults}
+        onClearSearch={onClearSearch}
+        onSortChange={onSortChange}
+        onViewModeChange={onViewModeChange}
+        onToggleSelectionMode={handleToggleSelectionMode}
+        onSelectCurrentPage={handleSelectCurrentPage}
+        onSelectAllFiltered={handleSelectAllFiltered}
+        onClearSelection={handleClearSelection}
+        onBulkCategory={handleBulkCategory}
+      />
 
-          <div className="flex items-center gap-3">
-            <Select value={sortBy} onValueChange={onSortChange}>
-              <SelectTrigger className="w-36 bg-secondary border-border">
-                <SlidersHorizontal className="h-4 w-4 mr-2 text-muted-foreground" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
-                <SelectItem value="recent">
-                  {t("gallery.sort.recent")}
-                </SelectItem>
-                <SelectItem value="oldest">
-                  {t("gallery.sort.oldest")}
-                </SelectItem>
-                <SelectItem value="name">{t("gallery.sort.name")}</SelectItem>
-                <SelectItem value="favorites">
-                  {t("gallery.sort.favorites")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+      <GalleryResults
+        paged={paged}
+        viewMode={viewMode}
+        scrollRef={scrollRef}
+        onToggleFavorite={onToggleFavorite}
+        onCopyPrompt={onCopyPrompt}
+        onImageClick={onImageClick}
+        onReveal={onReveal}
+        onDelete={onDelete}
+        onChangeCategory={onChangeCategory}
+        onSendToGenerator={onSendToGenerator}
+        onSendToSource={onSendToSource}
+        onAddTagToSearch={onAddTagToSearch}
+        onAddTagToGenerator={onAddTagToGenerator}
+        selectionMode={selectionMode}
+        selectedIds={selectedIds}
+        onSelectChange={handleSelectImage}
+        isInitializing={isInitializing}
+        hasFolders={hasFolders}
+        onAddFolder={onAddFolder}
+      />
 
-            <div className="flex items-center bg-secondary rounded-lg p-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-8 w-8",
-                  viewMode === "grid"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => onViewModeChange("grid")}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-8 w-8",
-                  viewMode === "compact"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => onViewModeChange("compact")}
-              >
-                <Grid3X3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-8 w-8",
-                  viewMode === "list"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => onViewModeChange("list")}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant={selectionMode ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => setSelectionMode((prev) => !prev)}
-          >
-            <SquareCheckBig className="h-4 w-4" />
-            {selectionMode
-              ? t("gallery.exitSelectionMode")
-              : t("gallery.selectionMode")}
-          </Button>
-
-          {selectionMode && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSelectCurrentPage}
-              >
-                {allPageSelected
-                  ? t("gallery.deselectCurrentPage")
-                  : t("gallery.selectCurrentPage")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSelectAllFiltered}
-                disabled={
-                  totalCount === 0 ||
-                  selectingAllResults ||
-                  !onLoadAllSelectableImages
-                }
-              >
-                {selectingAllResults && (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                )}
-                {allFilteredSelected
-                  ? t("gallery.deselectAllResults")
-                  : t("gallery.selectAllResults", {
-                      count: totalCount,
-                    })}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedIds(new Set())}
-                disabled={selectedCount === 0}
-              >
-                {t("gallery.clearSelection")}
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleBulkCategory}
-                disabled={selectedCount === 0}
-              >
-                <Tags className="h-4 w-4" />
-                {t("gallery.changeCategoryForSelection")}
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {paged.length > 0 ? (
-        <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
-          <div className="p-4">
-            <div
-              className={cn(
-                "grid gap-4",
-                viewMode === "grid" &&
-                  "grid-cols-2 md:grid-cols-3 lg:grid-cols-4",
-                viewMode === "compact" &&
-                  "grid-cols-3 md:grid-cols-4 lg:grid-cols-6",
-                viewMode === "list" && "grid-cols-1 w-full",
-              )}
-            >
-              {paged.map((image) => (
-                <ImageCard
-                  key={image.id}
-                  image={image}
-                  viewMode={viewMode}
-                  onToggleFavorite={onToggleFavorite}
-                  onCopyPrompt={onCopyPrompt}
-                  onClick={onImageClick}
-                  onReveal={onReveal}
-                  onDelete={onDelete}
-                  onChangeCategory={onChangeCategory}
-                  onSendToGenerator={onSendToGenerator}
-                  onSendToSource={onSendToSource}
-                  onAddTagToSearch={onAddTagToSearch}
-                  onAddTagToGenerator={onAddTagToGenerator}
-                  selectionMode={selectionMode}
-                  selected={selectedIds.has(image.id)}
-                  onSelectChange={handleSelectImage}
-                />
-              ))}
-            </div>
-          </div>
-        </ScrollArea>
-      ) : isInitializing ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-4 select-none">
-          <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-medium text-foreground mb-2">
-            {t("gallery.initializingTitle")}
-          </h3>
-          <p className="text-sm text-muted-foreground max-w-md">
-            {t("gallery.initializingDescription")}
-          </p>
-        </div>
-      ) : !hasFolders && onAddFolder ? (
-        <OnboardingView onAddFolder={onAddFolder} />
-      ) : (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-4 select-none">
-          <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-            <Grid3X3 className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-medium text-foreground mb-2">
-            {t("gallery.emptyTitle")}
-          </h3>
-          <p className="text-sm text-muted-foreground max-w-md">
-            {t("gallery.emptyDescription")}
-          </p>
-        </div>
-      )}
-
-      {computedTotalPages > 1 && (
-        <div className="flex flex-wrap items-center justify-center gap-3 border-t border-border p-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            title={t("gallery.firstPage")}
-            aria-label={t("gallery.firstPage")}
-            disabled={currentPage === 1}
-            onClick={() => updatePage(1)}
-          >
-            <ChevronsLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            title={t("gallery.previousPage")}
-            aria-label={t("gallery.previousPage")}
-            disabled={currentPage === 1}
-            onClick={() => updatePage(currentPage - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="relative">
-            <button
-              ref={pageJumpButtonRef}
-              type="button"
-              className="rounded-lg border border-border bg-secondary/35 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary/55 cursor-pointer"
-              aria-label={t("gallery.jumpToPage")}
-              aria-haspopup="dialog"
-              aria-expanded={pageJumpOpen}
-              onClick={() => setPageJumpOpen((open) => !open)}
-            >
-              <span className="text-foreground font-medium">{currentPage}</span> /{" "}
-              {computedTotalPages}
-            </button>
-            {pageJumpOpen && (
-              <div
-                ref={pageJumpPopoverRef}
-                className="absolute bottom-full left-1/2 z-10 mb-3 w-44 -translate-x-1/2"
-              >
-                <div className="relative rounded-xl border border-border/80 bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
-                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                    {t("gallery.jumpToPage")}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      ref={pageJumpInputRef}
-                      type="number"
-                      min={1}
-                      max={computedTotalPages}
-                      inputMode="numeric"
-                      value={pageJumpValue}
-                      onChange={(e) => setPageJumpValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleJumpToPage();
-                        }
-                      }}
-                      aria-label={t("gallery.jumpToPage")}
-                      className="h-8 w-full border-border bg-background px-2 text-center text-sm"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 shrink-0 px-3"
-                      onClick={handleJumpToPage}
-                    >
-                      {t("gallery.goToPage")}
-                    </Button>
-                  </div>
-                  <div className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-border/80 bg-popover/95" />
-                </div>
-              </div>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            title={t("gallery.nextPage")}
-            aria-label={t("gallery.nextPage")}
-            disabled={currentPage === computedTotalPages}
-            onClick={() => updatePage(currentPage + 1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            title={t("gallery.lastPage")}
-            aria-label={t("gallery.lastPage")}
-            disabled={currentPage === computedTotalPages}
-            onClick={() => updatePage(computedTotalPages)}
-          >
-            <ChevronsRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+      <GalleryPagination
+        currentPage={currentPage}
+        computedTotalPages={computedTotalPages}
+        onPageChange={updatePage}
+      />
 
       {isRefreshing && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/36 backdrop-blur-sm">
