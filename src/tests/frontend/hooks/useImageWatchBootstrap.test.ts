@@ -7,6 +7,74 @@ import { preloadEvents, preloadMocks } from "../helpers/preload-mocks";
 describe("useImageWatchBootstrap", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("retries watcher startup with backoff and stops retrying after unmount", async () => {
+    vi.useFakeTimers();
+    preloadMocks.image.watch
+      .mockRejectedValueOnce(new Error("watch failed"))
+      .mockResolvedValueOnce(undefined);
+
+    const unmountScheduleAnalysis = vi.fn();
+    const { unmount } = renderHook(() =>
+      useImageWatchBootstrap({
+        loadSearchPresetStats: vi.fn().mockResolvedValue(undefined),
+        scheduleSearchStatsRefresh: vi.fn(),
+        handleSearchStatsProgress: vi.fn(),
+        scanningRef: { current: false },
+        scheduleAnalysis: unmountScheduleAnalysis,
+        schedulePageRefresh: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(preloadMocks.image.watch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(999);
+    });
+    expect(preloadMocks.image.watch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(preloadMocks.image.watch).toHaveBeenCalledTimes(2);
+    expect(unmountScheduleAnalysis).toHaveBeenCalledWith(0);
+
+    preloadMocks.image.watch
+      .mockReset()
+      .mockRejectedValueOnce(new Error("watch failed again"));
+
+    const { unmount: unmountBeforeRetry } = renderHook(() =>
+      useImageWatchBootstrap({
+        loadSearchPresetStats: vi.fn().mockResolvedValue(undefined),
+        scheduleSearchStatsRefresh: vi.fn(),
+        handleSearchStatsProgress: vi.fn(),
+        scanningRef: { current: false },
+        scheduleAnalysis: vi.fn(),
+        schedulePageRefresh: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(preloadMocks.image.watch).toHaveBeenCalledTimes(1);
+
+    unmountBeforeRetry();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(preloadMocks.image.watch).toHaveBeenCalledTimes(1);
+
+    unmount();
   });
 
   it("boots watchers and reacts to batch, removed, and stats progress events", async () => {
@@ -48,5 +116,30 @@ describe("useImageWatchBootstrap", () => {
       done: 2,
       total: 3,
     });
+  });
+
+  it("uses the slower batch refresh path while scanning is active", async () => {
+    const scheduleSearchStatsRefresh = vi.fn();
+    const scheduleAnalysis = vi.fn();
+    const schedulePageRefresh = vi.fn();
+
+    renderHook(() =>
+      useImageWatchBootstrap({
+        loadSearchPresetStats: vi.fn().mockResolvedValue(undefined),
+        scheduleSearchStatsRefresh,
+        handleSearchStatsProgress: vi.fn(),
+        scanningRef: { current: true },
+        scheduleAnalysis,
+        schedulePageRefresh,
+      }),
+    );
+
+    act(() => {
+      preloadEvents.image.batch.emit([createImageRow({ id: 1 })]);
+    });
+
+    expect(schedulePageRefresh).toHaveBeenCalledWith(1500);
+    expect(scheduleAnalysis).toHaveBeenCalledTimes(1);
+    expect(scheduleSearchStatsRefresh).not.toHaveBeenCalled();
   });
 });
