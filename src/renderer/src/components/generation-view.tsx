@@ -807,23 +807,20 @@ function DeferredNumberInput({
   max?: number;
   step?: number;
 }) {
-  const [local, setLocal] = useState(String(value));
-
-  useEffect(() => {
-    setLocal(String(value));
-  }, [value]);
+  const [draftValue, setDraftValue] = useState<string | null>(null);
+  const inputValue = draftValue ?? String(value);
 
   const handleCommit = useCallback(() => {
-    const parsed = Number(local);
+    const parsed = Number(inputValue);
     if (!Number.isFinite(parsed)) {
-      setLocal(String(value));
+      setDraftValue(null);
       return;
     }
 
     const nextValue = Math.min(max ?? parsed, Math.max(min ?? parsed, parsed));
-    setLocal(String(nextValue));
-    onChange(nextValue);
-  }, [local, max, min, onChange, value]);
+    setDraftValue(null);
+    if (nextValue !== value) onChange(nextValue);
+  }, [inputValue, max, min, onChange, value]);
 
   return (
     <input
@@ -831,8 +828,8 @@ function DeferredNumberInput({
       min={min}
       max={max}
       step={step}
-      value={local}
-      onChange={(e) => setLocal(e.target.value)}
+      value={inputValue}
+      onChange={(e) => setDraftValue(e.target.value)}
       onBlur={handleCommit}
       className={className}
     />
@@ -951,19 +948,17 @@ const AdvancedSeedSummary = memo(function AdvancedSeedSummary({
   seedInput: string;
   setSeedInput: (v: string) => void;
 }) {
-  const [localSeed, setLocalSeed] = useState(seedInput);
+  const [draftSeed, setDraftSeed] = useState<string | null>(null);
   const [seedFocused, setSeedFocused] = useState(false);
-
-  useEffect(() => {
-    if (!seedFocused) setLocalSeed(seedInput);
-  }, [seedFocused, seedInput]);
+  const displayedSeed = draftSeed ?? seedInput;
 
   const commitSeedInput = useCallback(
-    (nextValue = localSeed) => {
+    (nextValue = displayedSeed) => {
       setSeedFocused(false);
+      setDraftSeed(null);
       if (nextValue !== seedInput) setSeedInput(nextValue);
     },
-    [localSeed, seedInput, setSeedInput],
+    [displayedSeed, seedInput, setSeedInput],
   );
 
   return (
@@ -974,24 +969,24 @@ const AdvancedSeedSummary = memo(function AdvancedSeedSummary({
       <input
         type="text"
         inputMode="numeric"
-        value={localSeed}
-        readOnly={!!localSeed.trim() && !seedFocused}
+        value={displayedSeed}
+        readOnly={!!displayedSeed.trim() && !seedFocused}
         onMouseDown={
-          localSeed.trim() && !seedFocused
+          displayedSeed.trim() && !seedFocused
             ? (e) => {
                 e.preventDefault();
-                setLocalSeed("");
+                setDraftSeed("");
                 setSeedInput("");
               }
             : undefined
         }
-        onChange={(e) => setLocalSeed(e.target.value)}
+        onChange={(e) => setDraftSeed(e.target.value)}
         onFocus={() => setSeedFocused(true)}
         onBlur={() => commitSeedInput()}
         placeholder="-"
         className={cn(
           "w-16 max-w-16 text-sm font-semibold tabular-nums leading-none font-mono bg-transparent border-none outline-none text-foreground placeholder:text-foreground/30 p-0",
-          localSeed.trim() && !seedFocused && "cursor-pointer truncate",
+          displayedSeed.trim() && !seedFocused && "cursor-pointer truncate",
         )}
       />
     </span>
@@ -1015,14 +1010,12 @@ const AdvancedSliderControl = memo(function AdvancedSliderControl({
   step?: number;
   formatValue: (value: number) => string;
 }) {
-  const [draftValue, setDraftValue] = useState(value);
-
-  useEffect(() => {
-    setDraftValue(value);
-  }, [value]);
+  const [draftValue, setDraftValue] = useState<number | null>(null);
+  const sliderValue = draftValue ?? value;
 
   const commitValue = useCallback(
     (nextValue: number) => {
+      setDraftValue(null);
       if (nextValue !== value) setValue(nextValue);
     },
     [setValue, value],
@@ -1030,12 +1023,12 @@ const AdvancedSliderControl = memo(function AdvancedSliderControl({
 
   return (
     <div>
-      <FieldLabel label={label} value={formatValue(draftValue)} />
+      <FieldLabel label={label} value={formatValue(sliderValue)} />
       <Slider
         min={min}
         max={max}
         step={step}
-        value={draftValue}
+        value={sliderValue}
         onChange={setDraftValue}
         onCommit={commitValue}
       />
@@ -1075,19 +1068,15 @@ const AdvancedSeedControl = memo(function AdvancedSeedControl({
   setSeedInput: (v: string) => void;
 }) {
   const { t } = useTranslation();
-  const [localSeed, setLocalSeed] = useState(seedInput);
-  const [seedFocused, setSeedFocused] = useState(false);
-
-  useEffect(() => {
-    if (!seedFocused) setLocalSeed(seedInput);
-  }, [seedFocused, seedInput]);
+  const [draftSeed, setDraftSeed] = useState<string | null>(null);
+  const displayedSeed = draftSeed ?? seedInput;
 
   const commitSeedInput = useCallback(
-    (nextValue = localSeed) => {
-      setSeedFocused(false);
+    (nextValue = displayedSeed) => {
+      setDraftSeed(null);
       if (nextValue !== seedInput) setSeedInput(nextValue);
     },
-    [localSeed, seedInput, setSeedInput],
+    [displayedSeed, seedInput, setSeedInput],
   );
 
   return (
@@ -1096,9 +1085,8 @@ const AdvancedSeedControl = memo(function AdvancedSeedControl({
       <div className="flex gap-1.5">
         <input
           type="number"
-          value={localSeed}
-          onChange={(e) => setLocalSeed(e.target.value)}
-          onFocus={() => setSeedFocused(true)}
+          value={displayedSeed}
+          onChange={(e) => setDraftSeed(e.target.value)}
           onBlur={() => commitSeedInput()}
           placeholder={t("generation.advanced.random")}
           className={cn(INPUT_CLS, "flex-1 min-w-0 font-mono")}
@@ -1106,8 +1094,7 @@ const AdvancedSeedControl = memo(function AdvancedSeedControl({
         <button
           type="button"
           onClick={() => {
-            setLocalSeed("");
-            setSeedFocused(false);
+            setDraftSeed(null);
             setSeedInput("");
           }}
           title={t("generation.advanced.randomSeed")}
@@ -1334,14 +1321,12 @@ const AutoGenCountControl = memo(function AutoGenCountControl({
   setInfinite: (v: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const [draftCount, setDraftCount] = useState(count);
-
-  useEffect(() => {
-    setDraftCount(count);
-  }, [count]);
+  const [draftCount, setDraftCount] = useState<number | null>(null);
+  const sliderValue = draftCount ?? count;
 
   const commitCount = useCallback(
     (nextValue: number) => {
+      setDraftCount(null);
       if (nextValue !== count) setCount(nextValue);
     },
     [count, setCount],
@@ -1356,7 +1341,7 @@ const AutoGenCountControl = memo(function AutoGenCountControl({
         <div className="flex items-center gap-2">
           {!infinite && (
             <span className="text-xs font-mono text-foreground/80 bg-secondary px-1.5 py-0.5 rounded">
-              {t("generation.advanced.countUnit", { count: draftCount })}
+              {t("generation.advanced.countUnit", { count: sliderValue })}
             </span>
           )}
           <button
@@ -1377,7 +1362,7 @@ const AutoGenCountControl = memo(function AutoGenCountControl({
       <Slider
         min={1}
         max={50}
-        value={draftCount}
+        value={sliderValue}
         onChange={setDraftCount}
         onCommit={commitCount}
         disabled={infinite}
@@ -1394,14 +1379,12 @@ const AutoGenDelayControl = memo(function AutoGenDelayControl({
   setDelay: (v: number) => void;
 }) {
   const { t } = useTranslation();
-  const [draftDelay, setDraftDelay] = useState(delay);
-
-  useEffect(() => {
-    setDraftDelay(delay);
-  }, [delay]);
+  const [draftDelay, setDraftDelay] = useState<number | null>(null);
+  const sliderValue = draftDelay ?? delay;
 
   const commitDelay = useCallback(
     (nextValue: number) => {
+      setDraftDelay(null);
       if (nextValue !== delay) setDelay(nextValue);
     },
     [delay, setDelay],
@@ -1411,13 +1394,13 @@ const AutoGenDelayControl = memo(function AutoGenDelayControl({
     <div>
       <FieldLabel
         label={t("generation.advanced.delay")}
-        value={`${draftDelay.toFixed(1)}s`}
+        value={`${sliderValue.toFixed(1)}s`}
       />
       <Slider
         min={3}
         max={60}
         step={0.5}
-        value={draftDelay}
+        value={sliderValue}
         onChange={setDraftDelay}
         onCommit={commitDelay}
       />

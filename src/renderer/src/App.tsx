@@ -160,7 +160,9 @@ export default function App({ initialFolderCount = null }: AppProps) {
   const [sortBy, setSortBy] = useState<
     "recent" | "oldest" | "favorites" | "name"
   >("recent");
-  const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
+  const [selectedImageSnapshot, setSelectedImage] = useState<ImageData | null>(
+    null,
+  );
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<
     "gallery" | "generator" | "settings"
@@ -300,12 +302,6 @@ export default function App({ initialFolderCount = null }: AppProps) {
     () => categories.find((cat) => cat.id === selectedCategoryId),
     [categories, selectedCategoryId],
   );
-  const selectedImageId = selectedImage?.id ?? null;
-  const deferredDetailContentImageId = useDeferredValue(
-    isDetailOpen ? selectedImageId : null,
-  );
-  const detailContentReady =
-    !!selectedImageId && deferredDetailContentImageId === selectedImageId;
   const selectedBuiltinCategory = useMemo(
     () => getBuiltinCategoryKind(selectedCategory),
     [selectedCategory],
@@ -373,6 +369,19 @@ export default function App({ initialFolderCount = null }: AppProps) {
     isLoading: isGalleryLoading,
     schedulePageRefresh,
   } = useGalleryImages(listBaseQuery);
+  const selectedImage = useMemo(() => {
+    if (!selectedImageSnapshot) return null;
+    return (
+      images.find((image) => image.id === selectedImageSnapshot.id) ??
+      selectedImageSnapshot
+    );
+  }, [images, selectedImageSnapshot]);
+  const selectedImageId = selectedImage?.id ?? null;
+  const deferredDetailContentImageId = useDeferredValue(
+    isDetailOpen ? selectedImageId : null,
+  );
+  const detailContentReady =
+    !!selectedImageId && deferredDetailContentImageId === selectedImageId;
   const gallerySelectionScopeKey = useMemo(
     () =>
       JSON.stringify({
@@ -678,13 +687,6 @@ export default function App({ initialFolderCount = null }: AppProps) {
     schedulePageRefresh,
     scheduleSearchStatsRefresh,
   ]);
-
-  useEffect(() => {
-    if (selectedImage) {
-      const updated = images.find((img) => img.id === selectedImage.id);
-      if (updated) setSelectedImage(updated);
-    }
-  }, [images, selectedImage]);
 
   useEffect(() => {
     localStorage.setItem(
