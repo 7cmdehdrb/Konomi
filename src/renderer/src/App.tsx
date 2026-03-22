@@ -304,7 +304,13 @@ export default function App({ initialFolderCount = null }: AppProps) {
       onCategorySelect: categoryCommands.selectCategory,
       onCategoryCreate: categoryCommands.createCategory,
       onCategoryRename: categoryCommands.renameCategory,
-      onCategoryDelete: categoryCommands.deleteCategory,
+      onCategoryDelete: (id: number) => {
+        void categoryCommands.deleteCategory(id).then((deleted) => {
+          if (deleted) {
+            schedulePageRefresh(0);
+          }
+        });
+      },
       onCategoryReorder: categoryCommands.reorderCategories,
       onCategoryAddByPrompt: (id: number, query: string) => {
         void categoryCommands
