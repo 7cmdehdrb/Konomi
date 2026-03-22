@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import {
   readImageMetaFromBuffer,
@@ -98,6 +100,19 @@ describe("metadata readers", () => {
       prompt: "portrait, dramatic lighting",
       model: "webuiModel",
       seed: 42,
+    });
+  });
+
+  it("maps the NovelAI V4.5 infilling source hash to the full model", () => {
+    const buf = readFileSync(
+      path.resolve(process.cwd(), "examples", "ex1.png"),
+    );
+
+    expect(readImageMetaFromBuffer(buf)).toMatchObject({
+      source: "nai",
+      model: "nai-diffusion-4-5-full",
+      width: 896,
+      height: 1152,
     });
   });
 });

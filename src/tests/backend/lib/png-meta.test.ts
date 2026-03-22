@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { deflateSync } from "zlib";
 import {
   readPngSize,
   readPngTextChunks,
@@ -39,6 +40,31 @@ function createTextChunk(key: string, value: string): Buffer {
   );
 }
 
+function createCompressedTextChunk(key: string, value: string): Buffer {
+  return createChunk(
+    "zTXt",
+    Buffer.concat([
+      Buffer.from(key, "latin1"),
+      Buffer.from([0, 0]),
+      deflateSync(Buffer.from(value, "latin1")),
+    ]),
+  );
+}
+
+function createInternationalTextChunk(key: string, value: string): Buffer {
+  return createChunk(
+    "iTXt",
+    Buffer.concat([
+      Buffer.from(key, "latin1"),
+      Buffer.from([0]),
+      Buffer.from([0, 0]),
+      Buffer.from([0]),
+      Buffer.from([0]),
+      Buffer.from(value, "utf8"),
+    ]),
+  );
+}
+
 function createPng(options?: {
   width?: number;
   height?: number;
@@ -73,6 +99,20 @@ describe("png-meta", () => {
     expect(readPngTextChunks(buf)).toEqual({
       Comment: "hello",
       Software: "Konomi",
+    });
+  });
+
+  it("collects PNG zTXt and iTXt chunks into a key/value map", () => {
+    const buf = createPng({
+      chunks: [
+        createCompressedTextChunk("Comment", "compressed"),
+        createInternationalTextChunk("Source", "NovelAI Diffusion V4.5 1229B44F"),
+      ],
+    });
+
+    expect(readPngTextChunks(buf)).toEqual({
+      Comment: "compressed",
+      Source: "NovelAI Diffusion V4.5 1229B44F",
     });
   });
 
