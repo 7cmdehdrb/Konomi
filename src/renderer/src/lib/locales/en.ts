@@ -550,12 +550,17 @@ const en = {
       promptInput: {
         title: "Prompt Input",
         description:
-          "Separate tags with commas to turn them into token chips automatically. Double-click a chip to edit weight and expressions.",
+          "Edit prompts as plain text. Weight expressions like {text}, [text], and 1.4::text:: are highlighted by color.",
       },
       promptCursor: {
-        title: "Prompt Cursor",
+        title: "Token Mode",
         description:
-          "Click a token chip to move the input cursor and edit chips naturally like text.",
+          "Toggle to token mode using the button in the top corner. Tags are automatically split into token chips by commas, and you can double-click a chip to edit its text.",
+      },
+      tokenChipPopover: {
+        title: "Token Weight Editor",
+        description:
+          "Right-click a token chip to open the weight editor. You can apply expressions like {text}, [text], and 1.4::text:: and adjust the weight here.",
       },
       groupChip: {
         title: "Group Chips",
@@ -570,7 +575,7 @@ const en = {
       wildcard: {
         title: "Wildcards",
         description:
-          "Typing a tag with | creates a wildcard chip like %{option1|option2}.",
+          "Write wildcards directly as %{option1|option2}, or create them in chip mode by typing a tag containing |.",
       },
       autoGenerate: {
         title: "Auto Generate",

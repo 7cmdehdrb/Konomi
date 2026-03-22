@@ -23,6 +23,7 @@ type TourStepKey =
   | "galleryToolbar"
   | "promptInput"
   | "promptCursor"
+  | "tokenChipPopover"
   | "groupChip"
   | "promptGroups"
   | "wildcard"
@@ -81,6 +82,14 @@ const TOUR_STEP_TEMPLATES: TourStepTemplate[] = [
     targetSelector: '[data-tour="gen-prompt-input"]',
     placement: "bottom",
     panel: "generator",
+    action: "switch-to-token-mode",
+  },
+  {
+    key: "tokenChipPopover",
+    targetSelector: '[data-tour="gen-prompt-input"]',
+    placement: "bottom",
+    panel: "generator",
+    action: "open-token-chip-popover",
   },
   {
     key: "groupChip",

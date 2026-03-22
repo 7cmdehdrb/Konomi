@@ -248,6 +248,25 @@ export default function App({ initialFolderCount = null }: AppProps) {
     }
     if (action === "open-settings-panel") {
       generationViewRef.current?.openRightPanelTab("settings");
+      return;
+    }
+    if (action === "switch-to-token-mode") {
+      const tourEl = document.querySelector('[data-tour="gen-prompt-input"]');
+      const toggle = tourEl?.querySelector('[role="switch"]');
+      if (toggle && toggle.getAttribute("aria-checked") === "false") {
+        (toggle as HTMLElement).click();
+      }
+      return;
+    }
+    if (action === "open-token-chip-popover") {
+      requestAnimationFrame(() => {
+        const chip = document.querySelector('[data-token-chip="true"]');
+        if (chip) {
+          chip.dispatchEvent(
+            new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+          );
+        }
+      });
     }
   }, []);
 
