@@ -739,6 +739,13 @@ const ko = {
       loadingFiles: "파일 목록 로드 중...",
     },
   },
+  update: {
+    available: "새 버전 {{version}}을 다운로드하는 중입니다...",
+    availableMac: "새 버전 {{version}}이 출시되었습니다",
+    downloaded: "업데이트 {{version}} 준비 완료",
+    installNow: "지금 설치",
+    downloadNow: "다운로드",
+  },
 } as const;
 
 export default ko;

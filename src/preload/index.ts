@@ -6,6 +6,28 @@ contextBridge.exposeInMainWorld("appInfo", {
   getDbFileSize: () => ipcRenderer.invoke("app:getDbFileSize"),
   getPromptsDbSchemaVersion: () =>
     ipcRenderer.invoke("app:getPromptsDbSchemaVersion"),
+  checkForUpdates: () => ipcRenderer.invoke("app:checkForUpdates"),
+  installUpdate: () => ipcRenderer.invoke("app:installUpdate"),
+  onUpdateAvailable: (cb: (info: { version: string; releaseUrl?: string }) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, info: { version: string; releaseUrl?: string }) =>
+      cb(info);
+    ipcRenderer.on("app:updateAvailable", handler);
+    return () => ipcRenderer.removeListener("app:updateAvailable", handler);
+  },
+  onUpdateDownloaded: (cb: (info: { version: string }) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, info: { version: string }) =>
+      cb(info);
+    ipcRenderer.on("app:updateDownloaded", handler);
+    return () => ipcRenderer.removeListener("app:updateDownloaded", handler);
+  },
+  onUpdateProgress: (cb: (data: { percent: number }) => void) => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      data: { percent: number },
+    ) => cb(data);
+    ipcRenderer.on("app:updateProgress", handler);
+    return () => ipcRenderer.removeListener("app:updateProgress", handler);
+  },
 });
 
 contextBridge.exposeInMainWorld("image", {

@@ -209,6 +209,11 @@ declare global {
       getLocale: () => Promise<string>;
       getDbFileSize: () => Promise<number | null>;
       getPromptsDbSchemaVersion: () => Promise<number | null>;
+      checkForUpdates: () => Promise<void>;
+      installUpdate: () => Promise<void>;
+      onUpdateAvailable: (cb: (info: { version: string; releaseUrl?: string }) => void) => () => void;
+      onUpdateDownloaded: (cb: (info: { version: string }) => void) => () => void;
+      onUpdateProgress: (cb: (data: { percent: number }) => void) => () => void;
     };
     promptBuilder: {
       listCategories: () => Promise<PromptCategory[]>;

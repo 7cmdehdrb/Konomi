@@ -1,4 +1,5 @@
 import { app, ipcMain, dialog, shell } from "electron";
+import { checkForUpdates, installUpdate } from "./lib/updater";
 import fs from "fs";
 import path from "path";
 import { unlink, readFile } from "fs/promises";
@@ -42,6 +43,8 @@ export function registerIpcHandlers(): void {
     const dbPath = path.join(app.getPath("userData"), PROMPTS_DB_FILENAME);
     return readPromptsDBSchemaVersion(dbPath);
   });
+  ipcMain.handle("app:checkForUpdates", () => checkForUpdates());
+  ipcMain.handle("app:installUpdate", () => installUpdate());
 
   // ── File/system handlers (must stay in main process) ───────────────────────
   ipcMain.handle("readNaiMeta", async (_, filePath: string) => {

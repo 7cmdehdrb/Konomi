@@ -747,6 +747,13 @@ const en = {
       loadingFiles: "Loading file list...",
     },
   },
+  update: {
+    available: "Downloading new version {{version}}...",
+    availableMac: "New version {{version}} is available",
+    downloaded: "Update {{version}} ready to install",
+    installNow: "Install Now",
+    downloadNow: "Download",
+  },
 } as const;
 
 export default en;

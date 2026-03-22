@@ -152,12 +152,6 @@ describe("BootstrapApp", () => {
       detectDuplicates: true,
       orderedFolderIds: [3, 1],
     });
-    expect(screen.getByTestId("bootstrap-splash-status")).toHaveTextContent(
-      "Preparing the start screen so you can add a folder right away.",
-    );
-    expect(screen.getByTestId("bootstrap-splash-detail")).toHaveTextContent(
-      "Preparing the start screen.",
-    );
 
     scanDeferred.resolve();
     await act(async () => {

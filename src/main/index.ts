@@ -5,6 +5,7 @@ import { Readable } from "stream";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { registerIpcHandlers } from "./ipc";
 import { bridge } from "./bridge";
+import { initAutoUpdater } from "./lib/updater";
 import { createLogger } from "./lib/logger";
 import {
   getImageContentType,
@@ -228,6 +229,7 @@ function createWindow(): void {
   }
 
   bridge.setWebContents(mainWindow.webContents);
+  initAutoUpdater(mainWindow.webContents);
 }
 
 app

@@ -43,6 +43,7 @@ import { useSidebarFolderActions } from "@/hooks/useSidebarFolderActions";
 import { useSimilarImages } from "@/hooks/useSimilarImages";
 import { useSettingsAnalysisController } from "@/hooks/useSettingsAnalysisController";
 import { useAppShellState, type ActivePanel } from "@/hooks/useAppShellState";
+import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import type { AdvancedFilter } from "@/lib/advanced-filter";
 import { useTranslation } from "react-i18next";
 
@@ -202,6 +203,8 @@ export default function App({ initialFolderCount = null }: AppProps) {
     pendingSimilarityRecalcRef,
     runAnalysisNow,
   });
+
+  useAutoUpdate();
 
   const {
     imageActions,

@@ -38,6 +38,8 @@ const imageScanFolder = createEventChannel<{
   active: boolean;
 }>();
 const naiGeneratePreview = createEventChannel<string>();
+const appUpdateAvailable = createEventChannel<{ version: string; releaseUrl?: string }>();
+const appUpdateDownloaded = createEventChannel<{ version: string }>();
 
 export const preloadEvents = {
   image: {
@@ -52,6 +54,10 @@ export const preloadEvents = {
   },
   nai: {
     generatePreview: naiGeneratePreview,
+  },
+  appInfo: {
+    updateAvailable: appUpdateAvailable,
+    updateDownloaded: appUpdateDownloaded,
   },
 };
 
@@ -69,6 +75,11 @@ export const preloadMocks = {
     getLocale: vi.fn().mockResolvedValue("en"),
     getDbFileSize: vi.fn().mockResolvedValue(null),
     getPromptsDbSchemaVersion: vi.fn().mockResolvedValue(null),
+    checkForUpdates: vi.fn().mockResolvedValue(undefined),
+    installUpdate: vi.fn().mockResolvedValue(undefined),
+    onUpdateAvailable: appUpdateAvailable.subscribe,
+    onUpdateDownloaded: appUpdateDownloaded.subscribe,
+    onUpdateProgress: vi.fn().mockReturnValue(() => {}),
   },
   promptBuilder: {
     listCategories: vi.fn().mockResolvedValue([]),
@@ -176,6 +187,8 @@ export function resetPreloadMocks(): void {
   preloadEvents.image.searchStatsProgress.reset();
   preloadEvents.image.scanFolder.reset();
   preloadEvents.nai.generatePreview.reset();
+  preloadEvents.appInfo.updateAvailable.reset();
+  preloadEvents.appInfo.updateDownloaded.reset();
 
   preloadMocks.appInfo.get.mockReset().mockResolvedValue({
     appName: "Konomi",
@@ -191,6 +204,9 @@ export function resetPreloadMocks(): void {
   preloadMocks.appInfo.getPromptsDbSchemaVersion
     .mockReset()
     .mockResolvedValue(null);
+  preloadMocks.appInfo.checkForUpdates.mockReset().mockResolvedValue(undefined);
+  preloadMocks.appInfo.installUpdate.mockReset().mockResolvedValue(undefined);
+  preloadMocks.appInfo.onUpdateProgress.mockReset().mockReturnValue(() => {});
 
   preloadMocks.promptBuilder.listCategories.mockReset().mockResolvedValue([]);
   preloadMocks.promptBuilder.suggestTags.mockReset().mockResolvedValue({
