@@ -59,6 +59,11 @@ import {
 } from "@/components/ui/context-menu";
 
 type EditableToken = AnyToken & { id: string };
+type ChipHistoryEntry = {
+  tokens: EditableToken[];
+  draft: string;
+  insertIndex: number | null;
+};
 type RawHistoryEntry = {
   value: string;
   selectionStart: number;
@@ -125,17 +130,30 @@ function createEditableTokenFromChunk(chunk: string): EditableToken | null {
   } as EditableToken;
 }
 
-function serializePrompt(tokens: EditableToken[], draft: string): string {
-  const tokenText = tokens
+function serializePrompt(
+  tokens: EditableToken[],
+  draft: string,
+  insertIndex: number | null = null,
+): string {
+  const tokenParts = tokens
     .filter(
       (token) =>
         isGroupRef(token) || isWildcard(token) || token.text.trim().length > 0,
     )
-    .map((token) => tokenToRawString(token))
-    .join(", ");
+    .map((token) => tokenToRawString(token));
   const cleanDraft = draft.trim();
-  if (!cleanDraft) return tokenText;
-  return tokenText ? `${tokenText}, ${cleanDraft}` : cleanDraft;
+  if (!cleanDraft) return tokenParts.join(", ");
+
+  const nextInsertIndex =
+    insertIndex === null
+      ? tokenParts.length
+      : Math.max(0, Math.min(insertIndex, tokenParts.length));
+
+  return [
+    ...tokenParts.slice(0, nextInsertIndex),
+    cleanDraft,
+    ...tokenParts.slice(nextInsertIndex),
+  ].join(", ");
 }
 
 function appendPromptChunk(prompt: string, chunk: string): string {
@@ -143,6 +161,50 @@ function appendPromptChunk(prompt: string, chunk: string): string {
   if (!cleanChunk) return prompt;
   const cleanPrompt = prompt.trim();
   return cleanPrompt ? `${cleanPrompt}, ${cleanChunk}` : cleanChunk;
+}
+
+function getRawGroupAutocompleteContext(
+  value: string,
+  selectionStart: number,
+  selectionEnd = selectionStart,
+) {
+  if (selectionStart !== selectionEnd) return null;
+
+  const cursor = Math.max(0, Math.min(selectionStart, value.length));
+
+  let segmentStart = cursor;
+  while (
+    segmentStart > 0 &&
+    value[segmentStart - 1] !== "," &&
+    value[segmentStart - 1] !== "\n"
+  ) {
+    segmentStart -= 1;
+  }
+
+  let segmentEnd = cursor;
+  while (
+    segmentEnd < value.length &&
+    value[segmentEnd] !== "," &&
+    value[segmentEnd] !== "\n"
+  ) {
+    segmentEnd += 1;
+  }
+
+  const segment = value.slice(segmentStart, segmentEnd);
+  const leadingWhitespace = segment.match(/^\s*/)?.[0] ?? "";
+  const trailingWhitespace = segment.match(/\s*$/)?.[0] ?? "";
+  const contentStart = segmentStart + leadingWhitespace.length;
+  const beforeCursor = value.slice(contentStart, cursor);
+
+  if (!/^@\{[^}]*$/.test(beforeCursor)) return null;
+
+  return {
+    search: beforeCursor.slice(2),
+    replaceStart: segmentStart,
+    replaceEnd: segmentEnd,
+    leadingWhitespace,
+    trailingWhitespace,
+  };
 }
 
 function serializeExternalDrop(data: string): string | null {
@@ -204,7 +266,7 @@ export const PromptInput = memo(function PromptInput({
   const inlineEditTokenIdRef = useRef<string | null>(null);
   const chipCursorIndexRef = useRef<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
-  const undoStackRef = useRef<{ tokens: EditableToken[]; draft: string }[]>([]);
+  const undoStackRef = useRef<ChipHistoryEntry[]>([]);
   const isUndoingRef = useRef(false);
   const pendingControlledValueRef = useRef<string | null>(null);
   const rawUndoStackRef = useRef<RawHistoryEntry[]>([]);
@@ -288,7 +350,10 @@ export const PromptInput = memo(function PromptInput({
 
     rawSnapshotRef.current = {
       value,
-      selectionStart: Math.min(rawSnapshotRef.current.selectionStart, value.length),
+      selectionStart: Math.min(
+        rawSnapshotRef.current.selectionStart,
+        value.length,
+      ),
       selectionEnd: Math.min(rawSnapshotRef.current.selectionEnd, value.length),
     };
 
@@ -300,15 +365,18 @@ export const PromptInput = memo(function PromptInput({
     lastRawEmittedRef.current = value;
   }, [value]);
 
-  const filteredGroups = useMemo(
-    () =>
-      groups.filter((g) =>
-        g.name.toLowerCase().includes(groupSearch.toLowerCase()),
-      ),
-    [groups, groupSearch],
-  );
-  const showGroupDropdown =
-    !isRawMode && groupDropdownOpen && filteredGroups.length > 0;
+  const filteredGroups = useMemo(() => {
+    const search = groupSearch.trim().toLowerCase();
+
+    return groups.filter((group) => {
+      if (search.length === 0) return true;
+      if (group.name.toLowerCase().includes(search)) return true;
+      return group.tokens.some((token) =>
+        token.label.toLowerCase().includes(search),
+      );
+    });
+  }, [groups, groupSearch]);
+  const showGroupDropdown = groupDropdownOpen && filteredGroups.length > 0;
   const showTagSuggestionDropdown =
     !isRawMode &&
     !groupDropdownOpen &&
@@ -449,8 +517,8 @@ export const PromptInput = memo(function PromptInput({
   );
 
   const serialized = useMemo(
-    () => serializePrompt(tokens, draft),
-    [tokens, draft],
+    () => serializePrompt(tokens, draft, insertIndex),
+    [draft, insertIndex, tokens],
   );
 
   useLayoutEffect(() => {
@@ -602,12 +670,12 @@ export const PromptInput = memo(function PromptInput({
     }
 
     const updateAutocompletePosition = () => {
-      const anchor = inputAnchorRef.current;
+      const anchor = isRawMode ? rawInputRef.current : inputAnchorRef.current;
       if (!anchor) return;
 
       const rect = anchor.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
-      const desiredWidth = showGroupDropdown ? 176 : 288;
+      const desiredWidth = showGroupDropdown ? 320 : 288;
       const width = Math.min(desiredWidth, viewportWidth - 16);
       const left = Math.max(8, Math.min(rect.left, viewportWidth - width - 8));
 
@@ -630,6 +698,7 @@ export const PromptInput = memo(function PromptInput({
     };
   }, [
     draft,
+    isRawMode,
     insertIndex,
     showGroupDropdown,
     showTagSuggestionDropdown,
@@ -637,9 +706,17 @@ export const PromptInput = memo(function PromptInput({
     tokens.length,
   ]);
 
-  const emit = (nextTokens: EditableToken[], nextDraft: string) => {
-    const currentSerialized = serializePrompt(tokens, draft);
-    const nextSerialized = serializePrompt(nextTokens, nextDraft);
+  const emit = (
+    nextTokens: EditableToken[],
+    nextDraft: string,
+    nextInsertIndex = insertIndex,
+  ) => {
+    const currentSerialized = serializePrompt(tokens, draft, insertIndex);
+    const nextSerialized = serializePrompt(
+      nextTokens,
+      nextDraft,
+      nextInsertIndex,
+    );
     const tokensChanged =
       nextTokens.length !== tokens.length ||
       nextTokens.some(
@@ -650,7 +727,7 @@ export const PromptInput = memo(function PromptInput({
     if (!isUndoingRef.current && tokensChanged) {
       undoStackRef.current = [
         ...undoStackRef.current.slice(-49),
-        { tokens, draft },
+        { tokens, draft, insertIndex },
       ];
     }
     setTokens(nextTokens);
@@ -677,10 +754,12 @@ export const PromptInput = memo(function PromptInput({
             ...tokens.slice(insertIndex),
           ]
         : [...tokens, ...nextInsertedTokens];
+    const nextDraftInsertIndex =
+      insertIndex !== null ? insertIndex + nextInsertedTokens.length : null;
     if (insertIndex !== null) {
-      setInsertIndex(insertIndex + nextInsertedTokens.length);
+      setInsertIndex(nextDraftInsertIndex);
     }
-    emit(nextTokens, nextDraft);
+    emit(nextTokens, nextDraft, nextDraftInsertIndex);
   };
 
   const finalizeDraftAsToken = () => {
@@ -705,13 +784,54 @@ export const PromptInput = memo(function PromptInput({
     isUndoingRef.current = true;
     setTokens(prev.tokens);
     setDraft(prev.draft);
-    const undoSerialized = serializePrompt(prev.tokens, prev.draft);
+    setInsertIndex(prev.insertIndex);
+    const undoSerialized = serializePrompt(
+      prev.tokens,
+      prev.draft,
+      prev.insertIndex,
+    );
     pendingControlledValueRef.current = undoSerialized;
     onChange(undoSerialized);
     isUndoingRef.current = false;
   };
 
   const insertGroupToken = (groupName: string) => {
+    if (isRawMode) {
+      const selection = getRawSelection();
+      if (!selection) return;
+
+      const context = getRawGroupAutocompleteContext(
+        selection.currentValue,
+        selection.selectionStart,
+        selection.selectionEnd,
+      );
+      if (!context) return;
+
+      const replacement = `${context.leadingWhitespace}@{${groupName}}${context.trailingWhitespace}`;
+      const nextValue =
+        selection.currentValue.slice(0, context.replaceStart) +
+        replacement +
+        selection.currentValue.slice(context.replaceEnd);
+      const nextCursor =
+        context.replaceStart +
+        context.leadingWhitespace.length +
+        `@{${groupName}}`.length;
+
+      commitRawValue(
+        nextValue,
+        { start: nextCursor, end: nextCursor },
+        {
+          value: selection.currentValue,
+          selectionStart: selection.selectionStart,
+          selectionEnd: selection.selectionEnd,
+        },
+      );
+      setGroupDropdownOpen(false);
+      setGroupSearch("");
+      requestAnimationFrame(() => rawInputRef.current?.focus());
+      return;
+    }
+
     const groupToken: EditableToken = {
       kind: "group",
       groupName,
@@ -1103,9 +1223,10 @@ export const PromptInput = memo(function PromptInput({
       !e.altKey
     ) {
       e.preventDefault();
+      const nextInsertIndex = index + 1;
       setInsertIndex(index + 1);
       setChipCursorIndex(null);
-      emit(tokens, e.key);
+      emit(tokens, e.key, nextInsertIndex);
       return;
     }
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -1115,6 +1236,10 @@ export const PromptInput = memo(function PromptInput({
     }
     if (e.key === "ArrowLeft") {
       e.preventDefault();
+      if (index === 0) {
+        focusInputAtIndex(0, tokens, "start");
+        return;
+      }
       const currentToken = tokens[index];
       if (
         currentToken &&
@@ -1122,8 +1247,7 @@ export const PromptInput = memo(function PromptInput({
         chipCursorIndex === index
       )
         focusTokenAtIndex(index);
-      else if (index > 0) focusTokenAtIndex(index - 1);
-      else focusInput("start");
+      else focusTokenAtIndex(index - 1);
       return;
     }
     if (e.key === "ArrowRight") {
@@ -1193,6 +1317,19 @@ export const PromptInput = memo(function PromptInput({
       selectionEnd: selection.selectionEnd,
     };
     rawSnapshotRef.current = nextSnapshot;
+    const groupContext = getRawGroupAutocompleteContext(
+      selection.currentValue,
+      selection.selectionStart,
+      selection.selectionEnd,
+    );
+    if (groupContext) {
+      setGroupSearch(groupContext.search);
+      setGroupDropdownOpen(true);
+      setGroupDropdownIndex(0);
+    } else {
+      setGroupDropdownOpen(false);
+      setGroupSearch("");
+    }
     return nextSnapshot;
   };
 
@@ -1216,12 +1353,26 @@ export const PromptInput = memo(function PromptInput({
     selection = { start: nextValue.length, end: nextValue.length },
     currentSnapshot = rawSnapshotRef.current,
   ) => {
+    const groupContext = getRawGroupAutocompleteContext(
+      nextValue,
+      selection.start,
+      selection.end,
+    );
+
     if (nextValue === currentSnapshot.value) {
       rawSnapshotRef.current = {
         value: nextValue,
         selectionStart: selection.start,
         selectionEnd: selection.end,
       };
+      if (groupContext) {
+        setGroupSearch(groupContext.search);
+        setGroupDropdownOpen(true);
+        setGroupDropdownIndex(0);
+      } else {
+        setGroupDropdownOpen(false);
+        setGroupSearch("");
+      }
       queueRawSelection(selection.start, selection.end);
       return;
     }
@@ -1237,6 +1388,14 @@ export const PromptInput = memo(function PromptInput({
       selectionEnd: selection.end,
     };
     lastRawEmittedRef.current = nextValue;
+    if (groupContext) {
+      setGroupSearch(groupContext.search);
+      setGroupDropdownOpen(true);
+      setGroupDropdownIndex(0);
+    } else {
+      setGroupDropdownOpen(false);
+      setGroupSearch("");
+    }
     onChange(nextValue);
     queueRawSelection(selection.start, selection.end);
   };
@@ -1281,14 +1440,18 @@ export const PromptInput = memo(function PromptInput({
       nextText +
       currentValue.slice(selectionEnd);
     const nextCursor = selectionStart + nextText.length;
-    commitRawValue(nextValue, {
-      start: nextCursor,
-      end: nextCursor,
-    }, {
-      value: currentValue,
-      selectionStart,
-      selectionEnd,
-    });
+    commitRawValue(
+      nextValue,
+      {
+        start: nextCursor,
+        end: nextCursor,
+      },
+      {
+        value: currentValue,
+        selectionStart,
+        selectionEnd,
+      },
+    );
     return true;
   };
 
@@ -1340,6 +1503,33 @@ export const PromptInput = memo(function PromptInput({
   };
 
   const handleRawKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (groupDropdownOpen && filteredGroups.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setGroupDropdownIndex((i) =>
+          Math.min(i + 1, filteredGroups.length - 1),
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setGroupDropdownIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        const selected = filteredGroups[groupDropdownIndex];
+        if (selected) insertGroupToken(selected.name);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setGroupDropdownOpen(false);
+        setGroupSearch("");
+        return;
+      }
+    }
+
     if ((e.ctrlKey || e.metaKey) && !e.altKey) {
       if (e.key.toLowerCase() === "z") {
         e.preventDefault();
@@ -1361,260 +1551,6 @@ export const PromptInput = memo(function PromptInput({
     syncRawSnapshot();
   };
 
-  if (isRawMode) {
-    return (
-      <ContextMenu
-        onOpenChange={(open) => {
-          if (open) syncRawContextMenuState();
-        }}
-      >
-        <div
-          className={cn(
-            "relative w-full min-w-0 rounded-lg border bg-secondary/60 px-2 py-2 overflow-y-auto overflow-x-hidden",
-            externalDragOver ? "border-primary/60" : "border-border/60",
-            resizable && "resize-y",
-            className,
-          )}
-          style={{ minHeight, maxHeight }}
-          onDragOver={
-            allowExternalDrop
-              ? (e) => {
-                  if (e.dataTransfer.types.includes(DRAG_TOKEN_MIME)) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "copy";
-                    setExternalDragOver(true);
-                  }
-                }
-              : undefined
-          }
-          onDragLeave={
-            allowExternalDrop ? () => setExternalDragOver(false) : undefined
-          }
-          onDrop={
-            allowExternalDrop
-              ? (e) => {
-                  setExternalDragOver(false);
-                  const data = e.dataTransfer.getData(DRAG_TOKEN_MIME);
-                  if (!data) return;
-                  e.preventDefault();
-                  handleRawDrop(data);
-                }
-              : undefined
-          }
-        >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-2 overflow-hidden"
-          >
-            <div
-              className="min-h-full w-full px-1 py-0.5 text-sm leading-6 whitespace-pre-wrap break-words"
-              style={{
-                transform: `translate(${-rawScrollPosition.left}px, ${-rawScrollPosition.top}px)`,
-              }}
-            >
-              {value.length === 0 ? (
-                <span className="text-transparent">{"\u200b"}</span>
-              ) : (
-                (() => {
-                  const segments: ReactNode[] = [];
-                  let cursor = 0;
-
-                  const decoratedRanges = [
-                    ...rawSyntaxIssueRanges.map((range) => ({
-                      ...range,
-                      kind: "error" as const,
-                    })),
-                    ...rawHighlightRanges.map((range) => ({
-                      ...range,
-                      kind: "highlight" as const,
-                    })),
-                  ].sort((left, right) =>
-                    left.start === right.start
-                      ? left.kind === right.kind
-                        ? right.end - left.end
-                        : left.kind === "error"
-                          ? -1
-                          : 1
-                      : left.start - right.start,
-                  );
-
-                  decoratedRanges.forEach((range) => {
-                    if (range.start > cursor) {
-                      segments.push(
-                        <span
-                          key={`raw-plain-${cursor}`}
-                          className="text-transparent"
-                        >
-                          {value.slice(cursor, range.start)}
-                        </span>,
-                      );
-                    }
-
-                    segments.push(
-                      <span
-                        key={`raw-highlight-${range.start}-${range.end}`}
-                        data-prompt-raw-highlight={
-                          range.kind === "highlight" ? "" : undefined
-                        }
-                        data-prompt-raw-syntax-error={
-                          range.kind === "error" ? "" : undefined
-                        }
-                        className={cn(
-                          "rounded-[4px] box-decoration-clone",
-                          range.kind === "error"
-                            ? "bg-destructive/42"
-                            : getPromptWeightRawHighlightClass(range.weight),
-                          "text-transparent",
-                        )}
-                      >
-                        {value.slice(range.start, range.end)}
-                      </span>,
-                    );
-                    cursor = range.end;
-                  });
-
-                  if (cursor < value.length) {
-                    segments.push(
-                      <span
-                        key={`raw-plain-tail-${cursor}`}
-                        className="text-transparent"
-                      >
-                        {value.slice(cursor)}
-                      </span>,
-                    );
-                  }
-
-                  if (value.endsWith("\n")) {
-                    segments.push(
-                      <span key="raw-trailing-break" className="text-transparent">
-                        {"\u200b"}
-                      </span>,
-                    );
-                  }
-
-                  return segments;
-                })()
-              )}
-            </div>
-          </div>
-          <ContextMenuTrigger asChild>
-            <textarea
-              ref={rawInputRef}
-              value={value}
-              onChange={(e) =>
-                commitRawValue(e.target.value, {
-                  start: e.target.selectionStart ?? e.target.value.length,
-                  end: e.target.selectionEnd ?? e.target.value.length,
-                }, rawSnapshotRef.current)
-              }
-              onKeyDown={handleRawKeyDown}
-              onKeyUp={syncRawSnapshot}
-              onMouseUp={syncRawSnapshot}
-              onSelect={syncRawSnapshot}
-              onFocus={syncRawSnapshot}
-              onContextMenu={syncRawContextMenuState}
-              onScroll={(e) =>
-                setRawScrollPosition((prev) => {
-                  const nextTop = e.currentTarget.scrollTop;
-                  const nextLeft = e.currentTarget.scrollLeft;
-                  if (prev.top === nextTop && prev.left === nextLeft) {
-                    return prev;
-                  }
-                  return { top: nextTop, left: nextLeft };
-                })
-              }
-              aria-label={resolvedPlaceholder}
-              placeholder={resolvedPlaceholder}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              className="relative z-10 block w-full resize-none bg-transparent px-1 py-0.5 text-sm leading-6 outline-none placeholder:text-muted-foreground/40"
-              style={{
-                minHeight: Math.max(40, minHeight - 16),
-                maxHeight: Math.max(40, maxHeight - 16),
-              }}
-            />
-          </ContextMenuTrigger>
-          <ContextMenuContent className="min-w-40">
-            <ContextMenuItem
-              disabled={!rawContextMenuState.hasSelection}
-              onSelect={() => {
-                void handleRawCut();
-              }}
-            >
-              {t("promptInput.context.cut")}
-            </ContextMenuItem>
-            <ContextMenuItem
-              disabled={!rawContextMenuState.hasSelection}
-              onSelect={() => {
-                void handleRawCopy();
-              }}
-            >
-              {t("promptInput.context.copy")}
-            </ContextMenuItem>
-            <ContextMenuItem
-              onSelect={() => {
-                void handleRawPaste();
-              }}
-            >
-              {t("promptInput.context.paste")}
-            </ContextMenuItem>
-            <ContextMenuItem
-              disabled={!rawContextMenuState.hasSelection}
-              onSelect={handleRawDelete}
-            >
-              {t("promptInput.context.delete")}
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              disabled={!rawContextMenuState.hasValue}
-              onSelect={handleRawSelectAll}
-            >
-              {t("promptInput.context.selectAll")}
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </div>
-      </ContextMenu>
-    );
-  }
-
-  const inputInner = (
-    <>
-      <div
-        ref={inputAnchorRef}
-        className={cn(
-          "relative min-h-7 rounded-sm transition-colors",
-          isInputFocused && "bg-background/35",
-        )}
-      >
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => handleDraftChange(e.target.value)}
-          onKeyDown={handleInputKeyDown}
-          onPaste={handleInputPaste}
-          onFocus={() => {
-            setIsInputFocused(true);
-            setShowTrailingEmptyInput(true);
-            setInlineEditTokenId(null);
-            setChipCursorIndex(null);
-          }}
-          onBlur={handleInputBlur}
-          aria-label={resolvedPlaceholder}
-          placeholder={tokens.length === 0 ? resolvedPlaceholder : ""}
-          className="h-7 w-full bg-transparent px-1 text-sm leading-7 outline-none placeholder:text-muted-foreground/40"
-          style={{
-            color: "transparent",
-            caretColor: "var(--color-primary)",
-            textShadow:
-              draft.length > 0 ? "0 0 0 var(--color-foreground)" : undefined,
-          }}
-        />
-      </div>
-    </>
-  );
-
   const autocompletePortal =
     (showGroupDropdown || showTagSuggestionDropdown) &&
     typeof document !== "undefined"
@@ -1627,7 +1563,7 @@ export const PromptInput = memo(function PromptInput({
                   position: "fixed",
                   top: 8,
                   left: 8,
-                  width: 176,
+                  width: 320,
                   zIndex: 3200,
                   visibility: "hidden",
                 }
@@ -1643,14 +1579,28 @@ export const PromptInput = memo(function PromptInput({
                     insertGroupToken(g.name);
                   }}
                   className={cn(
-                    "w-full text-left px-3 py-1.5 text-xs transition-colors",
+                    "w-full px-3 py-2 text-left text-xs transition-colors",
                     i === groupDropdownIndex
                       ? "bg-primary/15 text-primary"
                       : "text-foreground/80 hover:bg-secondary",
                   )}
                 >
-                  <span className="font-semibold text-group">@</span>
-                  {`{${g.name}}`}
+                  <div className="flex items-center gap-1">
+                    <span className="font-semibold text-group">@</span>
+                    <span>{`{${g.name}}`}</span>
+                  </div>
+                  {g.tokens.length > 0 ? (
+                    <div
+                      className={cn(
+                        "mt-1 truncate text-[11px]",
+                        i === groupDropdownIndex
+                          ? "text-primary/80"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {g.tokens.map((token) => token.label).join(", ")}
+                    </div>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -1696,6 +1646,275 @@ export const PromptInput = memo(function PromptInput({
           document.body,
         )
       : null;
+
+  if (isRawMode) {
+    return (
+      <>
+        <ContextMenu
+          onOpenChange={(open) => {
+            if (open) syncRawContextMenuState();
+          }}
+        >
+          <div
+            className={cn(
+              "relative w-full min-w-0 rounded-lg border bg-secondary/60 px-2 py-2 overflow-y-auto overflow-x-hidden",
+              externalDragOver ? "border-primary/60" : "border-border/60",
+              resizable && "resize-y",
+              className,
+            )}
+            style={{ minHeight, maxHeight }}
+            onDragOver={
+              allowExternalDrop
+                ? (e) => {
+                    if (e.dataTransfer.types.includes(DRAG_TOKEN_MIME)) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "copy";
+                      setExternalDragOver(true);
+                    }
+                  }
+                : undefined
+            }
+            onDragLeave={
+              allowExternalDrop ? () => setExternalDragOver(false) : undefined
+            }
+            onDrop={
+              allowExternalDrop
+                ? (e) => {
+                    setExternalDragOver(false);
+                    const data = e.dataTransfer.getData(DRAG_TOKEN_MIME);
+                    if (!data) return;
+                    e.preventDefault();
+                    handleRawDrop(data);
+                  }
+                : undefined
+            }
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-2 overflow-hidden"
+            >
+              <div
+                className="min-h-full w-full px-1 py-0.5 text-sm leading-6 whitespace-pre-wrap break-words"
+                style={{
+                  transform: `translate(${-rawScrollPosition.left}px, ${-rawScrollPosition.top}px)`,
+                }}
+              >
+                {value.length === 0 ? (
+                  <span className="text-transparent">{"\u200b"}</span>
+                ) : (
+                  (() => {
+                    const segments: ReactNode[] = [];
+                    let cursor = 0;
+
+                    const decoratedRanges = [
+                      ...rawSyntaxIssueRanges.map((range) => ({
+                        ...range,
+                        kind: "error" as const,
+                      })),
+                      ...rawHighlightRanges.map((range) => ({
+                        ...range,
+                        kind: "highlight" as const,
+                      })),
+                    ].sort((left, right) =>
+                      left.start === right.start
+                        ? left.kind === right.kind
+                          ? right.end - left.end
+                          : left.kind === "error"
+                            ? -1
+                            : 1
+                        : left.start - right.start,
+                    );
+
+                    decoratedRanges.forEach((range) => {
+                      if (range.start > cursor) {
+                        segments.push(
+                          <span
+                            key={`raw-plain-${cursor}`}
+                            className="text-transparent"
+                          >
+                            {value.slice(cursor, range.start)}
+                          </span>,
+                        );
+                      }
+
+                      segments.push(
+                        <span
+                          key={`raw-highlight-${range.start}-${range.end}`}
+                          data-prompt-raw-highlight={
+                            range.kind === "highlight" ? "" : undefined
+                          }
+                          data-prompt-raw-syntax-error={
+                            range.kind === "error" ? "" : undefined
+                          }
+                          className={cn(
+                            "rounded-[4px] box-decoration-clone",
+                            range.kind === "error"
+                              ? "bg-destructive/42"
+                              : getPromptWeightRawHighlightClass(range.weight),
+                            "text-transparent",
+                          )}
+                        >
+                          {value.slice(range.start, range.end)}
+                        </span>,
+                      );
+                      cursor = range.end;
+                    });
+
+                    if (cursor < value.length) {
+                      segments.push(
+                        <span
+                          key={`raw-plain-tail-${cursor}`}
+                          className="text-transparent"
+                        >
+                          {value.slice(cursor)}
+                        </span>,
+                      );
+                    }
+
+                    if (value.endsWith("\n")) {
+                      segments.push(
+                        <span
+                          key="raw-trailing-break"
+                          className="text-transparent"
+                        >
+                          {"\u200b"}
+                        </span>,
+                      );
+                    }
+
+                    return segments;
+                  })()
+                )}
+              </div>
+            </div>
+            <ContextMenuTrigger asChild>
+              <textarea
+                ref={rawInputRef}
+                value={value}
+                onChange={(e) =>
+                  commitRawValue(
+                    e.target.value,
+                    {
+                      start: e.target.selectionStart ?? e.target.value.length,
+                      end: e.target.selectionEnd ?? e.target.value.length,
+                    },
+                    rawSnapshotRef.current,
+                  )
+                }
+                onKeyDown={handleRawKeyDown}
+                onKeyUp={syncRawSnapshot}
+                onMouseUp={syncRawSnapshot}
+                onSelect={syncRawSnapshot}
+                onFocus={syncRawSnapshot}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setGroupDropdownOpen(false);
+                  }, 150);
+                }}
+                onContextMenu={syncRawContextMenuState}
+                onScroll={(e) => {
+                  const nextTop = e.currentTarget.scrollTop;
+                  const nextLeft = e.currentTarget.scrollLeft;
+                  setRawScrollPosition((prev) => {
+                    if (prev.top === nextTop && prev.left === nextLeft) {
+                      return prev;
+                    }
+                    return { top: nextTop, left: nextLeft };
+                  });
+                }}
+                aria-label={resolvedPlaceholder}
+                placeholder={resolvedPlaceholder}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                className="relative z-10 block w-full resize-none bg-transparent px-1 py-0.5 text-sm leading-6 outline-none placeholder:text-muted-foreground/40"
+                style={{
+                  minHeight: Math.max(40, minHeight - 16),
+                  maxHeight: Math.max(40, maxHeight - 16),
+                }}
+              />
+            </ContextMenuTrigger>
+            <ContextMenuContent className="min-w-40">
+              <ContextMenuItem
+                disabled={!rawContextMenuState.hasSelection}
+                onSelect={() => {
+                  void handleRawCut();
+                }}
+              >
+                {t("promptInput.context.cut")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={!rawContextMenuState.hasSelection}
+                onSelect={() => {
+                  void handleRawCopy();
+                }}
+              >
+                {t("promptInput.context.copy")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                onSelect={() => {
+                  void handleRawPaste();
+                }}
+              >
+                {t("promptInput.context.paste")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={!rawContextMenuState.hasSelection}
+                onSelect={handleRawDelete}
+              >
+                {t("promptInput.context.delete")}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                disabled={!rawContextMenuState.hasValue}
+                onSelect={handleRawSelectAll}
+              >
+                {t("promptInput.context.selectAll")}
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </div>
+        </ContextMenu>
+        {autocompletePortal}
+      </>
+    );
+  }
+
+  const inputInner = (
+    <>
+      <div
+        ref={inputAnchorRef}
+        className={cn(
+          "relative min-h-7 rounded-sm transition-colors",
+          isInputFocused && "bg-background/35",
+        )}
+      >
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => handleDraftChange(e.target.value)}
+          onKeyDown={handleInputKeyDown}
+          onPaste={handleInputPaste}
+          onFocus={() => {
+            setIsInputFocused(true);
+            setShowTrailingEmptyInput(true);
+            setInlineEditTokenId(null);
+            setChipCursorIndex(null);
+          }}
+          onBlur={handleInputBlur}
+          aria-label={resolvedPlaceholder}
+          placeholder={tokens.length === 0 ? resolvedPlaceholder : ""}
+          className="h-7 w-full bg-transparent px-1 text-sm leading-7 outline-none placeholder:text-muted-foreground/40"
+          style={{
+            color: "transparent",
+            caretColor: "var(--color-primary)",
+            textShadow:
+              draft.length > 0 ? "0 0 0 var(--color-foreground)" : undefined,
+          }}
+        />
+      </div>
+    </>
+  );
 
   const showTrailingInput =
     insertIndex === null &&
@@ -1946,7 +2165,7 @@ export const PromptInput = memo(function PromptInput({
                     onRequestAdjacentEdit={(direction) => {
                       if (direction === "prev") {
                         if (index > 0) focusTokenAtIndex(index - 1);
-                        else focusInput("start");
+                        else focusInputAtIndex(0, tokens, "start");
                         return;
                       }
                       if (index < tokens.length - 1)

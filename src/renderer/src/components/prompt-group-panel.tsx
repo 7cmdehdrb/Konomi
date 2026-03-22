@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -10,9 +10,120 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import type { PromptCategory, PromptGroup } from "@preload/index.d";
+import type {
+  PromptCategory,
+  PromptGroup,
+  PromptTagSuggestion,
+  PromptTagSuggestStats,
+} from "@preload/index.d";
+import { PromptTagSuggestionIndicator } from "./prompt-tag-suggestion-indicator";
 
 const DRAG_MIME = "application/x-konomi-token";
+const TAG_SUGGEST_LIMIT = 8;
+const EMPTY_PROMPT_TAG_SUGGEST_STATS: PromptTagSuggestStats = {
+  totalTags: 0,
+  maxCount: 0,
+  bucketThresholds: [],
+};
+
+function parseGroupTagDraft(value: string): string[] {
+  return value
+    .split(/[\n,]/)
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
+}
+
+function formatGroupTagDraft(group: PromptGroup): string {
+  return group.tokens.map((token) => token.label).join(", ");
+}
+
+function getGroupTagDraftContext(value: string, caretPosition: number) {
+  const clampedCaret = Math.max(0, Math.min(caretPosition, value.length));
+
+  let segmentStart = clampedCaret;
+  while (
+    segmentStart > 0 &&
+    value[segmentStart - 1] !== "," &&
+    value[segmentStart - 1] !== "\n"
+  ) {
+    segmentStart -= 1;
+  }
+
+  let segmentEnd = clampedCaret;
+  while (
+    segmentEnd < value.length &&
+    value[segmentEnd] !== "," &&
+    value[segmentEnd] !== "\n"
+  ) {
+    segmentEnd += 1;
+  }
+
+  const currentPrefix = value.slice(segmentStart, clampedCaret).trim();
+  const exclude = [
+    ...parseGroupTagDraft(value.slice(0, segmentStart)),
+    ...parseGroupTagDraft(value.slice(segmentEnd)),
+  ];
+
+  return {
+    segmentStart,
+    segmentEnd,
+    prefix: currentPrefix,
+    exclude,
+  };
+}
+
+async function syncGroupTokens(
+  groupId: number,
+  currentTokens: PromptGroup["tokens"],
+  nextLabels: string[],
+): Promise<PromptGroup["tokens"]> {
+  const reusableTokens = new Map<string, PromptGroup["tokens"]>();
+
+  currentTokens.forEach((token) => {
+    const queue = reusableTokens.get(token.label);
+    if (queue) {
+      queue.push(token);
+      return;
+    }
+    reusableTokens.set(token.label, [token]);
+  });
+
+  const nextTokens: PromptGroup["tokens"] = [];
+
+  for (const label of nextLabels) {
+    const queue = reusableTokens.get(label);
+    const reusable = queue?.shift();
+    if (reusable) {
+      nextTokens.push(reusable);
+      continue;
+    }
+    nextTokens.push(await window.promptBuilder.createToken(groupId, label));
+  }
+
+  const staleTokens = [...reusableTokens.values()].flat();
+  if (staleTokens.length > 0) {
+    await Promise.all(
+      staleTokens.map((token) => window.promptBuilder.deleteToken(token.id)),
+    );
+  }
+
+  const needsReorder = nextTokens.some(
+    (token, index) =>
+      token.id !== currentTokens[index]?.id || token.order !== index,
+  );
+  if (needsReorder && nextTokens.length > 0) {
+    await window.promptBuilder.reorderTokens(
+      groupId,
+      nextTokens.map((token) => token.id),
+    );
+  }
+
+  return nextTokens.map((token, index) => ({
+    ...token,
+    groupId,
+    order: index,
+  }));
+}
 
 interface PromptGroupPanelProps {
   categories: PromptCategory[];
@@ -50,120 +161,331 @@ function DraggableGroupChip({ groupName }: { groupName: string }) {
   );
 }
 
-interface GroupEditAreaProps {
-  group: PromptGroup;
-  onRename: (name: string) => void;
-  onAddToken: (label: string) => void;
-  onDeleteToken: (tokenId: number) => void;
+interface GroupFormAreaProps {
+  initialName?: string;
+  initialTags?: string;
+  submitLabel: string;
+  onSubmit: (name: string, tags: string[]) => void;
   onClose: () => void;
 }
 
-function GroupEditArea({
-  group,
-  onRename,
-  onAddToken,
-  onDeleteToken,
+function GroupFormArea({
+  initialName = "",
+  initialTags = "",
+  submitLabel,
+  onSubmit,
   onClose,
-}: GroupEditAreaProps) {
+}: GroupFormAreaProps) {
   const { t } = useTranslation();
-  const [nameDraft, setNameDraft] = useState(group.name);
-  const [newTokenDraft, setNewTokenDraft] = useState("");
-  const newTokenInputRef = useRef<HTMLInputElement | null>(null);
+  const [nameDraft, setNameDraft] = useState(initialName);
+  const [tagsDraft, setTagsDraft] = useState(initialTags);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const tagsInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const tagSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const tagSuggestRequestSeqRef = useRef(0);
+  const suppressTagSuggestOnceRef = useRef(false);
+  const parsedTags = useMemo(() => parseGroupTagDraft(tagsDraft), [tagsDraft]);
+  const canSubmit = nameDraft.trim().length > 0 && parsedTags.length > 0;
+  const [tagCaretPosition, setTagCaretPosition] = useState(initialTags.length);
+  const [tagSuggestions, setTagSuggestions] = useState<PromptTagSuggestion[]>(
+    [],
+  );
+  const [tagSuggestionStats, setTagSuggestionStats] =
+    useState<PromptTagSuggestStats>(EMPTY_PROMPT_TAG_SUGGEST_STATS);
+  const [tagSuggestionOpen, setTagSuggestionOpen] = useState(false);
+  const [tagSuggestionIndex, setTagSuggestionIndex] = useState(-1);
+  const [isTagsInputFocused, setIsTagsInputFocused] = useState(false);
 
   useEffect(() => {
-    requestAnimationFrame(() => newTokenInputRef.current?.focus());
+    requestAnimationFrame(() => nameInputRef.current?.focus());
   }, []);
 
-  const commitRename = () => {
+  useEffect(
+    () => () => {
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isTagsInputFocused) {
+      setTagSuggestions([]);
+      setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
+      setTagSuggestionOpen(false);
+      setTagSuggestionIndex(-1);
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+        tagSuggestDebounceRef.current = null;
+      }
+      return;
+    }
+
+    const { prefix, exclude } = getGroupTagDraftContext(
+      tagsDraft,
+      tagCaretPosition,
+    );
+
+    if (!prefix) {
+      setTagSuggestions([]);
+      setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
+      setTagSuggestionOpen(false);
+      setTagSuggestionIndex(-1);
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+        tagSuggestDebounceRef.current = null;
+      }
+      return;
+    }
+
+    if (suppressTagSuggestOnceRef.current) {
+      suppressTagSuggestOnceRef.current = false;
+      return;
+    }
+
+    if (tagSuggestDebounceRef.current) {
+      clearTimeout(tagSuggestDebounceRef.current);
+      tagSuggestDebounceRef.current = null;
+    }
+
+    tagSuggestDebounceRef.current = setTimeout(() => {
+      const requestId = ++tagSuggestRequestSeqRef.current;
+      window.promptBuilder
+        .suggestTags({
+          prefix,
+          limit: TAG_SUGGEST_LIMIT,
+          exclude,
+        })
+        .then(({ suggestions, stats }) => {
+          if (requestId !== tagSuggestRequestSeqRef.current) return;
+          setTagSuggestions(suggestions);
+          setTagSuggestionStats(stats);
+          setTagSuggestionOpen(suggestions.length > 0);
+          setTagSuggestionIndex((prev) =>
+            suggestions.length === 0
+              ? -1
+              : prev < 0
+                ? -1
+                : Math.min(prev, suggestions.length - 1),
+          );
+        })
+        .catch(() => {
+          if (requestId !== tagSuggestRequestSeqRef.current) return;
+          setTagSuggestions([]);
+          setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
+          setTagSuggestionOpen(false);
+          setTagSuggestionIndex(-1);
+        });
+    }, 120);
+
+    return () => {
+      if (tagSuggestDebounceRef.current) {
+        clearTimeout(tagSuggestDebounceRef.current);
+        tagSuggestDebounceRef.current = null;
+      }
+    };
+  }, [isTagsInputFocused, tagCaretPosition, tagsDraft]);
+
+  const handleSubmit = () => {
     const name = nameDraft.trim();
-    if (name && name !== group.name) onRename(name);
+    if (!name || parsedTags.length === 0) return;
+    onSubmit(name, parsedTags);
   };
 
-  const handleAddToken = () => {
-    const label = newTokenDraft.trim();
-    if (!label) return;
-    onAddToken(label);
-    setNewTokenDraft("");
-    requestAnimationFrame(() => newTokenInputRef.current?.focus());
+  const applyTagSuggestion = (suggestion: PromptTagSuggestion) => {
+    const textarea = tagsInputRef.current;
+    const caretPosition = textarea?.selectionStart ?? tagCaretPosition;
+    const { segmentStart, segmentEnd } = getGroupTagDraftContext(
+      tagsDraft,
+      caretPosition,
+    );
+    const currentSegment = tagsDraft.slice(segmentStart, segmentEnd);
+    const leadingWhitespace = currentSegment.match(/^\s*/)?.[0] ?? "";
+    const trailingWhitespace = currentSegment.match(/\s*$/)?.[0] ?? "";
+    const replacement = `${leadingWhitespace}${suggestion.tag}${trailingWhitespace}`;
+    const nextValue =
+      tagsDraft.slice(0, segmentStart) +
+      replacement +
+      tagsDraft.slice(segmentEnd);
+    const nextCaretPosition =
+      segmentStart + leadingWhitespace.length + suggestion.tag.length;
+
+    suppressTagSuggestOnceRef.current = true;
+    setTagsDraft(nextValue);
+    setTagCaretPosition(nextCaretPosition);
+    setTagSuggestions([]);
+    setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
+    setTagSuggestionOpen(false);
+    setTagSuggestionIndex(-1);
+
+    requestAnimationFrame(() => {
+      const nextTextarea = tagsInputRef.current;
+      if (!nextTextarea) return;
+      nextTextarea.focus();
+      nextTextarea.setSelectionRange(nextCaretPosition, nextCaretPosition);
+    });
+  };
+
+  const syncTagCaretPosition = () => {
+    const textarea = tagsInputRef.current;
+    if (!textarea) return;
+    setTagCaretPosition(textarea.selectionStart ?? textarea.value.length);
   };
 
   return (
-    <div className="mx-2 mb-2 rounded border border-border/40 bg-secondary/30 p-2">
-      <div className="mb-2 flex items-center gap-1">
+    <div className="mx-2 mb-2 rounded border border-border/40 bg-secondary/30 p-2.5">
+      <div className="space-y-2">
         <input
+          ref={nameInputRef}
           value={nameDraft}
           onChange={(e) => setNameDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              commitRename();
+              handleSubmit();
             }
             if (e.key === "Escape") onClose();
           }}
-          onBlur={commitRename}
           placeholder={t("promptGroupPanel.groupNamePlaceholder")}
-          className="flex-1 min-w-0 h-6 rounded border border-border/60 bg-background px-1.5 text-xs text-foreground outline-none focus:border-primary/60"
+          aria-label={t("promptGroupPanel.groupNamePlaceholder")}
+          className="h-8 w-full rounded border border-border/60 bg-background px-2 text-xs text-foreground outline-none focus:border-primary/60"
         />
-        <button
-          type="button"
-          onClick={onClose}
-          title={t("common.close")}
-          aria-label={t("common.close")}
-          className="flex h-5 w-5 items-center justify-center rounded text-xs text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-foreground"
-        >
-          x
-        </button>
+        <div className="relative">
+          <textarea
+            ref={tagsInputRef}
+            value={tagsDraft}
+            onChange={(e) => {
+              setTagsDraft(e.target.value);
+              setTagCaretPosition(
+                e.target.selectionStart ?? e.target.value.length,
+              );
+            }}
+            onFocus={() => {
+              setIsTagsInputFocused(true);
+              syncTagCaretPosition();
+            }}
+            onBlur={() => {
+              setIsTagsInputFocused(false);
+            }}
+            onClick={syncTagCaretPosition}
+            onKeyUp={syncTagCaretPosition}
+            onSelect={syncTagCaretPosition}
+            onKeyDown={(e) => {
+              if (tagSuggestionOpen && tagSuggestions.length > 0) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setTagSuggestionIndex((i) =>
+                    i < 0 ? 0 : (i + 1) % tagSuggestions.length,
+                  );
+                  return;
+                }
+                if (e.key === "ArrowUp" && tagSuggestionIndex >= 0) {
+                  e.preventDefault();
+                  setTagSuggestionIndex((i) =>
+                    i <= 0 ? tagSuggestions.length - 1 : i - 1,
+                  );
+                  return;
+                }
+                if (e.key === "Tab") {
+                  e.preventDefault();
+                  applyTagSuggestion(
+                    tagSuggestions[tagSuggestionIndex] ?? tagSuggestions[0],
+                  );
+                  return;
+                }
+                if (e.key === "Enter" && tagSuggestionIndex >= 0) {
+                  e.preventDefault();
+                  applyTagSuggestion(
+                    tagSuggestions[tagSuggestionIndex] ?? tagSuggestions[0],
+                  );
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setTagSuggestions([]);
+                  setTagSuggestionStats(EMPTY_PROMPT_TAG_SUGGEST_STATS);
+                  setTagSuggestionOpen(false);
+                  setTagSuggestionIndex(-1);
+                  return;
+                }
+              }
+
+              if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                e.preventDefault();
+                handleSubmit();
+                return;
+              }
+              if (e.key === "Escape") onClose();
+            }}
+            rows={3}
+            placeholder={t("promptGroupPanel.tagsPlaceholder")}
+            aria-label={t("promptGroupPanel.groupTags")}
+            className="block w-full resize-none rounded border border-border/60 bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary/60 placeholder:text-muted-foreground/40"
+          />
+          {tagSuggestionOpen && tagSuggestions.length > 0 ? (
+            <div className="absolute top-full left-0 z-20 mt-1 max-h-56 w-full overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-popover shadow-lg">
+              {tagSuggestions.map((suggestion, index) => (
+                <button
+                  key={`${suggestion.tag}-${suggestion.count}`}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applyTagSuggestion(suggestion);
+                  }}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors",
+                    index === tagSuggestionIndex
+                      ? "bg-primary/15 text-primary"
+                      : "text-foreground/85 hover:bg-secondary",
+                  )}
+                >
+                  <span className="truncate">{suggestion.tag}</span>
+                  <PromptTagSuggestionIndicator
+                    count={suggestion.count}
+                    bucketThresholds={tagSuggestionStats.bucketThresholds}
+                  />
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      {group.tokens.length === 0 ? (
-        <p className="py-1 text-center text-[11px] text-muted-foreground/40">
+      {parsedTags.length === 0 ? (
+        <p className="mt-2 py-1 text-center text-[11px] text-muted-foreground/40">
           {t("promptGroupPanel.noTags")}
         </p>
       ) : (
-        <div className="mb-1.5 flex flex-wrap gap-1">
-          {group.tokens.map((token) => (
-            <div
-              key={token.id}
-              className="group/token inline-flex items-center gap-0.5 rounded border border-border/40 bg-muted px-1.5 py-0.5 text-xs text-foreground/80"
+        <div className="mt-2 flex flex-wrap gap-1">
+          {parsedTags.map((tag, index) => (
+            <span
+              key={`${tag}-${index}`}
+              className="rounded border border-border/40 bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80"
             >
-              <span>{token.label}</span>
-              <button
-                type="button"
-                onClick={() => onDeleteToken(token.id)}
-                className="flex h-3.5 w-3.5 items-center justify-center rounded text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover/token:opacity-100"
-                title={t("common.delete")}
-                aria-label={t("common.delete")}
-              >
-                <Trash2 className="h-2 w-2" />
-              </button>
-            </div>
+              {tag}
+            </span>
           ))}
         </div>
       )}
 
-      <div className="flex gap-1">
-        <input
-          ref={newTokenInputRef}
-          value={newTokenDraft}
-          onChange={(e) => setNewTokenDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleAddToken();
-            }
-          }}
-          placeholder={t("promptGroupPanel.addTagPlaceholder")}
-          className="flex-1 min-w-0 h-6 rounded border border-border/60 bg-background px-2 text-[11px] text-foreground outline-none focus:border-primary/60 placeholder:text-muted-foreground/40"
-        />
+      <div className="mt-3 flex items-center justify-end gap-1.5">
         <button
           type="button"
-          onClick={handleAddToken}
-          disabled={!newTokenDraft.trim()}
-          className="flex h-6 w-6 items-center justify-center rounded border border-primary/30 bg-primary/15 text-primary transition-colors hover:bg-primary/25 disabled:opacity-40"
-          title={t("promptGroupPanel.addTag")}
-          aria-label={t("promptGroupPanel.addTag")}
+          onClick={onClose}
+          className="h-7 rounded border border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
         >
-          <Plus className="h-3 w-3" />
+          {t("common.cancel")}
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className="h-7 rounded border border-primary/50 bg-primary/10 px-2 text-[11px] text-primary hover:bg-primary/20 disabled:opacity-40"
+        >
+          {submitLabel}
         </button>
       </div>
     </div>
@@ -172,19 +494,11 @@ function GroupEditArea({
 
 interface GroupRowProps {
   group: PromptGroup;
-  onRename: (name: string) => void;
+  onSave: (name: string, tags: string[]) => void;
   onDelete: () => void;
-  onAddToken: (label: string) => void;
-  onDeleteToken: (tokenId: number) => void;
 }
 
-function GroupRow({
-  group,
-  onRename,
-  onDelete,
-  onAddToken,
-  onDeleteToken,
-}: GroupRowProps) {
+function GroupRow({ group, onSave, onDelete }: GroupRowProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -246,11 +560,14 @@ function GroupRow({
       </div>
 
       {editing && (
-        <GroupEditArea
-          group={group}
-          onRename={onRename}
-          onAddToken={onAddToken}
-          onDeleteToken={onDeleteToken}
+        <GroupFormArea
+          initialName={group.name}
+          initialTags={formatGroupTagDraft(group)}
+          submitLabel={t("promptGroupPanel.saveGroup")}
+          onSubmit={(name, tags) => {
+            onSave(name, tags);
+            setEditing(false);
+          }}
           onClose={() => setEditing(false)}
         />
       )}
@@ -262,11 +579,9 @@ interface CategoryItemProps {
   category: PromptCategory;
   onRename: (name: string) => void;
   onDelete: () => void;
-  onAddGroup: (name: string) => void;
+  onAddGroup: (name: string, tags: string[]) => void;
   onDeleteGroup: (groupId: number) => void;
-  onRenameGroup: (groupId: number, name: string) => void;
-  onAddToken: (groupId: number, label: string) => void;
-  onDeleteToken: (groupId: number, tokenId: number) => void;
+  onSaveGroup: (groupId: number, name: string, tags: string[]) => void;
 }
 
 const BUILTIN_PROMPT_CATEGORY_KEYS = [
@@ -307,9 +622,7 @@ function CategoryItem({
   onDelete,
   onAddGroup,
   onDeleteGroup,
-  onRenameGroup,
-  onAddToken,
-  onDeleteToken,
+  onSaveGroup,
 }: CategoryItemProps) {
   const { t } = useTranslation();
   const displayName = getDisplayCategoryName(category, t);
@@ -317,10 +630,8 @@ function CategoryItem({
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(category.name);
   const [addingGroup, setAddingGroup] = useState(false);
-  const [newGroupDraft, setNewGroupDraft] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
-  const newGroupInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (renaming) {
@@ -329,24 +640,10 @@ function CategoryItem({
     }
   }, [renaming, category.name]);
 
-  useEffect(() => {
-    if (addingGroup) {
-      requestAnimationFrame(() => newGroupInputRef.current?.focus());
-    }
-  }, [addingGroup]);
-
   const commitRename = () => {
     const name = renameDraft.trim();
     if (name && name !== category.name) onRename(name);
     setRenaming(false);
-  };
-
-  const handleAddGroup = () => {
-    const name = newGroupDraft.trim();
-    if (!name) return;
-    onAddGroup(name);
-    setNewGroupDraft("");
-    setAddingGroup(false);
   };
 
   return (
@@ -475,57 +772,22 @@ function CategoryItem({
                 <GroupRow
                   key={group.id}
                   group={group}
-                  onRename={(name) => onRenameGroup(group.id, name)}
+                  onSave={(name, tags) => onSaveGroup(group.id, name, tags)}
                   onDelete={() => onDeleteGroup(group.id)}
-                  onAddToken={(label) => onAddToken(group.id, label)}
-                  onDeleteToken={(tokenId) => onDeleteToken(group.id, tokenId)}
                 />
               ))}
             </div>
           )}
 
           {addingGroup ? (
-            <div className="flex gap-1 px-2 pb-2">
-              <input
-                ref={newGroupInputRef}
-                value={newGroupDraft}
-                onChange={(e) => setNewGroupDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddGroup();
-                  }
-                  if (e.key === "Escape") {
-                    setAddingGroup(false);
-                    setNewGroupDraft("");
-                  }
-                }}
-                placeholder={t("promptGroupPanel.newGroupPlaceholder")}
-                className="flex-1 min-w-0 h-6 rounded border border-border/60 bg-background px-2 text-[11px] text-foreground outline-none focus:border-primary/60 placeholder:text-muted-foreground/40"
-              />
-              <button
-                type="button"
-                onClick={handleAddGroup}
-                disabled={!newGroupDraft.trim()}
-                title={t("promptGroupPanel.addGroup")}
-                aria-label={t("promptGroupPanel.addGroup")}
-                className="flex h-6 w-6 items-center justify-center rounded border border-primary/30 bg-primary/15 text-primary transition-colors hover:bg-primary/25 disabled:opacity-40"
-              >
-                <Plus className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAddingGroup(false);
-                  setNewGroupDraft("");
-                }}
-                title={t("common.close")}
-                aria-label={t("common.close")}
-                className="flex h-6 w-6 items-center justify-center rounded text-xs text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-foreground"
-              >
-                x
-              </button>
-            </div>
+            <GroupFormArea
+              submitLabel={t("promptGroupPanel.addGroup")}
+              onSubmit={(name, tags) => {
+                onAddGroup(name, tags);
+                setAddingGroup(false);
+              }}
+              onClose={() => setAddingGroup(false)}
+            />
           ) : null}
         </div>
       )}
@@ -563,12 +825,28 @@ export const PromptGroupPanel = memo(function PromptGroupPanel({
     onCategoriesChange(categories.filter((category) => category.id !== id));
   };
 
-  const handleAddGroup = async (categoryId: number, name: string) => {
+  const handleAddGroup = async (
+    categoryId: number,
+    name: string,
+    tags: string[],
+  ) => {
     const group = await window.promptBuilder.createGroup(categoryId, name);
+    const nextTokens: PromptGroup["tokens"] = [];
+
+    for (const label of tags) {
+      nextTokens.push(await window.promptBuilder.createToken(group.id, label));
+    }
+
     onCategoriesChange(
       categories.map((category) =>
         category.id === categoryId
-          ? { ...category, groups: [...category.groups, group] }
+          ? {
+              ...category,
+              groups: [
+                ...category.groups,
+                { ...group, name, tokens: nextTokens },
+              ],
+            }
           : category,
       ),
     );
@@ -588,32 +866,28 @@ export const PromptGroupPanel = memo(function PromptGroupPanel({
     );
   };
 
-  const handleRenameGroup = async (
+  const handleSaveGroup = async (
     categoryId: number,
     groupId: number,
     name: string,
+    tags: string[],
   ) => {
-    await window.promptBuilder.renameGroup(groupId, name);
-    onCategoriesChange(
-      categories.map((category) =>
-        category.id === categoryId
-          ? {
-              ...category,
-              groups: category.groups.map((group) =>
-                group.id === groupId ? { ...group, name } : group,
-              ),
-            }
-          : category,
-      ),
-    );
-  };
+    const currentGroup = categories
+      .find((category) => category.id === categoryId)
+      ?.groups.find((group) => group.id === groupId);
 
-  const handleAddToken = async (
-    categoryId: number,
-    groupId: number,
-    label: string,
-  ) => {
-    const token = await window.promptBuilder.createToken(groupId, label);
+    if (!currentGroup) return;
+
+    if (name !== currentGroup.name) {
+      await window.promptBuilder.renameGroup(groupId, name);
+    }
+
+    const nextTokens = await syncGroupTokens(
+      groupId,
+      currentGroup.tokens,
+      tags,
+    );
+
     onCategoriesChange(
       categories.map((category) =>
         category.id === categoryId
@@ -621,34 +895,7 @@ export const PromptGroupPanel = memo(function PromptGroupPanel({
               ...category,
               groups: category.groups.map((group) =>
                 group.id === groupId
-                  ? { ...group, tokens: [...group.tokens, token] }
-                  : group,
-              ),
-            }
-          : category,
-      ),
-    );
-  };
-
-  const handleDeleteToken = async (
-    categoryId: number,
-    groupId: number,
-    tokenId: number,
-  ) => {
-    await window.promptBuilder.deleteToken(tokenId);
-    onCategoriesChange(
-      categories.map((category) =>
-        category.id === categoryId
-          ? {
-              ...category,
-              groups: category.groups.map((group) =>
-                group.id === groupId
-                  ? {
-                      ...group,
-                      tokens: group.tokens.filter(
-                        (token) => token.id !== tokenId,
-                      ),
-                    }
+                  ? { ...group, name, tokens: nextTokens }
                   : group,
               ),
             }
@@ -729,18 +976,14 @@ export const PromptGroupPanel = memo(function PromptGroupPanel({
               category={category}
               onRename={(name) => void handleRenameCategory(category.id, name)}
               onDelete={() => void handleDeleteCategory(category.id)}
-              onAddGroup={(name) => void handleAddGroup(category.id, name)}
+              onAddGroup={(name, tags) =>
+                void handleAddGroup(category.id, name, tags)
+              }
               onDeleteGroup={(groupId) =>
                 void handleDeleteGroup(category.id, groupId)
               }
-              onRenameGroup={(groupId, name) =>
-                void handleRenameGroup(category.id, groupId, name)
-              }
-              onAddToken={(groupId, label) =>
-                void handleAddToken(category.id, groupId, label)
-              }
-              onDeleteToken={(groupId, tokenId) =>
-                void handleDeleteToken(category.id, groupId, tokenId)
+              onSaveGroup={(groupId, name, tags) =>
+                void handleSaveGroup(category.id, groupId, name, tags)
               }
             />
           ))

@@ -1,5 +1,11 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PromptInput } from "@/components/prompt-input";
 import type { PromptGroup } from "@preload/index.d";
@@ -204,7 +210,7 @@ describe("PromptInput", () => {
         name: "landscape",
         categoryId: 1,
         order: 0,
-        tokens: [],
+        tokens: [{ id: 10, label: "sunset", order: 0, groupId: 1 }],
       },
     ];
 
@@ -221,6 +227,71 @@ describe("PromptInput", () => {
     expect(
       screen.getByRole("button", { name: "@{landscape}" }),
     ).toBeInTheDocument();
+  });
+
+  it("matches group autocomplete by tags after typing @{", async () => {
+    const groups: PromptGroup[] = [
+      {
+        id: 1,
+        name: "landscape",
+        categoryId: 1,
+        order: 0,
+        tokens: [{ id: 10, label: "sunset beach", order: 0, groupId: 1 }],
+      },
+    ];
+
+    renderPromptInput({ groups });
+
+    const input = screen.getByLabelText("tag, tag, tag...");
+
+    fireEvent.change(input, { target: { value: "@{sun" } });
+
+    expect(await screen.findByText("{landscape}")).toBeInTheDocument();
+    expect(screen.getByText("sunset beach")).toBeInTheDocument();
+  });
+
+  it("keeps inserted text between a group chip and the following token", async () => {
+    const onChange = vi.fn();
+
+    renderPromptInput({
+      value: "first, @{landscape}, third",
+      onChange,
+    });
+
+    const groupChip = screen.getByRole("button", { name: "@{landscape}" });
+
+    fireEvent.focus(groupChip);
+    fireEvent.keyDown(groupChip, { key: "s" });
+
+    const input = screen.getByLabelText("tag, tag, tag...");
+    fireEvent.change(input, { target: { value: "second" } });
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith(
+        "first, @{landscape}, second, third",
+      ),
+    );
+  });
+
+  it("can insert a token before the first chip in normal mode", async () => {
+    const onChange = vi.fn();
+
+    renderPromptInput({
+      value: "first, second",
+      onChange,
+    });
+
+    const firstToken = screen.getByRole("button", { name: "first" });
+
+    fireEvent.focus(firstToken);
+    fireEvent.keyDown(firstToken, { key: "ArrowLeft" });
+
+    const input = screen.getByLabelText("tag, tag, tag...");
+    fireEvent.change(input, { target: { value: "zero" } });
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith("zero, first, second"),
+    );
   });
 
   it("loads prompt-tag suggestions for the current draft and applies the selected one", async () => {
@@ -247,9 +318,7 @@ describe("PromptInput", () => {
 
     fireEvent.mouseDown(screen.getByText("sunset").closest("button")!);
 
-    await waitFor(() =>
-      expect(onChange).toHaveBeenLastCalledWith("sunset"),
-    );
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("sunset"));
     expect(screen.getByRole("button", { name: "sunset" })).toBeInTheDocument();
   });
 
@@ -320,7 +389,9 @@ describe("PromptInput", () => {
     const token = screen.getByRole("button", { name: "sunset" });
 
     fireEvent.doubleClick(token);
-    fireEvent.click(await screen.findByRole("button", { name: "Advance sunset" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Advance sunset" }),
+    );
 
     await waitFor(() =>
       expect(screen.getByLabelText("tag, tag, tag...")).toHaveFocus(),
@@ -353,6 +424,44 @@ describe("PromptInput", () => {
     );
   });
 
+  it("shows group autocomplete in raw mode and inserts the selected group token", async () => {
+    const groups: PromptGroup[] = [
+      {
+        id: 1,
+        name: "landscape",
+        categoryId: 1,
+        order: 0,
+        tokens: [{ id: 10, label: "sunset beach", order: 0, groupId: 1 }],
+      },
+    ];
+
+    renderPromptInput({
+      value: "",
+      displayMode: "raw",
+      groups,
+    });
+
+    const textarea = screen.getByRole("textbox", {
+      name: "tag, tag, tag...",
+    }) as HTMLTextAreaElement;
+
+    fireEvent.focus(textarea);
+    fireEvent.change(textarea, {
+      target: {
+        value: "@{sun",
+        selectionStart: 5,
+        selectionEnd: 5,
+      },
+    });
+
+    expect(await screen.findByText("{landscape}")).toBeInTheDocument();
+    expect(screen.getByText("sunset beach")).toBeInTheDocument();
+
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    await waitFor(() => expect(textarea).toHaveValue("@{landscape}"));
+  });
+
   it("shows a Radix context menu for the raw-text editor", async () => {
     renderPromptInput({
       value: "sparkles, sunset",
@@ -370,6 +479,28 @@ describe("PromptInput", () => {
     expect(screen.getByText("Paste")).toBeInTheDocument();
     expect(screen.getByText("Delete")).toBeInTheDocument();
     expect(screen.getByText("Select all")).toBeInTheDocument();
+  });
+
+  it("does not crash when the raw-text editor scrolls", () => {
+    renderPromptInput({
+      value: "sparkles,\nsunset,\nstars,\nclouds,\nmoonlight",
+      displayMode: "raw",
+    });
+
+    const textarea = screen.getByRole("textbox", {
+      name: "tag, tag, tag...",
+    }) as HTMLTextAreaElement;
+
+    Object.defineProperty(textarea, "scrollTop", {
+      configurable: true,
+      value: 24,
+    });
+    Object.defineProperty(textarea, "scrollLeft", {
+      configurable: true,
+      value: 8,
+    });
+
+    expect(() => fireEvent.scroll(textarea)).not.toThrow();
   });
 
   it("renders weighted raw-mode highlights with stronger background tones", () => {
@@ -488,23 +619,17 @@ describe("PromptInput", () => {
     fireEvent.keyDown(textarea, { key: "!" });
     fireEvent.change(textarea, { target: { value: "prompt!" } });
 
-    await waitFor(() =>
-      expect(onChange).toHaveBeenLastCalledWith("prompt!"),
-    );
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("prompt!"));
     await waitFor(() => expect(textarea).toHaveValue("prompt!"));
 
     fireEvent.keyDown(textarea, { key: "z", ctrlKey: true });
 
-    await waitFor(() =>
-      expect(onChange).toHaveBeenLastCalledWith("prompt"),
-    );
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("prompt"));
     await waitFor(() => expect(textarea).toHaveValue("prompt"));
 
     fireEvent.keyDown(textarea, { key: "z", ctrlKey: true, shiftKey: true });
 
-    await waitFor(() =>
-      expect(onChange).toHaveBeenLastCalledWith("prompt!"),
-    );
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("prompt!"));
     await waitFor(() => expect(textarea).toHaveValue("prompt!"));
   });
 
@@ -548,11 +673,19 @@ describe("PromptInput", () => {
       );
       fireEvent.keyDown(textarea, { key: "Backspace" });
       fireEvent.change(textarea, {
-        target: { value: "0.75::artist:oda_eiichirou:,", selectionStart: 27, selectionEnd: 27 },
+        target: {
+          value: "0.75::artist:oda_eiichirou:,",
+          selectionStart: 27,
+          selectionEnd: 27,
+        },
       });
       fireEvent.keyDown(textarea, { key: "Backspace" });
       fireEvent.change(textarea, {
-        target: { value: "0.75::artist:oda_eiichirou,", selectionStart: 26, selectionEnd: 26 },
+        target: {
+          value: "0.75::artist:oda_eiichirou,",
+          selectionStart: 26,
+          selectionEnd: 26,
+        },
       });
     });
 
