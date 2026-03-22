@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PromptInput } from "@/components/prompt-input";
 import type { PromptGroup } from "@preload/index.d";
@@ -106,6 +106,53 @@ function renderPromptInput(
 
   return {
     ...render(<ControlledPromptInput />),
+    props,
+  };
+}
+
+function renderToggleablePromptInput(
+  overrides: Partial<React.ComponentProps<typeof PromptInput>> = {},
+) {
+  const onChange = overrides.onChange ?? vi.fn();
+  const props: React.ComponentProps<typeof PromptInput> = {
+    value: "",
+    onChange,
+    groups: [],
+    displayMode: "raw",
+    ...overrides,
+  };
+
+  function ToggleablePromptInput() {
+    const [value, setValue] = React.useState(props.value);
+    const [displayMode, setDisplayMode] = React.useState<
+      React.ComponentProps<typeof PromptInput>["displayMode"]
+    >(props.displayMode);
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() =>
+            setDisplayMode((prev) => (prev === "raw" ? "chips" : "raw"))
+          }
+        >
+          Toggle Mode
+        </button>
+        <PromptInput
+          {...props}
+          value={value}
+          displayMode={displayMode}
+          onChange={(nextValue) => {
+            setValue(nextValue);
+            props.onChange(nextValue);
+          }}
+        />
+      </>
+    );
+  }
+
+  return {
+    ...render(<ToggleablePromptInput />),
     props,
   };
 }
@@ -227,6 +274,61 @@ describe("PromptInput", () => {
     expect(screen.getByText("Select all")).toBeInTheDocument();
   });
 
+  it("renders weighted raw-mode highlights with stronger background tones", () => {
+    const { container } = renderPromptInput({
+      value: "1.4::sparkles::, {sunset}, [simple background]",
+      displayMode: "raw",
+    });
+
+    const highlights = Array.from(
+      container.querySelectorAll("[data-prompt-raw-highlight]"),
+    );
+
+    expect(highlights).toHaveLength(3);
+    expect(highlights[0]).toHaveTextContent("1.4::sparkles::");
+    expect(highlights[0]).toHaveClass("bg-warning/45");
+    expect(highlights[1]).toHaveTextContent("{sunset}");
+    expect(highlights[1]).toHaveClass("bg-primary/40");
+    expect(highlights[2]).toHaveTextContent("[simple background]");
+    expect(highlights[2]).toHaveClass("bg-group/38");
+  });
+
+  it("keeps raw-mode highlight spans aligned to full multi-tag emphasis segments", () => {
+    const prompt =
+      "0.75::artist:oda_eiichirou, year 2023::, {oekaki, lineart}, plain";
+    const { container } = renderPromptInput({
+      value: prompt,
+      displayMode: "raw",
+    });
+
+    const highlights = Array.from(
+      container.querySelectorAll("[data-prompt-raw-highlight]"),
+    );
+
+    expect(highlights).toHaveLength(2);
+    expect(highlights[0]).toHaveTextContent(
+      "0.75::artist:oda_eiichirou, year 2023::",
+    );
+    expect(highlights[1]).toHaveTextContent("{oekaki, lineart}");
+  });
+
+  it("renders malformed emphasis syntax with destructive raw-mode feedback", () => {
+    const { container } = renderPromptInput({
+      value: "1.2::oda_eiichirou, {sunset, [simple background",
+      displayMode: "raw",
+    });
+
+    const errors = Array.from(
+      container.querySelectorAll("[data-prompt-raw-syntax-error]"),
+    );
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toHaveTextContent(
+      "1.2::oda_eiichirou, {sunset, [simple background",
+    );
+    expect(errors[0]).toHaveClass("bg-destructive/42");
+  });
+
   it("cuts and pastes text through the raw-text context menu", async () => {
     const onChange = vi.fn();
     const clipboardWriteText = vi.mocked(navigator.clipboard.writeText);
@@ -306,5 +408,76 @@ describe("PromptInput", () => {
       expect(onChange).toHaveBeenLastCalledWith("prompt!"),
     );
     await waitFor(() => expect(textarea).toHaveValue("prompt!"));
+  });
+
+  it("uses the latest raw-mode value when switching back to chips", async () => {
+    renderToggleablePromptInput({
+      value: "sparkles",
+      displayMode: "raw",
+    });
+
+    const textarea = screen.getByRole("textbox", {
+      name: "tag, tag, tag...",
+    });
+
+    act(() => {
+      fireEvent.change(textarea, {
+        target: { value: "sparkles, sunset, stars" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Toggle Mode" }));
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "stars" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not keep the n-1 malformed explicit-weight token after raw undo recovery", async () => {
+    renderToggleablePromptInput({
+      value: "0.75::artist:oda_eiichirou::,",
+      displayMode: "raw",
+    });
+
+    const textarea = screen.getByRole("textbox", {
+      name: "tag, tag, tag...",
+    }) as HTMLTextAreaElement;
+
+    act(() => {
+      textarea.focus();
+      textarea.setSelectionRange(
+        "0.75::artist:oda_eiichirou::".length,
+        "0.75::artist:oda_eiichirou::".length,
+      );
+      fireEvent.keyDown(textarea, { key: "Backspace" });
+      fireEvent.change(textarea, {
+        target: { value: "0.75::artist:oda_eiichirou:,", selectionStart: 27, selectionEnd: 27 },
+      });
+      fireEvent.keyDown(textarea, { key: "Backspace" });
+      fireEvent.change(textarea, {
+        target: { value: "0.75::artist:oda_eiichirou,", selectionStart: 26, selectionEnd: 26 },
+      });
+    });
+
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Toggle Mode" }));
+      fireEvent.click(screen.getByRole("button", { name: "Toggle Mode" }));
+    });
+
+    const rawAgain = screen.getByRole("textbox", {
+      name: "tag, tag, tag...",
+    }) as HTMLTextAreaElement;
+
+    act(() => {
+      fireEvent.keyDown(rawAgain, { key: "z", ctrlKey: true });
+      fireEvent.keyDown(rawAgain, { key: "z", ctrlKey: true });
+      fireEvent.click(screen.getByRole("button", { name: "Toggle Mode" }));
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "artist:oda_eiichirou" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "artist:oda_eiichirou:" }),
+    ).not.toBeInTheDocument();
   });
 });

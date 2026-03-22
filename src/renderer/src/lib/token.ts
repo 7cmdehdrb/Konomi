@@ -20,6 +20,11 @@ export type WildcardToken = {
 };
 
 export type AnyToken = PromptToken | GroupRefToken | WildcardToken;
+export type PromptPartRange = {
+  raw: string;
+  start: number;
+  end: number;
+};
 
 export function isGroupRef(token: AnyToken): token is GroupRefToken {
   return (token as GroupRefToken).kind === "group";
@@ -71,6 +76,56 @@ export function tokenToRawString(token: AnyToken): string {
   if (token.raw && token.raw.trim()) return token.raw.trim();
   if (Math.abs(token.weight - 1.0) <= 0.001) return token.text;
   return `${token.weight.toFixed(2)}::${token.text}::`;
+}
+
+export function splitPromptPartsWithRanges(
+  source: string,
+  startOffset = 0,
+): PromptPartRange[] {
+  const parts: PromptPartRange[] = [];
+  let partStart = 0;
+  const stack: string[] = [];
+
+  const pushPart = (partEnd: number) => {
+    const raw = source.slice(partStart, partEnd);
+    if (raw.trim().length > 0) {
+      parts.push({
+        raw,
+        start: startOffset + partStart,
+        end: startOffset + partEnd,
+      });
+    }
+    partStart = partEnd + 1;
+  };
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "{" || char === "[") {
+      stack.push(char);
+      continue;
+    }
+
+    if (char === "}") {
+      if (stack[stack.length - 1] === "{") {
+        stack.pop();
+      }
+      continue;
+    }
+
+    if (char === "]") {
+      if (stack[stack.length - 1] === "[") {
+        stack.pop();
+      }
+      continue;
+    }
+
+    if (char === "," && stack.length === 0) {
+      pushPart(index);
+    }
+  }
+
+  pushPart(source.length);
+  return parts;
 }
 
 // Split s at '|' characters that are at brace depth 0 (not inside any {...} pair)
@@ -163,7 +218,7 @@ export function parsePromptTokens(prompt: string): AnyToken[] {
     segments.push({ text: prompt.slice(lastIdx), explicitWeight: null });
 
   for (const seg of segments) {
-    for (const part of seg.text.split(",")) {
+    for (const { raw: part } of splitPromptPartsWithRanges(seg.text)) {
       const trimmedPart = part.trim();
       const wildcard = parseWildcardToken(trimmedPart);
       if (wildcard) {

@@ -8,7 +8,15 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { Copy, ImagePlus, Minus, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Copy,
+  ImagePlus,
+  Minus,
+  Plus,
+  Search,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -19,6 +27,11 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  getPromptEmphasisSyntaxIssueKind,
+  type PromptEmphasisSyntaxIssueKind,
+} from "@/lib/prompt-emphasis-syntax";
+import { getPromptWeightToneClass } from "@/lib/prompt-weight-style";
 import { cn } from "@/lib/utils";
 import type { PromptToken, TokenWeightExpression } from "@/lib/token";
 import type {
@@ -26,15 +39,6 @@ import type {
   PromptTagSuggestStats,
 } from "@preload/index.d";
 import { PromptTagSuggestionIndicator } from "./prompt-tag-suggestion-indicator";
-
-function weightClass(w: number): string {
-  if (w >= 1.3) return "bg-warning/15 text-warning";
-  if (w > 1.0) return "bg-primary/15 text-primary";
-  if (w < 0) return "bg-destructive/15 text-destructive";
-  if (w < 0.75) return "bg-info/15 text-info";
-  if (w < 1.0) return "bg-group/14 text-group";
-  return "bg-muted text-foreground/80";
-}
 
 function formatWeight(weight: number): string {
   if (!Number.isFinite(weight)) return "1";
@@ -127,6 +131,7 @@ interface TokenChipProps {
   sortableId?: SortableId;
   sortableDisabled?: boolean;
   tagSuggestionExclude?: string[];
+  syntaxIssueKind?: PromptEmphasisSyntaxIssueKind | null;
 }
 
 function TokenChipCore({
@@ -154,6 +159,7 @@ function TokenChipCore({
   onTokenFocus,
   onTokenKeyDown,
   tagSuggestionExclude = [],
+  syntaxIssueKind,
   sortable,
 }: Omit<TokenChipProps, "isSortable" | "sortableId" | "sortableDisabled"> & {
   sortable?: SortableBindings;
@@ -546,12 +552,24 @@ function TokenChipCore({
     applyInlineEdit(false);
   };
 
+  // TODO: 프롬프트 강조 문법 깨짐 감지 표시가 TokenChip상태에선 좀 완벽하진 않다. 예를 들어 앞에서 시작된 깨짐인데 뒤의 토큰에 엉뚱하게 전염됨. 추후 개선
   const weighted = Math.abs(token.weight - 1.0) > 0.001;
+  const emphasisSyntaxIssue = syntaxIssueKind ?? getPromptEmphasisSyntaxIssueKind(raw);
+  const hasEmphasisSyntaxIssue = emphasisSyntaxIssue !== null;
   const chipClass = cn(
     "px-1.5 py-1 text-xs rounded border border-border/40 transition-colors cursor-text hover:brightness-105",
-    weighted ? weightClass(token.weight) : "bg-muted text-foreground/80",
+    hasEmphasisSyntaxIssue
+      ? "border-destructive/55 bg-destructive/16 text-destructive"
+      : weighted
+        ? getPromptWeightToneClass(token.weight)
+        : "bg-muted text-foreground/80",
     copied && "ring-1 ring-primary/50 text-primary",
   );
+  const syntaxWarningMessage = hasEmphasisSyntaxIssue
+    ? emphasisSyntaxIssue === "invalidExplicitWeight"
+      ? t("tokenChip.syntax.invalidExplicitWeight")
+      : t("tokenChip.syntax.invalidBracketEmphasis")
+    : null;
 
   const previewRawToken =
     draftExpression === "keyword"
@@ -785,6 +803,7 @@ function TokenChipCore({
           ref={setTriggerRef}
           data-token-chip="true"
           data-token-raw={raw}
+          title={syntaxWarningMessage ?? undefined}
           onContextMenu={handleContextMenu}
           className={cn(
             chipClass,
@@ -820,6 +839,7 @@ function TokenChipCore({
           tabIndex={0}
           data-token-chip="true"
           data-token-raw={raw}
+          title={syntaxWarningMessage ?? undefined}
           onClick={handleTrigger}
           onDoubleClick={() => {
             if (isEditable) onInlineEditOpenChange?.(true);
@@ -839,6 +859,13 @@ function TokenChipCore({
           <span className={cn(constrainToContainer && "min-w-0 truncate")}>
             {token.text}
           </span>
+          {hasEmphasisSyntaxIssue ? (
+            <TriangleAlert
+              data-token-syntax-warning=""
+              aria-hidden="true"
+              className="h-3 w-3 shrink-0 text-destructive"
+            />
+          ) : null}
           {weighted ? (
             <span className="shrink-0 text-[10px] font-mono text-foreground/60">
               {token.weight < 0

@@ -221,6 +221,10 @@ const en = {
       addToSearch: "Add tag to search",
       addToGeneration: "Add tag to generation",
     },
+    syntax: {
+      invalidExplicitWeight: "Invalid explicit emphasis syntax",
+      invalidBracketEmphasis: "Invalid bracket emphasis syntax",
+    },
   },
   groupChip: {
     edited: "Edited",

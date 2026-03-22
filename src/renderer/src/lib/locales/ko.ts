@@ -223,6 +223,10 @@ const ko = {
       addToSearch: "검색어에 태그 추가",
       addToGeneration: "생성모드에 태그 추가",
     },
+    syntax: {
+      invalidExplicitWeight: "명시적 강조 문법이 깨졌습니다",
+      invalidBracketEmphasis: "괄호 강조 문법이 깨졌습니다",
+    },
   },
   groupChip: {
     edited: "편집됨",
