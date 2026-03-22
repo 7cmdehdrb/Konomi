@@ -130,6 +130,13 @@ const en = {
   },
   promptInput: {
     placeholder: "tag, tag, tag...",
+    context: {
+      cut: "Cut",
+      copy: "Copy",
+      paste: "Paste",
+      delete: "Delete",
+      selectAll: "Select all",
+    },
   },
   advancedSearch: {
     title: "Advanced Search",

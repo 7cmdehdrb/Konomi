@@ -132,6 +132,13 @@ const ko = {
   },
   promptInput: {
     placeholder: "tag, tag, tag...",
+    context: {
+      cut: "잘라내기",
+      copy: "복사",
+      paste: "붙여넣기",
+      delete: "삭제",
+      selectAll: "전체 선택",
+    },
   },
   advancedSearch: {
     title: "고급 검색",

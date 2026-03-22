@@ -42,8 +42,20 @@ import { GroupChip } from "./group-chip";
 import { WildcardChip } from "./wildcard-chip";
 import { PromptTagSuggestionIndicator } from "./prompt-tag-suggestion-indicator";
 import { useTranslation } from "react-i18next";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 type EditableToken = AnyToken & { id: string };
+type RawHistoryEntry = {
+  value: string;
+  selectionStart: number;
+  selectionEnd: number;
+};
 const INPUT_WRAP_SPACE_THRESHOLD_PX = 120;
 const INPUT_WRAP_CARET_BUFFER_PX = 18;
 const INPUT_WRAP_TOKEN_GAP_PX = 6;
@@ -54,6 +66,10 @@ const EMPTY_PROMPT_TAG_SUGGEST_STATS: PromptTagSuggestStats = {
   totalTags: 0,
   maxCount: 0,
   bucketThresholds: [],
+};
+const EMPTY_RAW_CONTEXT_MENU_STATE = {
+  hasSelection: false,
+  hasValue: false,
 };
 
 interface PromptInputProps {
@@ -174,6 +190,14 @@ export const PromptInput = memo(function PromptInput({
   const undoStackRef = useRef<{ tokens: EditableToken[]; draft: string }[]>([]);
   const isUndoingRef = useRef(false);
   const lastEmittedRef = useRef<string>(value);
+  const rawUndoStackRef = useRef<RawHistoryEntry[]>([]);
+  const rawRedoStackRef = useRef<RawHistoryEntry[]>([]);
+  const rawSnapshotRef = useRef<RawHistoryEntry>({
+    value,
+    selectionStart: value.length,
+    selectionEnd: value.length,
+  });
+  const lastRawEmittedRef = useRef<string>(value);
 
   const [externalDragOver, setExternalDragOver] = useState(false);
   const [tokens, setTokens] = useState<EditableToken[]>(() =>
@@ -208,6 +232,9 @@ export const PromptInput = memo(function PromptInput({
     useState<PromptTagSuggestStats>(EMPTY_PROMPT_TAG_SUGGEST_STATS);
   const [tagSuggestionOpen, setTagSuggestionOpen] = useState(false);
   const [tagSuggestionIndex, setTagSuggestionIndex] = useState(0);
+  const [rawContextMenuState, setRawContextMenuState] = useState(
+    EMPTY_RAW_CONTEXT_MENU_STATE,
+  );
   const tagSuggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -232,6 +259,25 @@ export const PromptInput = memo(function PromptInput({
     },
     [],
   );
+
+  useEffect(() => {
+    if (value === rawSnapshotRef.current.value) {
+      return;
+    }
+
+    rawSnapshotRef.current = {
+      value,
+      selectionStart: Math.min(rawSnapshotRef.current.selectionStart, value.length),
+      selectionEnd: Math.min(rawSnapshotRef.current.selectionEnd, value.length),
+    };
+
+    if (value !== lastRawEmittedRef.current) {
+      rawUndoStackRef.current = [];
+      rawRedoStackRef.current = [];
+    }
+
+    lastRawEmittedRef.current = value;
+  }, [value]);
 
   const filteredGroups = useMemo(
     () =>
@@ -1001,63 +1047,336 @@ export const PromptInput = memo(function PromptInput({
   const handleRawDrop = (data: string) => {
     const droppedText = serializeExternalDrop(data);
     if (!droppedText) return;
-    onChange(appendPromptChunk(value, droppedText));
-    requestAnimationFrame(() => rawInputRef.current?.focus());
+    const nextValue = appendPromptChunk(value, droppedText);
+    rawUndoStackRef.current = [
+      ...rawUndoStackRef.current.slice(-49),
+      rawSnapshotRef.current,
+    ];
+    rawRedoStackRef.current = [];
+    rawSnapshotRef.current = {
+      value: nextValue,
+      selectionStart: nextValue.length,
+      selectionEnd: nextValue.length,
+    };
+    lastRawEmittedRef.current = nextValue;
+    onChange(nextValue);
+    requestAnimationFrame(() => {
+      const textarea = rawInputRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(nextValue.length, nextValue.length);
+    });
+  };
+
+  const queueRawSelection = (start: number, end = start) => {
+    window.requestAnimationFrame(() => {
+      const textarea = rawInputRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(start, end);
+    });
+  };
+
+  const getRawSelection = () => {
+    const textarea = rawInputRef.current;
+    if (!textarea) return null;
+    const selectionStart = textarea.selectionStart ?? 0;
+    const selectionEnd = textarea.selectionEnd ?? selectionStart;
+    return {
+      currentValue: textarea.value,
+      selectionStart,
+      selectionEnd,
+      selectedText: textarea.value.slice(selectionStart, selectionEnd),
+    };
+  };
+
+  const syncRawSnapshot = () => {
+    const selection = getRawSelection();
+    if (!selection) return null;
+    const nextSnapshot: RawHistoryEntry = {
+      value: selection.currentValue,
+      selectionStart: selection.selectionStart,
+      selectionEnd: selection.selectionEnd,
+    };
+    rawSnapshotRef.current = nextSnapshot;
+    return nextSnapshot;
+  };
+
+  const syncRawContextMenuState = () => {
+    const snapshot = syncRawSnapshot();
+    if (!snapshot) {
+      setRawContextMenuState({
+        hasSelection: false,
+        hasValue: value.length > 0,
+      });
+      return;
+    }
+    setRawContextMenuState({
+      hasSelection: snapshot.selectionStart !== snapshot.selectionEnd,
+      hasValue: snapshot.value.length > 0,
+    });
+  };
+
+  const commitRawValue = (
+    nextValue: string,
+    selection = { start: nextValue.length, end: nextValue.length },
+    currentSnapshot = rawSnapshotRef.current,
+  ) => {
+    if (nextValue === currentSnapshot.value) {
+      rawSnapshotRef.current = {
+        value: nextValue,
+        selectionStart: selection.start,
+        selectionEnd: selection.end,
+      };
+      queueRawSelection(selection.start, selection.end);
+      return;
+    }
+
+    rawUndoStackRef.current = [
+      ...rawUndoStackRef.current.slice(-49),
+      currentSnapshot,
+    ];
+    rawRedoStackRef.current = [];
+    rawSnapshotRef.current = {
+      value: nextValue,
+      selectionStart: selection.start,
+      selectionEnd: selection.end,
+    };
+    lastRawEmittedRef.current = nextValue;
+    onChange(nextValue);
+    queueRawSelection(selection.start, selection.end);
+  };
+
+  const applyRawHistoryEntry = (entry: RawHistoryEntry) => {
+    rawSnapshotRef.current = entry;
+    lastRawEmittedRef.current = entry.value;
+    onChange(entry.value);
+    queueRawSelection(entry.selectionStart, entry.selectionEnd);
+  };
+
+  const handleRawUndo = () => {
+    const stack = rawUndoStackRef.current;
+    if (stack.length === 0) return;
+    const previous = stack[stack.length - 1];
+    rawUndoStackRef.current = stack.slice(0, -1);
+    rawRedoStackRef.current = [
+      ...rawRedoStackRef.current.slice(-49),
+      syncRawSnapshot() ?? rawSnapshotRef.current,
+    ];
+    applyRawHistoryEntry(previous);
+  };
+
+  const handleRawRedo = () => {
+    const stack = rawRedoStackRef.current;
+    if (stack.length === 0) return;
+    const next = stack[stack.length - 1];
+    rawRedoStackRef.current = stack.slice(0, -1);
+    rawUndoStackRef.current = [
+      ...rawUndoStackRef.current.slice(-49),
+      syncRawSnapshot() ?? rawSnapshotRef.current,
+    ];
+    applyRawHistoryEntry(next);
+  };
+
+  const replaceRawSelection = (nextText: string) => {
+    const selection = getRawSelection();
+    if (!selection) return false;
+    const { currentValue, selectionStart, selectionEnd } = selection;
+    const nextValue =
+      currentValue.slice(0, selectionStart) +
+      nextText +
+      currentValue.slice(selectionEnd);
+    const nextCursor = selectionStart + nextText.length;
+    commitRawValue(nextValue, {
+      start: nextCursor,
+      end: nextCursor,
+    }, {
+      value: currentValue,
+      selectionStart,
+      selectionEnd,
+    });
+    return true;
+  };
+
+  const handleRawCopy = async () => {
+    const selection = getRawSelection();
+    if (
+      !selection ||
+      selection.selectionStart === selection.selectionEnd ||
+      typeof navigator?.clipboard?.writeText !== "function"
+    ) {
+      return;
+    }
+    await navigator.clipboard.writeText(selection.selectedText);
+    queueRawSelection(selection.selectionStart, selection.selectionEnd);
+  };
+
+  const handleRawCut = async () => {
+    const selection = getRawSelection();
+    if (
+      !selection ||
+      selection.selectionStart === selection.selectionEnd ||
+      typeof navigator?.clipboard?.writeText !== "function"
+    ) {
+      return;
+    }
+    await navigator.clipboard.writeText(selection.selectedText);
+    replaceRawSelection("");
+  };
+
+  const handleRawPaste = async () => {
+    if (typeof navigator?.clipboard?.readText !== "function") return;
+    const pastedText = await navigator.clipboard.readText();
+    if (!pastedText) return;
+    replaceRawSelection(pastedText);
+  };
+
+  const handleRawDelete = () => {
+    const selection = getRawSelection();
+    if (!selection || selection.selectionStart === selection.selectionEnd) {
+      return;
+    }
+    replaceRawSelection("");
+  };
+
+  const handleRawSelectAll = () => {
+    const selection = getRawSelection();
+    if (!selection || selection.currentValue.length === 0) return;
+    queueRawSelection(0, selection.currentValue.length);
+  };
+
+  const handleRawKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+      if (e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRawRedo();
+        } else {
+          handleRawUndo();
+        }
+        return;
+      }
+
+      if (!e.shiftKey && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        handleRawRedo();
+        return;
+      }
+    }
+
+    syncRawSnapshot();
   };
 
   if (isRawMode) {
     return (
-      <div
-        className={cn(
-          "w-full min-w-0 rounded-lg border bg-secondary/60 px-2 py-2 overflow-y-auto overflow-x-hidden",
-          externalDragOver ? "border-primary/60" : "border-border/60",
-          resizable && "resize-y",
-          className,
-        )}
-        style={{ minHeight, maxHeight }}
-        onDragOver={
-          allowExternalDrop
-            ? (e) => {
-                if (e.dataTransfer.types.includes(DRAG_TOKEN_MIME)) {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "copy";
-                  setExternalDragOver(true);
-                }
-              }
-            : undefined
-        }
-        onDragLeave={
-          allowExternalDrop ? () => setExternalDragOver(false) : undefined
-        }
-        onDrop={
-          allowExternalDrop
-            ? (e) => {
-                setExternalDragOver(false);
-                const data = e.dataTransfer.getData(DRAG_TOKEN_MIME);
-                if (!data) return;
-                e.preventDefault();
-                handleRawDrop(data);
-              }
-            : undefined
-        }
+      <ContextMenu
+        onOpenChange={(open) => {
+          if (open) syncRawContextMenuState();
+        }}
       >
-        <textarea
-          ref={rawInputRef}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          aria-label={resolvedPlaceholder}
-          placeholder={resolvedPlaceholder}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          className="block w-full resize-none bg-transparent px-1 py-0.5 text-sm leading-6 outline-none placeholder:text-muted-foreground/40"
-          style={{
-            minHeight: Math.max(40, minHeight - 16),
-            maxHeight: Math.max(40, maxHeight - 16),
-          }}
-        />
-      </div>
+        <div
+          className={cn(
+            "w-full min-w-0 rounded-lg border bg-secondary/60 px-2 py-2 overflow-y-auto overflow-x-hidden",
+            externalDragOver ? "border-primary/60" : "border-border/60",
+            resizable && "resize-y",
+            className,
+          )}
+          style={{ minHeight, maxHeight }}
+          onDragOver={
+            allowExternalDrop
+              ? (e) => {
+                  if (e.dataTransfer.types.includes(DRAG_TOKEN_MIME)) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                    setExternalDragOver(true);
+                  }
+                }
+              : undefined
+          }
+          onDragLeave={
+            allowExternalDrop ? () => setExternalDragOver(false) : undefined
+          }
+          onDrop={
+            allowExternalDrop
+              ? (e) => {
+                  setExternalDragOver(false);
+                  const data = e.dataTransfer.getData(DRAG_TOKEN_MIME);
+                  if (!data) return;
+                  e.preventDefault();
+                  handleRawDrop(data);
+                }
+              : undefined
+          }
+        >
+          <ContextMenuTrigger asChild>
+            <textarea
+              ref={rawInputRef}
+              value={value}
+              onChange={(e) =>
+                commitRawValue(e.target.value, {
+                  start: e.target.selectionStart ?? e.target.value.length,
+                  end: e.target.selectionEnd ?? e.target.value.length,
+                }, rawSnapshotRef.current)
+              }
+              onKeyDown={handleRawKeyDown}
+              onKeyUp={syncRawSnapshot}
+              onMouseUp={syncRawSnapshot}
+              onSelect={syncRawSnapshot}
+              onFocus={syncRawSnapshot}
+              onContextMenu={syncRawContextMenuState}
+              aria-label={resolvedPlaceholder}
+              placeholder={resolvedPlaceholder}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              className="block w-full resize-none bg-transparent px-1 py-0.5 text-sm leading-6 outline-none placeholder:text-muted-foreground/40"
+              style={{
+                minHeight: Math.max(40, minHeight - 16),
+                maxHeight: Math.max(40, maxHeight - 16),
+              }}
+            />
+          </ContextMenuTrigger>
+          <ContextMenuContent className="min-w-40">
+            <ContextMenuItem
+              disabled={!rawContextMenuState.hasSelection}
+              onSelect={() => {
+                void handleRawCut();
+              }}
+            >
+              {t("promptInput.context.cut")}
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={!rawContextMenuState.hasSelection}
+              onSelect={() => {
+                void handleRawCopy();
+              }}
+            >
+              {t("promptInput.context.copy")}
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() => {
+                void handleRawPaste();
+              }}
+            >
+              {t("promptInput.context.paste")}
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={!rawContextMenuState.hasSelection}
+              onSelect={handleRawDelete}
+            >
+              {t("promptInput.context.delete")}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              disabled={!rawContextMenuState.hasValue}
+              onSelect={handleRawSelectAll}
+            >
+              {t("promptInput.context.selectAll")}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </div>
+      </ContextMenu>
     );
   }
 

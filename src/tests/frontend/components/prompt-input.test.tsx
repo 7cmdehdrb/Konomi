@@ -207,4 +207,104 @@ describe("PromptInput", () => {
       expect(onChange).toHaveBeenLastCalledWith("raw prompt text"),
     );
   });
+
+  it("shows a Radix context menu for the raw-text editor", async () => {
+    renderPromptInput({
+      value: "sparkles, sunset",
+      displayMode: "raw",
+    });
+
+    const textarea = screen.getByRole("textbox", {
+      name: "tag, tag, tag...",
+    });
+
+    fireEvent.contextMenu(textarea);
+
+    expect(await screen.findByText("Cut")).toBeInTheDocument();
+    expect(screen.getByText("Copy")).toBeInTheDocument();
+    expect(screen.getByText("Paste")).toBeInTheDocument();
+    expect(screen.getByText("Delete")).toBeInTheDocument();
+    expect(screen.getByText("Select all")).toBeInTheDocument();
+  });
+
+  it("cuts and pastes text through the raw-text context menu", async () => {
+    const onChange = vi.fn();
+    const clipboardWriteText = vi.mocked(navigator.clipboard.writeText);
+    const clipboardReadText = vi.mocked(navigator.clipboard.readText);
+    clipboardWriteText.mockClear();
+    clipboardReadText.mockClear();
+    clipboardReadText.mockResolvedValueOnce("stars");
+
+    renderPromptInput({
+      value: "prompt text",
+      onChange,
+      displayMode: "raw",
+    });
+
+    const textarea = screen.getByRole("textbox", {
+      name: "tag, tag, tag...",
+    }) as HTMLTextAreaElement;
+
+    textarea.focus();
+    textarea.setSelectionRange(0, 6);
+
+    fireEvent.contextMenu(textarea);
+    fireEvent.click(await screen.findByText("Cut"));
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenLastCalledWith("prompt");
+      expect(onChange).toHaveBeenLastCalledWith(" text");
+    });
+    await waitFor(() => expect(textarea).toHaveValue(" text"));
+
+    textarea.focus();
+    textarea.setSelectionRange(0, 0);
+
+    fireEvent.contextMenu(textarea);
+    fireEvent.click(await screen.findByText("Paste"));
+
+    await waitFor(() => {
+      expect(clipboardReadText).toHaveBeenCalled();
+      expect(onChange).toHaveBeenLastCalledWith("stars text");
+    });
+    await waitFor(() => expect(textarea).toHaveValue("stars text"));
+  });
+
+  it("undoes and redoes raw-text edits with keyboard shortcuts", async () => {
+    const onChange = vi.fn();
+
+    renderPromptInput({
+      value: "prompt",
+      onChange,
+      displayMode: "raw",
+    });
+
+    const textarea = screen.getByRole("textbox", {
+      name: "tag, tag, tag...",
+    }) as HTMLTextAreaElement;
+
+    textarea.focus();
+    textarea.setSelectionRange(6, 6);
+    fireEvent.keyDown(textarea, { key: "!" });
+    fireEvent.change(textarea, { target: { value: "prompt!" } });
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith("prompt!"),
+    );
+    await waitFor(() => expect(textarea).toHaveValue("prompt!"));
+
+    fireEvent.keyDown(textarea, { key: "z", ctrlKey: true });
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith("prompt"),
+    );
+    await waitFor(() => expect(textarea).toHaveValue("prompt"));
+
+    fireEvent.keyDown(textarea, { key: "z", ctrlKey: true, shiftKey: true });
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith("prompt!"),
+    );
+    await waitFor(() => expect(textarea).toHaveValue("prompt!"));
+  });
 });

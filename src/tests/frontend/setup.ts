@@ -46,6 +46,7 @@ Object.defineProperty(window, "cancelAnimationFrame", {
 Object.defineProperty(navigator, "clipboard", {
   configurable: true,
   value: {
+    readText: vi.fn().mockResolvedValue(""),
     writeText: vi.fn().mockResolvedValue(undefined),
   },
 });
