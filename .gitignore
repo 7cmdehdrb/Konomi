@@ -23,6 +23,7 @@ example_datas
 /src/generated/prisma
 prisma/migrations
 debug.ts
+database/konomi.db
 database/*.db-journal
 database/*.db-shm
 database/*.db-wal
