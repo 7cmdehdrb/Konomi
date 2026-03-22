@@ -17,12 +17,10 @@ const ko = {
     splash: {
       title: "앱 시작 준비 중",
       status: {
-        checkingFolders:
-          "등록된 폴더를 확인하고 앱을 시작할 준비를 하고 있습니다.",
-        preparingOnboarding:
-          "시작 화면을 준비하고 바로 폴더를 추가할 수 있게 하고 있습니다.",
-        syncingLibrary: "등록된 이미지를 확인하고 앱 상태를 불러오고 있습니다.",
-        finalizing: "마지막 준비를 마무리하고 있습니다.",
+        checkingFolders: "등록된 폴더 확인 중...",
+        preparingOnboarding: "시작 화면 준비 중...",
+        syncingLibrary: "등록된 이미지 확인 중...",
+        finalizing: "거의 다 마무리 됐습니다.",
       },
       detail: {
         scanFolders: "{{folderLabel}} 확인 중 {{done}}/{{total}}",

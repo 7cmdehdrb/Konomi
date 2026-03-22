@@ -17,11 +17,10 @@ const en = {
     splash: {
       title: "Getting Konomi Ready",
       status: {
-        checkingFolders: "Checking your folders and getting the app ready.",
-        preparingOnboarding:
-          "Preparing the start screen so you can add a folder right away.",
-        syncingLibrary: "Checking registered images and restoring app state.",
-        finalizing: "Wrapping things up before launch.",
+        checkingFolders: "Checking registered folders...",
+        preparingOnboarding: "Preparing the start screen...",
+        syncingLibrary: "Checking registered images...",
+        finalizing: "Almost done.",
       },
       detail: {
         scanFolders: "Checking {{folderLabel}} {{done}}/{{total}}",
