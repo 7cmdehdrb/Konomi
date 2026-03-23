@@ -26,8 +26,6 @@ Konomi is an Electron desktop app that scans user-selected folders, extracts ima
 
 Download the installer for your platform from the [Releases](https://github.com/blackwaterbread/Konomi/releases) page and install it.
 
-If you are a developer and want setup instructions, architecture notes, or implementation details, see [README.dev.md](https://github.com/blackwaterbread/Konomi/blob/main/README.dev.md)
-
 ## License
 
 This project is licensed under the [BSD 2-Clause License](https://github.com/blackwaterbread/Konomi/blob/main/LICENSE).
