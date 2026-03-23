@@ -11,7 +11,7 @@ Konomi is an Electron desktop app that scans user-selected folders, extracts ima
 ## Key Features
 
 - Local folder-based image management
-- Compatibility with NovelAI and WebUI PNG metadata
+- Compatibility with NovelAI and WebUI, Midjourney PNG, WebP metadata
 - Search by prompt, tag, resolution, and model
 - Favorites, custom categories, and random pick
 - Duplicate file detection and duplicate-resolution flow when adding folders
