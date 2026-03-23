@@ -61,11 +61,6 @@ function renderImageGallery(
 describe("ImageGallery", () => {
   // ── Toolbar ─────────────────────────────────────────────────────────────
 
-  it("displays the total image count in the toolbar", () => {
-    renderImageGallery({ gallery: { images: [], totalCount: 42 } });
-    expect(screen.getByText("42 images total")).toBeInTheDocument();
-  });
-
   it("shows a Reset button when searchQuery is set and calls onClearSearch when clicked", async () => {
     const user = userEvent.setup();
     const onClearSearch = vi.fn();

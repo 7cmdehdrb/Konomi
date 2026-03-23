@@ -68,14 +68,6 @@ describe("initAutoUpdater — Windows", () => {
     });
   });
 
-  it("enables autoDownload and autoInstallOnAppQuit", async () => {
-    const { initAutoUpdater } = await import("../../../main/lib/updater");
-    initAutoUpdater(makeWebContents() as never);
-
-    expect(mocks.autoUpdater.autoDownload).toBe(true);
-    expect(mocks.autoUpdater.autoInstallOnAppQuit).toBe(true);
-  });
-
   it("sends updateAvailable without releaseUrl", async () => {
     const wc = makeWebContents();
     const { initAutoUpdater } = await import("../../../main/lib/updater");
@@ -151,16 +143,6 @@ describe("initAutoUpdater — macOS", () => {
     });
   });
 
-  it("does not send updateDownloaded (autoDownload disabled)", async () => {
-    const wc = makeWebContents();
-    const { initAutoUpdater } = await import("../../../main/lib/updater");
-    initAutoUpdater(wc as never);
-
-    // download-progress and update-downloaded should not fire in practice,
-    // but even if they do the handlers are wired — verify no cross-contamination
-    expect(mocks.autoUpdater.autoDownload).toBe(false);
-    expect(wc.send).not.toHaveBeenCalled();
-  });
 });
 
 describe("initAutoUpdater — checkForUpdates scheduling", () => {

@@ -18,7 +18,8 @@ describe("useAutoUpdate", () => {
     );
   });
 
-  it("shows new version toast with download button when releaseUrl is present (macOS)", () => {
+  it("shows download button (macOS) that opens the release URL when clicked", () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     const releaseUrl =
       "https://github.com/blackwaterbread/Konomi/releases/latest";
     renderHook(() => useAutoUpdate());
@@ -37,20 +38,6 @@ describe("useAutoUpdate", () => {
         action: expect.objectContaining({ label: "Download" }),
       }),
     );
-  });
-
-  it("opens release URL when download button is clicked (macOS)", () => {
-    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-    const releaseUrl =
-      "https://github.com/blackwaterbread/Konomi/releases/latest";
-    renderHook(() => useAutoUpdate());
-
-    act(() => {
-      preloadEvents.appInfo.updateAvailable.emit({
-        version: "1.2.0",
-        releaseUrl,
-      });
-    });
 
     const { action } = (toast.info as ReturnType<typeof vi.fn>).mock.calls[0][1];
     act(() => {
@@ -61,7 +48,7 @@ describe("useAutoUpdate", () => {
     openSpy.mockRestore();
   });
 
-  it("shows install toast when update is downloaded", () => {
+  it("shows install button after download that calls installUpdate when clicked", () => {
     renderHook(() => useAutoUpdate());
 
     act(() => {
@@ -75,14 +62,6 @@ describe("useAutoUpdate", () => {
         action: expect.objectContaining({ label: "Install Now" }),
       }),
     );
-  });
-
-  it("calls installUpdate when install button is clicked", () => {
-    renderHook(() => useAutoUpdate());
-
-    act(() => {
-      preloadEvents.appInfo.updateDownloaded.emit({ version: "1.2.0" });
-    });
 
     const { action } = (toast.success as ReturnType<typeof vi.fn>).mock.calls[0][1];
     act(() => {
