@@ -3032,7 +3032,7 @@ const LeftPanel = memo(function LeftPanel({
 
       <div className="relative flex flex-1 min-h-0 flex-col">
         {isNovelAIService && (!hasApiKey || !outputFolder) && !tourActive && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 backdrop-blur-sm bg-sidebar/60 select-none">
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 backdrop-blur-sm bg-sidebar/60 select-none">
             <Settings className="h-8 w-8 text-muted-foreground/60" />
             <div className="flex flex-col items-center gap-1">
               <span className="text-sm font-medium text-foreground/80">
