@@ -4,6 +4,7 @@ import type { NovelAIMeta } from "@/types/nai";
 import { readMidjourneyMetaFromBuffer } from "./midjourney";
 import { readWebuiMetaFromBuffer } from "./webui";
 import { readPngTextChunks } from "./png-meta";
+import { decodeWebpAlpha } from "./webp-alpha";
 
 const PAETH = (a: number, b: number, c: number): number => {
   const p = a + b - c;
@@ -276,7 +277,38 @@ export function readNaiMetaFromBuffer(buf: Buffer): NovelAIMeta | null {
   return readNaiMetaFromPngText(buf) ?? readNaiMetaFromLsb(buf);
 }
 
+function isWebp(buf: Buffer): boolean {
+  return (
+    buf.length >= 12 &&
+    buf.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buf.subarray(8, 12).toString("ascii") === "WEBP"
+  );
+}
+
+function readNaiMetaFromWebp(buf: Buffer): NovelAIMeta | null {
+  try {
+    const decoded = decodeWebpAlpha(buf);
+    if (!decoded) return null;
+    const { alpha, width, height } = decoded;
+    const MAX_BITS = 15 * 8 + 32 + 2_000_000;
+    const bA: number[] = [];
+    let done = false;
+    for (let x = 0; x < width && !done; x++) {
+      for (let y = 0; y < height && !done; y++) {
+        bA.push(alpha[y * width + x] & 1);
+        if (bA.length >= MAX_BITS) done = true;
+      }
+    }
+    const raw = tryDecode(bA);
+    if (!raw || !isNovelAI(raw)) return null;
+    return parseNaiComment(raw);
+  } catch {
+    return null;
+  }
+}
+
 export function readImageMetaFromBuffer(buf: Buffer): NovelAIMeta | null {
+  if (isWebp(buf)) return readNaiMetaFromWebp(buf);
   return (
     readWebuiMetaFromBuffer(buf) ??
     readMidjourneyMetaFromBuffer(buf) ??

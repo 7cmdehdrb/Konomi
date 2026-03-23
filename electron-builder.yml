@@ -97,6 +97,9 @@ linux:
     - deb
   category: Utility
 
+asarUnpack:
+  - "prebuilds/**"
+
 npmRebuild: false
 electronLanguages:
   - en-US

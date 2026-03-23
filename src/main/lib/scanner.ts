@@ -22,7 +22,7 @@ async function walkPngFiles(
           continue;
         }
         if (!entry.isFile()) continue;
-        if (path.extname(entry.name).toLowerCase() !== ".png") continue;
+        if (![".png", ".webp"].includes(path.extname(entry.name).toLowerCase())) continue;
         onFile(fullPath);
       }
     } catch {

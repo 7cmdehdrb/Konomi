@@ -48,7 +48,7 @@ class FolderWatcher {
             return;
           }
           const fullPath = path.join(folderPath, filename);
-          if (path.extname(fullPath).toLowerCase() !== ".png") return;
+          if (![".png", ".webp"].includes(path.extname(fullPath).toLowerCase())) return;
           this.scheduleProcess(folderId, fullPath);
         },
       );

@@ -32,7 +32,8 @@
     "db:migrate": "bun run db:prepare-dir && cross-env DATABASE_URL=file:./database/konomi.db bunx --bun prisma migrate dev",
     "db:init": "node ./scripts/reset-dev-user-data.mjs",
     "db:init:prisma": "bun run db:prepare-dir && cross-env DATABASE_URL=file:./database/konomi.db bunx --bun prisma migrate reset --force",
-    "db:prompts": "node ./scripts/run-electron-node.mjs ./scripts/build-prompts-db.mjs"
+    "db:prompts": "node ./scripts/run-electron-node.mjs ./scripts/build-prompts-db.mjs",
+    "prebuild:native": "node scripts/build-native.mjs"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.4.2",
@@ -83,6 +84,7 @@
     "i18next": "^25.8.18",
     "jsdom": "^29.0.1",
     "lucide-react": "^0.564.0",
+    "node-addon-api": "^8.6.0",
     "novelai-sdk-unofficial": "^1.1.4",
     "prettier": "^3.7.4",
     "prisma": "^7.4.2",
