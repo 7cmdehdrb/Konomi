@@ -53,6 +53,10 @@ const imageScanFolder = createEventChannel<{
   folderName?: string;
   active: boolean;
 }>();
+const imageDupCheckProgress = createEventChannel<{
+  done: number;
+  total: number;
+}>();
 const naiGeneratePreview = createEventChannel<string>();
 const appUpdateAvailable = createEventChannel<{
   version: string;
@@ -70,6 +74,7 @@ export const preloadEvents = {
     scanProgress: imageScanProgress,
     searchStatsProgress: imageSearchStatsProgress,
     scanFolder: imageScanFolder,
+    dupCheckProgress: imageDupCheckProgress,
   },
   nai: {
     generatePreview: naiGeneratePreview,
@@ -156,6 +161,7 @@ export const preloadMocks = {
     onSearchStatsProgress: imageSearchStatsProgress.subscribe,
     cancelScan: vi.fn().mockResolvedValue(undefined),
     onScanFolder: imageScanFolder.subscribe,
+    onDupCheckProgress: imageDupCheckProgress.subscribe,
   },
   dialog: {
     selectDirectory: vi.fn().mockResolvedValue(null),
@@ -168,6 +174,7 @@ export const preloadMocks = {
     delete: vi.fn().mockResolvedValue(undefined),
     rename: vi.fn(),
     revealInExplorer: vi.fn().mockResolvedValue(undefined),
+    listSubdirectories: vi.fn().mockResolvedValue([]),
   },
   nai: {
     validateApiKey: vi.fn().mockResolvedValue({ valid: true, tier: "Scroll" }),
@@ -205,6 +212,7 @@ export function resetPreloadMocks(): void {
   preloadEvents.image.scanProgress.reset();
   preloadEvents.image.searchStatsProgress.reset();
   preloadEvents.image.scanFolder.reset();
+  preloadEvents.image.dupCheckProgress.reset();
   preloadEvents.nai.generatePreview.reset();
   preloadEvents.appInfo.updateAvailable.reset();
   preloadEvents.appInfo.updateDownloaded.reset();
@@ -276,6 +284,7 @@ export function resetPreloadMocks(): void {
 
   preloadMocks.dialog.selectDirectory.mockReset().mockResolvedValue(null);
 
+
   preloadMocks.folder.list.mockReset().mockResolvedValue([]);
   preloadMocks.folder.create.mockReset();
   preloadMocks.folder.findDuplicates.mockReset().mockResolvedValue([]);
@@ -285,6 +294,7 @@ export function resetPreloadMocks(): void {
   preloadMocks.folder.delete.mockReset().mockResolvedValue(undefined);
   preloadMocks.folder.rename.mockReset();
   preloadMocks.folder.revealInExplorer.mockReset().mockResolvedValue(undefined);
+  preloadMocks.folder.listSubdirectories.mockReset().mockResolvedValue([]);
 
   preloadMocks.nai.validateApiKey.mockReset().mockResolvedValue({
     valid: true,

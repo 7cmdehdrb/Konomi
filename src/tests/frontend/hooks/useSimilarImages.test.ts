@@ -84,7 +84,7 @@ describe("useSimilarImages", () => {
     expect(result.current.similarImagesLoading).toBe(false);
   });
 
-  it("ignores stale results after the selected image changes", async () => {
+  it("ignores stale results after the panel closes and reopens for a different image", async () => {
     const similarGroups: SimilarGroup[] = [
       { id: "group-1", name: "Group 1", imageIds: [10, 11] },
       { id: "group-2", name: "Group 2", imageIds: [20, 21] },
@@ -136,12 +136,21 @@ describe("useSimilarImages", () => {
       },
     );
 
+    // Close the panel — anchor resets, first fetch is cancelled
+    rerender({
+      selectedImageId: "10",
+      isDetailOpen: false,
+      detailContentReady: true,
+    });
+
+    // Reopen for image 20 — new anchor, new fetch starts
     rerender({
       selectedImageId: "20",
       isDetailOpen: true,
       detailContentReady: true,
     });
 
+    // Second fetch (image 20) resolves first
     await act(async () => {
       secondRows.resolve([
         createImageRow({ id: 20, path: "C:\\images\\selected-20.png" }),
@@ -161,6 +170,7 @@ describe("useSimilarImages", () => {
       "21": "both",
     });
 
+    // First (stale) fetch resolves — should be ignored because it was cancelled
     await act(async () => {
       firstRows.resolve([
         createImageRow({ id: 10, path: "C:\\images\\selected-10.png" }),

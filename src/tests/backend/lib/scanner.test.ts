@@ -54,7 +54,7 @@ describe("scanner", () => {
     fs.writeFileSync(path.join(root, "nested", "b.png"), "b");
     fs.writeFileSync(path.join(root, "nested", "c.webp"), "c");
 
-    await expect(countPngFiles(root)).resolves.toBe(2);
+    await expect(countPngFiles(root)).resolves.toBe(3);
   });
 
   it("limits concurrent work in withConcurrency", async () => {

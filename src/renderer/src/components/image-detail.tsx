@@ -61,7 +61,7 @@ const SimilarThumb = memo(function SimilarThumb({
           ? "ring-primary cursor-default"
           : "ring-transparent hover:ring-primary/50 cursor-pointer",
       )}
-      onClick={() => onSimilarImageClick?.(img)}
+      onClick={() => !isCurrent && onSimilarImageClick?.(img)}
     >
       {!loaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/70">
@@ -512,9 +512,11 @@ export function ImageDetail({
   const otherSimilar = hasSimilar
     ? similarImages.filter((img) => img.id !== effectiveAnchorId)
     : [];
+  // Page 0: anchor takes 1 slot, so (pageSize - 1) non-anchor items.
+  // Pages 1+: pageSize non-anchor items each (no anchor shown).
   const totalPages =
     otherSimilar.length > 0
-      ? Math.ceil(otherSimilar.length / similarPageSize)
+      ? Math.ceil((otherSimilar.length + 1) / similarPageSize)
       : 0;
 
   // On first open: defer src via double RAF so the panel shell paints first.
@@ -599,10 +601,13 @@ export function ImageDetail({
   // Never fully unmount — just hide with CSS so DOM isn't recreated on every open
   if (!image) return null;
 
-  const pagedOther = otherSimilar.slice(
-    similarPage * similarPageSize,
-    (similarPage + 1) * similarPageSize,
-  );
+  const pagedOther =
+    similarPage === 0
+      ? otherSimilar.slice(0, similarPageSize - 1)
+      : otherSimilar.slice(
+          similarPage * similarPageSize - 1,
+          (similarPage + 1) * similarPageSize - 1,
+        );
   const isPanelLoading = !detailContentReady;
 
   return (
@@ -636,7 +641,7 @@ export function ImageDetail({
             {hasSimilar ? (
               <TooltipProvider delayDuration={300}>
                 <div className="p-2 space-y-1.5">
-                  {currentThumb && (
+                  {currentThumb && similarPage === 0 && (
                     <SimilarThumb
                       key={currentThumb.id}
                       img={currentThumb}

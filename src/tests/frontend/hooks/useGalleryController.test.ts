@@ -242,6 +242,8 @@ describe("useGalleryController", () => {
     } as const;
     const resolutionFilters: Array<{ width: number; height: number }> = [];
     const modelFilters: string[] = [];
+    const seedFilters: number[] = [];
+    const excludeTags: string[] = [];
 
     const { result } = renderHook(() =>
       useGalleryController({
@@ -251,8 +253,8 @@ describe("useGalleryController", () => {
         queryFragment,
         resolutionFilters,
         modelFilters,
-        seedFilters: [],
-        excludeTags: [],
+        seedFilters,
+        excludeTags,
         folderCount: 1,
       }),
     );
