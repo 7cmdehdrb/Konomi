@@ -57,6 +57,8 @@ contextBridge.exposeInMainWorld("image", {
     randomSeed?: number;
     resolutionFilters?: Array<{ width: number; height: number }>;
     modelFilters?: string[];
+    seedFilters?: number[];
+    excludeTags?: string[];
   }) => ipcRenderer.invoke("image:listPage", query),
   listMatching: (query: {
     page?: number;
@@ -71,6 +73,8 @@ contextBridge.exposeInMainWorld("image", {
     randomSeed?: number;
     resolutionFilters?: Array<{ width: number; height: number }>;
     modelFilters?: string[];
+    seedFilters?: number[];
+    excludeTags?: string[];
   }) => ipcRenderer.invoke("image:listMatching", query),
   listByIds: (ids: number[]) => ipcRenderer.invoke("image:listByIds", ids),
   scan: (options?: {

@@ -157,6 +157,10 @@ const ko = {
     model: "모델",
     allModels: "(모든 모델)",
     modelPlaceholder: "모델명 직접 입력",
+    seed: "시드",
+    seedPlaceholder: "시드 번호 입력",
+    excludeTag: "태그 제외",
+    excludeTagPlaceholder: "제외할 태그 입력",
   },
   promptGroupPanel: {
     title: "그룹 프롬프트",

@@ -80,6 +80,8 @@ export type ImageListQuery = {
   randomSeed?: number;
   resolutionFilters?: Array<{ width: number; height: number }>;
   modelFilters?: string[];
+  seedFilters?: number[];
+  excludeTags?: string[];
   subfolderFilters?: Array<{
     folderId: number;
     selectedPaths: string[];

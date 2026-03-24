@@ -156,6 +156,10 @@ const en = {
     model: "Model",
     allModels: "(All models)",
     modelPlaceholder: "Enter model name",
+    seed: "Seed",
+    seedPlaceholder: "Enter seed number",
+    excludeTag: "Exclude Tag",
+    excludeTagPlaceholder: "Enter tag to exclude",
   },
   promptGroupPanel: {
     title: "Prompt Groups",

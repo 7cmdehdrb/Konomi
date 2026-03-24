@@ -116,6 +116,26 @@ export default function App({ initialFolderCount = null }: AppProps) {
         .map((f) => f.value),
     [advancedFilters],
   );
+  const seedFilters = useMemo(
+    () =>
+      advancedFilters
+        .filter(
+          (f): f is Extract<AdvancedFilter, { type: "seed" }> =>
+            f.type === "seed",
+        )
+        .map((f) => f.value),
+    [advancedFilters],
+  );
+  const excludeTags = useMemo(
+    () =>
+      advancedFilters
+        .filter(
+          (f): f is Extract<AdvancedFilter, { type: "excludeTag" }> =>
+            f.type === "excludeTag",
+        )
+        .map((f) => f.value),
+    [advancedFilters],
+  );
   const {
     images,
     setImages,
@@ -133,6 +153,8 @@ export default function App({ initialFolderCount = null }: AppProps) {
     queryFragment,
     resolutionFilters,
     modelFilters,
+    seedFilters,
+    excludeTags,
     folderCount,
     subfolderFilters,
   });

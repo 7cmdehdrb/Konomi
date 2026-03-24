@@ -22,6 +22,8 @@ interface UseGalleryControllerOptions {
   queryFragment: GalleryQueryFragment;
   resolutionFilters: Array<{ width: number; height: number }>;
   modelFilters: string[];
+  seedFilters: number[];
+  excludeTags: string[];
   folderCount: number | null;
   subfolderFilters?: ImageListQuery["subfolderFilters"];
 }
@@ -33,6 +35,8 @@ export function useGalleryController({
   queryFragment,
   resolutionFilters,
   modelFilters,
+  seedFilters,
+  excludeTags,
   folderCount,
   subfolderFilters,
 }: UseGalleryControllerOptions) {
@@ -57,10 +61,14 @@ export function useGalleryController({
       randomSeed: queryFragment.randomSeed,
       resolutionFilters,
       modelFilters,
+      seedFilters,
+      excludeTags,
       subfolderFilters,
     }),
     [
       modelFilters,
+      seedFilters,
+      excludeTags,
       pageSize,
       queryFragment.builtinCategory,
       queryFragment.customCategoryId,
@@ -99,10 +107,14 @@ export function useGalleryController({
         randomSeed: queryFragment.randomSeed,
         resolutionFilters,
         modelFilters,
+        seedFilters,
+        excludeTags,
         totalImageCount,
       }),
     [
       modelFilters,
+      seedFilters,
+      excludeTags,
       queryFragment.builtinCategory,
       queryFragment.customCategoryId,
       queryFragment.onlyRecent,

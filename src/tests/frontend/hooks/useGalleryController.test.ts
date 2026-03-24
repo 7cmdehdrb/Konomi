@@ -82,6 +82,8 @@ describe("useGalleryController", () => {
         queryFragment,
         resolutionFilters,
         modelFilters,
+        seedFilters: [],
+        excludeTags: [],
         folderCount: 2,
       }),
     );
@@ -184,6 +186,8 @@ describe("useGalleryController", () => {
         queryFragment,
         resolutionFilters,
         modelFilters,
+        seedFilters: [],
+        excludeTags: [],
         folderCount: 0,
       }),
     );
@@ -247,6 +251,8 @@ describe("useGalleryController", () => {
         queryFragment,
         resolutionFilters,
         modelFilters,
+        seedFilters: [],
+        excludeTags: [],
         folderCount: 1,
       }),
     );
@@ -335,6 +341,8 @@ describe("useGalleryController", () => {
         queryFragment,
         resolutionFilters,
         modelFilters,
+        seedFilters: [],
+        excludeTags: [],
         folderCount: 1,
       }),
     );

@@ -34,6 +34,8 @@ export function AdvancedSearchModal({
   const [manualHeight, setManualHeight] = useState("");
   const [manualModel, setManualModel] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(-1);
+  const [manualSeed, setManualSeed] = useState("");
+  const [manualExcludeTag, setManualExcludeTag] = useState("");
 
   const modelSuggestions = manualModel.trim()
     ? availableModels
@@ -64,6 +66,22 @@ export function AdvancedSearchModal({
     if (!isActive(f)) onFiltersChange([...activeFilters, f]);
     setManualWidth("");
     setManualHeight("");
+  };
+
+  const addManualSeed = () => {
+    const n = parseInt(manualSeed);
+    if (!Number.isFinite(n)) return;
+    const f: AdvancedFilter = { type: "seed", value: n };
+    if (!isActive(f)) onFiltersChange([...activeFilters, f]);
+    setManualSeed("");
+  };
+
+  const addManualExcludeTag = () => {
+    const v = manualExcludeTag.trim();
+    if (!v) return;
+    const f: AdvancedFilter = { type: "excludeTag", value: v };
+    if (!isActive(f)) onFiltersChange([...activeFilters, f]);
+    setManualExcludeTag("");
   };
 
   const addManualModel = (value?: string) => {
@@ -237,6 +255,87 @@ export function AdvancedSearchModal({
                 size="sm"
                 className="h-8 shrink-0"
                 onClick={() => addManualModel()}
+              >
+                {t("advancedSearch.add")}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-foreground">
+              {t("advancedSearch.seed")}
+            </p>
+            {activeFilters.some((f) => f.type === "seed") && (
+              <div className="flex flex-wrap gap-1.5">
+                {activeFilters
+                  .filter((f): f is Extract<AdvancedFilter, { type: "seed" }> => f.type === "seed")
+                  .map((f) => (
+                    <button
+                      key={filterKey(f)}
+                      onClick={() => toggleFilter(f)}
+                      className={chipClass(true)}
+                    >
+                      {f.value}
+                    </button>
+                  ))}
+              </div>
+            )}
+            <div className="flex gap-2 items-center">
+              <Input
+                type="number"
+                placeholder={t("advancedSearch.seedPlaceholder")}
+                value={manualSeed}
+                onChange={(e) => setManualSeed(e.target.value)}
+                className="h-8 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addManualSeed();
+                }}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 shrink-0"
+                onClick={addManualSeed}
+              >
+                {t("advancedSearch.add")}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-foreground">
+              {t("advancedSearch.excludeTag")}
+            </p>
+            {activeFilters.some((f) => f.type === "excludeTag") && (
+              <div className="flex flex-wrap gap-1.5">
+                {activeFilters
+                  .filter((f): f is Extract<AdvancedFilter, { type: "excludeTag" }> => f.type === "excludeTag")
+                  .map((f) => (
+                    <button
+                      key={filterKey(f)}
+                      onClick={() => toggleFilter(f)}
+                      className={chipClass(true)}
+                    >
+                      -{f.value}
+                    </button>
+                  ))}
+              </div>
+            )}
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder={t("advancedSearch.excludeTagPlaceholder")}
+                value={manualExcludeTag}
+                onChange={(e) => setManualExcludeTag(e.target.value)}
+                className="h-8 text-xs"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addManualExcludeTag();
+                }}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 shrink-0"
+                onClick={addManualExcludeTag}
               >
                 {t("advancedSearch.add")}
               </Button>

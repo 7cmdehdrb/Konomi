@@ -155,6 +155,8 @@ export function registerIpcHandlers(): void {
         randomSeed?: number;
         resolutionFilters?: Array<{ width: number; height: number }>;
         modelFilters?: string[];
+        seedFilters?: number[];
+        excludeTags?: string[];
       },
     ) => bridge.request("image:listPage", query),
   );
@@ -175,6 +177,8 @@ export function registerIpcHandlers(): void {
         randomSeed?: number;
         resolutionFilters?: Array<{ width: number; height: number }>;
         modelFilters?: string[];
+        seedFilters?: number[];
+        excludeTags?: string[];
       },
     ) => bridge.request("image:listMatching", query),
   );

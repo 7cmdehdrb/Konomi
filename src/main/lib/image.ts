@@ -61,6 +61,8 @@ export type ImageListQuery = {
   randomSeed?: number;
   resolutionFilters?: ImageQueryResolutionFilter[];
   modelFilters?: string[];
+  seedFilters?: number[];
+  excludeTags?: string[];
   subfolderFilters?: Array<{
     folderId: number;
     selectedPaths: string[];
@@ -1201,6 +1203,8 @@ type NormalizedImageListQuery = {
   randomSeed: number;
   resolutionFilters: ImageQueryResolutionFilter[];
   modelFilters: string[];
+  seedFilters: number[];
+  excludeTags: string[];
   subfolderFilters: SubfolderFilter[];
 };
 
@@ -1236,6 +1240,34 @@ function normalizeResolutionFilters(
     if (seen.has(key)) continue;
     seen.add(key);
     normalized.push({ width, height });
+  }
+  return normalized;
+}
+
+function normalizeSeedFilters(values: number[] | undefined): number[] {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<number>();
+  const normalized: number[] = [];
+  for (const value of values) {
+    const n = Math.floor(value ?? NaN);
+    if (!Number.isFinite(n)) continue;
+    if (seen.has(n)) continue;
+    seen.add(n);
+    normalized.push(n);
+  }
+  return normalized;
+}
+
+function normalizeStringArray(values: string[] | undefined): string[] {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const value of values) {
+    const trimmed = String(value ?? "").trim();
+    if (!trimmed) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
   }
   return normalized;
 }
@@ -1338,6 +1370,8 @@ function normalizeImageListQuery(
       : 0,
     resolutionFilters: normalizeResolutionFilters(query?.resolutionFilters),
     modelFilters: normalizeModelFilters(query?.modelFilters),
+    seedFilters: normalizeSeedFilters(query?.seedFilters),
+    excludeTags: normalizeStringArray(query?.excludeTags),
     subfolderFilters: Array.isArray(query?.subfolderFilters)
       ? query.subfolderFilters.filter(
           (f) =>
@@ -1426,6 +1460,23 @@ function buildImageWhereInput(
 
   if (query.modelFilters.length > 0) {
     andConditions.push({ model: { in: query.modelFilters } });
+  }
+
+  if (query.seedFilters.length > 0) {
+    andConditions.push({ seed: { in: query.seedFilters } });
+  }
+
+  for (const tag of query.excludeTags) {
+    andConditions.push({
+      AND: [
+        { promptTokens: { not: { contains: tag } } },
+        { negativePromptTokens: { not: { contains: tag } } },
+        { characterPromptTokens: { not: { contains: tag } } },
+        { prompt: { not: { contains: tag } } },
+        { negativePrompt: { not: { contains: tag } } },
+        { characterPrompts: { not: { contains: tag } } },
+      ],
+    });
   }
 
   if (query.onlyRecent) {

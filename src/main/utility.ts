@@ -184,6 +184,8 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
           randomSeed?: number;
           resolutionFilters?: Array<{ width: number; height: number }>;
           modelFilters?: string[];
+          seedFilters?: number[];
+          excludeTags?: string[];
         }) ?? {},
       );
     case "image:listMatching":
@@ -201,6 +203,8 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
           randomSeed?: number;
           resolutionFilters?: Array<{ width: number; height: number }>;
           modelFilters?: string[];
+          seedFilters?: number[];
+          excludeTags?: string[];
         }) ?? {},
       );
     case "image:listByIds": {
