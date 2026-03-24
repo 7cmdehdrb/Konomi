@@ -306,6 +306,7 @@ async function buildIncomingSignatureBuckets(
   incomingSizeBuckets: IncomingSizeBuckets,
   candidateSizes: number[],
   signal?: CancelToken,
+  onItemDone?: () => void,
 ): Promise<Map<string, FolderDuplicateIncomingEntry[]>> {
   const buckets = new Map<string, FolderDuplicateIncomingEntry[]>();
   const targets = candidateSizes.flatMap((size) =>
@@ -316,6 +317,7 @@ async function buildIncomingSignatureBuckets(
     HASH_SCAN_CONCURRENCY,
     async ({ size, entry }) => {
       const hash = await fileHash(entry.path);
+      onItemDone?.();
       if (!hash) return;
       const signature = `${size}:${hash}`;
       const bucket = buckets.get(signature) ?? [];
@@ -331,6 +333,7 @@ async function buildExistingSignatureBuckets(
   existingSizeBuckets: ExistingSizeBuckets,
   candidateSizes: number[],
   signal?: CancelToken,
+  onItemDone?: () => void,
 ): Promise<ExistingSignatureBuckets> {
   const buckets: ExistingSignatureBuckets = new Map();
   const targets = candidateSizes.flatMap((size) =>
@@ -341,6 +344,7 @@ async function buildExistingSignatureBuckets(
     HASH_SCAN_CONCURRENCY,
     async ({ size, entry }) => {
       const hash = await fileHash(entry.path);
+      onItemDone?.();
       if (!hash) return;
       const signature = `${size}:${hash}`;
       const bucket = buckets.get(signature) ?? [];
@@ -1836,6 +1840,7 @@ export async function syncAllFolders(
   folderIds?: number[],
   orderedFolderIds?: number[],
   onSearchStatsProgress?: SearchStatsProgressCallback,
+  onDupCheckProgress?: (done: number, total: number) => void,
 ): Promise<void> {
   const startedAt = Date.now();
   let done = 0;
@@ -1927,16 +1932,33 @@ export async function syncAllFolders(
           existingSizeBuckets,
         );
         if (candidateSizes.length > 0) {
+          const existingTargetCount = candidateSizes.reduce(
+            (sum, size) => sum + (existingSizeBuckets.get(size)?.length ?? 0),
+            0,
+          );
+          const incomingTargetCount = candidateSizes.reduce(
+            (sum, size) => sum + (incomingSizeBuckets.get(size)?.length ?? 0),
+            0,
+          );
+          const dupCheckTotal = existingTargetCount + incomingTargetCount;
+          let dupCheckDone = 0;
+          const onDupItemDone =
+            onDupCheckProgress && dupCheckTotal > 0
+              ? () => onDupCheckProgress(++dupCheckDone, dupCheckTotal)
+              : undefined;
+
           const existingSignatureBuckets = await buildExistingSignatureBuckets(
             existingSizeBuckets,
             candidateSizes,
             signal,
+            onDupItemDone,
           );
           if (signal?.cancelled) return;
           const incomingSignatureBuckets = await buildIncomingSignatureBuckets(
             incomingSizeBuckets,
             candidateSizes,
             signal,
+            onDupItemDone,
           );
           if (signal?.cancelled) return;
           const duplicateGroups = buildDuplicateGroupsFromBuckets(

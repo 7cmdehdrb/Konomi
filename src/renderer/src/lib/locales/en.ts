@@ -25,6 +25,7 @@ const en = {
       detail: {
         scanFolders: "Checking {{folderLabel}} {{done}}/{{total}}",
         scanImages: "Checking images {{done}}/{{total}}",
+        checkingDuplicates: "Checking for duplicates {{done}}/{{total}}",
         loadingFolders: "Loading your folder list.",
         preparingOnboarding: "Preparing the start screen.",
         loadingLibraryState: "Restoring app state.",

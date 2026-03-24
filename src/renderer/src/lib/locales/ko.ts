@@ -25,6 +25,7 @@ const ko = {
       detail: {
         scanFolders: "{{folderLabel}} 확인 중 {{done}}/{{total}}",
         scanImages: "이미지 확인 중 {{done}}/{{total}}",
+        checkingDuplicates: "중복 파일 확인 중 {{done}}/{{total}}",
         loadingFolders: "폴더 목록을 불러오는 중입니다.",
         preparingOnboarding: "시작 화면을 준비하는 중입니다.",
         loadingLibraryState: "앱 상태를 불러오는 중입니다.",

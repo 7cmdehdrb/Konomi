@@ -289,6 +289,9 @@ declare global {
       onScanProgress: (
         cb: (data: { done: number; total: number }) => void,
       ) => () => void;
+      onDupCheckProgress: (
+        cb: (data: { done: number; total: number }) => void,
+      ) => () => void;
       onSearchStatsProgress: (
         cb: (data: { done: number; total: number }) => void,
       ) => () => void;

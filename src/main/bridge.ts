@@ -6,6 +6,7 @@ import { createLogger } from "./lib/logger";
 const NOISY_EVENTS = new Set([
   "image:batch",
   "image:scanProgress",
+  "image:dupCheckProgress",
   "image:hashProgress",
   "image:similarityProgress",
   "image:scanFolder",

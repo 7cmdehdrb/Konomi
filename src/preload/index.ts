@@ -181,6 +181,14 @@ contextBridge.exposeInMainWorld("image", {
     ipcRenderer.on("image:scanProgress", handler);
     return () => ipcRenderer.removeListener("image:scanProgress", handler);
   },
+  onDupCheckProgress: (cb: (data: { done: number; total: number }) => void) => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      data: { done: number; total: number },
+    ) => cb(data);
+    ipcRenderer.on("image:dupCheckProgress", handler);
+    return () => ipcRenderer.removeListener("image:dupCheckProgress", handler);
+  },
   onSearchStatsProgress: (
     cb: (data: { done: number; total: number }) => void,
   ) => {

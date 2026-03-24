@@ -240,6 +240,8 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
           folderIds,
           orderedFolderIds,
           emitSearchStatsProgress,
+          (done, total) =>
+            utilitySender.send("image:dupCheckProgress", { done, total }),
         );
       } finally {
         scanCancelToken = null;

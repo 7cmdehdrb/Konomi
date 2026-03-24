@@ -177,6 +177,10 @@ export function BootstrapApp() {
     done: number;
     total: number;
   } | null>(null);
+  const [dupCheckProgress, setDupCheckProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [scanningFolderNames, setScanningFolderNames] = useState<
     Map<number, string>
   >(new Map());
@@ -248,6 +252,9 @@ export function BootstrapApp() {
         });
       },
     );
+    const offDupCheckProgress = window.image.onDupCheckProgress((data) => {
+      setDupCheckProgress(data.done >= data.total ? null : data);
+    });
 
     void ensureInitialFolderCount().then((count) => {
       if (!cancelled) {
@@ -287,6 +294,7 @@ export function BootstrapApp() {
       clearSplashTimers();
       offScanProgress();
       offScanFolder();
+      offDupCheckProgress();
     };
   }, [clearSplashTimers]);
 
@@ -304,6 +312,12 @@ export function BootstrapApp() {
   }, [bootstrapReady, folderCount, t]);
 
   const detailText = useMemo(() => {
+    if (dupCheckProgress && dupCheckProgress.total > 0) {
+      return t("app.splash.detail.checkingDuplicates", {
+        done: dupCheckProgress.done,
+        total: dupCheckProgress.total,
+      });
+    }
     if (scanProgress && scanProgress.total > 0) {
       const folderNames = Array.from(scanningFolderNames.values());
       const folderLabel =
@@ -331,7 +345,7 @@ export function BootstrapApp() {
       return t("app.splash.detail.preparingOnboarding");
     }
     return t("app.splash.detail.loadingLibraryState");
-  }, [folderCount, scanProgress, scanningFolderNames, t]);
+  }, [dupCheckProgress, folderCount, scanProgress, scanningFolderNames, t]);
 
   return (
     <>
