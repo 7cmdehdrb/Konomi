@@ -12,6 +12,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { parsePromptTokens, isGroupRef, type PromptToken } from "@/lib/token";
 import { useLocaleFormatters } from "@/lib/formatters";
@@ -25,15 +31,19 @@ function SimilarThumb({
   img,
   isCurrent,
   reason,
+  score,
   onClick,
 }: {
   img: ImageData;
   isCurrent: boolean;
   reason?: SimilarityReason;
+  score?: number;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const [loaded, setLoaded] = useState(false);
-  return (
+
+  const thumb = (
     <button
       className={cn(
         "relative w-full aspect-square rounded-md overflow-hidden ring-2 transition-all block",
@@ -73,6 +83,32 @@ function SimilarThumb({
       )}
     </button>
   );
+
+  if (isCurrent || score === undefined || reason === undefined) return thumb;
+
+  const pct = Math.round(score * 100);
+  const ss = "imageDetail.similarityScore";
+  const scoreLabel =
+    pct >= 90
+      ? t(`${ss}.veryHigh`)
+      : pct >= 75
+        ? t(`${ss}.high`)
+        : pct >= 60
+          ? t(`${ss}.medium`)
+          : t(`${ss}.low`);
+  const reasonLabel = t(`${ss}.${reason}`);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{thumb}</TooltipTrigger>
+      <TooltipContent side="right" className="flex flex-col gap-0.5">
+        <span className="font-semibold">
+          {scoreLabel} ({pct}%)
+        </span>
+        <span className="text-muted-foreground">{reasonLabel}</span>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 interface ImageDetailProps {
@@ -89,6 +125,7 @@ interface ImageDetailProps {
   onNext: () => void;
   similarImages?: ImageData[];
   similarReasons?: Record<string, SimilarityReason>;
+  similarScores?: Record<string, number>;
   similarImagesLoading?: boolean;
   detailContentReady?: boolean;
   onSimilarImageClick?: (image: ImageData) => void;
@@ -109,6 +146,7 @@ export function ImageDetail({
   onNext,
   similarImages,
   similarReasons,
+  similarScores,
   similarImagesLoading = false,
   detailContentReady = true,
   onSimilarImageClick,
@@ -122,8 +160,14 @@ export function ImageDetail({
   const [displaySrc, setDisplaySrc] = useState<string | null>(null);
   const [similarPage, setSimilarPage] = useState(0);
   const hasSimilar = similarImages && similarImages.length > 1;
-  const totalPages = hasSimilar
-    ? Math.ceil(similarImages.length / similarPageSize)
+  const currentThumb = hasSimilar
+    ? similarImages.find((img) => img.id === image?.id) ?? null
+    : null;
+  const otherSimilar = hasSimilar
+    ? similarImages.filter((img) => img.id !== image?.id)
+    : [];
+  const totalPages = otherSimilar.length > 0
+    ? Math.ceil(otherSimilar.length / similarPageSize)
     : 0;
 
   // Reset displaySrc so the panel paints before fetching starts
@@ -191,12 +235,10 @@ export function ImageDetail({
   // Never fully unmount — just hide with CSS so DOM isn't recreated on every open
   if (!image) return null;
 
-  const pagedSimilar = hasSimilar
-    ? similarImages.slice(
-        similarPage * similarPageSize,
-        (similarPage + 1) * similarPageSize,
-      )
-    : [];
+  const pagedOther = otherSimilar.slice(
+    similarPage * similarPageSize,
+    (similarPage + 1) * similarPageSize,
+  );
   const hasSeed = Number.isFinite(image.seed);
   const isPanelLoading = !detailContentReady;
 
@@ -296,19 +338,28 @@ export function ImageDetail({
                 <p className="text-[10px]">{t("common.loading")}</p>
               </div>
             ) : hasSimilar ? (
-              <div className="p-2 space-y-1.5">
-                {pagedSimilar.map((img) => (
-                  <SimilarThumb
-                    key={img.id}
-                    img={img}
-                    isCurrent={img.id === image.id}
-                    reason={similarReasons?.[img.id]}
-                    onClick={() =>
-                      img.id !== image.id && onSimilarImageClick?.(img)
-                    }
-                  />
-                ))}
-              </div>
+              <TooltipProvider delayDuration={300}>
+                <div className="p-2 space-y-1.5">
+                  {currentThumb && (
+                    <SimilarThumb
+                      key={currentThumb.id}
+                      img={currentThumb}
+                      isCurrent={true}
+                      onClick={() => {}}
+                    />
+                  )}
+                  {pagedOther.map((img) => (
+                    <SimilarThumb
+                      key={img.id}
+                      img={img}
+                      isCurrent={false}
+                      reason={similarReasons?.[img.id]}
+                      score={similarScores?.[img.id]}
+                      onClick={() => onSimilarImageClick?.(img)}
+                    />
+                  ))}
+                </div>
+              </TooltipProvider>
             ) : (
               <p className="px-2 pt-4 text-center text-[10px] text-muted-foreground/70">
                 {t("common.none")}

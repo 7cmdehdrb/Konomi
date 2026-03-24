@@ -22,6 +22,9 @@ export function useSimilarImages({
   const [similarReasons, setSimilarReasons] = useState<
     Record<string, SimilarityReason>
   >({});
+  const [similarScores, setSimilarScores] = useState<Record<string, number>>(
+    {},
+  );
   const [similarImagesLoading, setSimilarImagesLoading] = useState(false);
   const requestSeqRef = useRef(0);
 
@@ -29,6 +32,7 @@ export function useSimilarImages({
     const requestId = ++requestSeqRef.current;
     setSimilarImages([]);
     setSimilarReasons({});
+    setSimilarScores({});
 
     if (!selectedImageId || !isDetailOpen || !detailContentReady) {
       setSimilarImagesLoading(false);
@@ -74,12 +78,18 @@ export function useSimilarImages({
             reasons.map((item) => [String(item.imageId), item.reason]),
           ),
         );
+        setSimilarScores(
+          Object.fromEntries(
+            reasons.map((item) => [String(item.imageId), item.score]),
+          ),
+        );
         setSimilarImagesLoading(false);
       })
       .catch(() => {
         if (cancelled || requestId !== requestSeqRef.current) return;
         setSimilarImages([]);
         setSimilarReasons({});
+        setSimilarScores({});
         setSimilarImagesLoading(false);
       });
 
@@ -98,6 +108,7 @@ export function useSimilarImages({
   return {
     similarImages,
     similarReasons,
+    similarScores,
     similarImagesLoading,
   };
 }

@@ -234,7 +234,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
   );
   const detailContentReady =
     !!detail.imageId && deferredDetailContentImageId === detail.imageId;
-  const { similarImages, similarReasons, similarImagesLoading } =
+  const { similarImages, similarReasons, similarScores, similarImagesLoading } =
     useSimilarImages({
       selectedImageId: detail.imageId,
       isDetailOpen: detail.isOpen,
@@ -534,6 +534,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
         onNext={detail.onNext}
         similarImages={similarImages}
         similarReasons={similarReasons}
+        similarScores={similarScores}
         similarImagesLoading={similarImagesLoading}
         detailContentReady={detailContentReady}
         onSimilarImageClick={detail.onSelectImage}

@@ -83,6 +83,15 @@ const ko = {
       fitToScreen: "화면 맞춤",
     },
     similarImages: "유사 이미지",
+    similarityScore: {
+      veryHigh: "매우 유사",
+      high: "유사",
+      medium: "어느정도 유사",
+      low: "약간 유사",
+      visual: "시각적 유사 (pHash)",
+      prompt: "프롬프트 유사 (Jaccard)",
+      both: "시각 + 프롬프트 유사",
+    },
     info: {
       title: "정보",
       model: "Model",

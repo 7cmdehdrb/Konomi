@@ -83,6 +83,15 @@ const en = {
       fitToScreen: "Fit to Screen",
     },
     similarImages: "Similar Images",
+    similarityScore: {
+      veryHigh: "Very Similar",
+      high: "Similar",
+      medium: "Somewhat Similar",
+      low: "Slightly Similar",
+      visual: "Visual Similarity (pHash)",
+      prompt: "Prompt Similarity (Jaccard)",
+      both: "Visual + Prompt Similarity",
+    },
     info: {
       title: "Info",
       model: "Model",
