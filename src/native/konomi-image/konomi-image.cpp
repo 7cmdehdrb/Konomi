@@ -84,9 +84,10 @@ static DecodedPng decode_png(const uint8_t* data, size_t size, bool keep_alpha) 
   }
 
   // Error handler: longjmp back here on libpng error.
-  // NOTE: std::vector destructors won't run on longjmp.
-  // For corrupt images (rare in practice) this may leak the pixel buffer.
-  // Acceptable trade-off for a desktop app.
+  // NOTE: longjmp bypasses C++ stack unwinding, so std::vector destructors
+  // (result.pixels, row_ptrs) won't run — leaking their heap buffers.
+  // This only triggers on corrupt/truncated PNG data; valid NAI images never
+  // hit this path. Accepted trade-off for a desktop app.
   if (setjmp(png_jmpbuf(png))) {
     png_destroy_read_struct(&png, &info, nullptr);
     return result; // result.ok = false
