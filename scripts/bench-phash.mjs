@@ -14,7 +14,12 @@ const root = join(__dirname, "..");
 
 // ── Load native addon ─────────────────────────────────────────────────────────
 
-const addonPath = join(root, "prebuilds", `${process.platform}-${process.arch}`, "konomi-image.node");
+const addonPath = join(
+  root,
+  "prebuilds",
+  `${process.platform}-${process.arch}`,
+  "konomi-image.node",
+);
 let nativeAddon = null;
 try {
   nativeAddon = require(addonPath);
@@ -28,7 +33,9 @@ try {
 
 const PAETH = (a, b, c) => {
   const p = a + b - c;
-  const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+  const pa = Math.abs(p - a),
+    pb = Math.abs(p - b),
+    pc = Math.abs(p - c);
   return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
 };
 
@@ -59,36 +66,59 @@ function decodePng(buf) {
       const a = x >= ch ? px[d + x - ch] : 0;
       const b = y > 0 ? px[p + x] : 0;
       const c = x >= ch && y > 0 ? px[p + x - ch] : 0;
-      px[d + x] = (f === 0 ? v : f === 1 ? v + a : f === 2 ? v + b :
-        f === 3 ? v + ((a + b) >> 1) : v + PAETH(a, b, c)) & 0xff;
+      px[d + x] =
+        (f === 0
+          ? v
+          : f === 1
+            ? v + a
+            : f === 2
+              ? v + b
+              : f === 3
+                ? v + ((a + b) >> 1)
+                : v + PAETH(a, b, c)) & 0xff;
     }
   }
   return { px, w, h, ch };
 }
 
-const DCT_SIZE = 32, HASH_SIZE = 8;
+const DCT_SIZE = 32,
+  HASH_SIZE = 8;
 
 function toGrayscaleGrid(px, srcW, srcH, ch) {
-  const xr = srcW / DCT_SIZE, yr = srcH / DCT_SIZE;
+  const xr = srcW / DCT_SIZE,
+    yr = srcH / DCT_SIZE;
   const grid = Array.from({ length: DCT_SIZE }, () => new Array(DCT_SIZE));
   for (let dy = 0; dy < DCT_SIZE; dy++) {
     for (let dx = 0; dx < DCT_SIZE; dx++) {
-      const sx = dx * xr, sy = dy * yr;
-      const x0 = Math.floor(sx), y0 = Math.floor(sy);
-      const x1 = Math.min(x0 + 1, srcW - 1), y1 = Math.min(y0 + 1, srcH - 1);
-      const xf = sx - x0, yf = sy - y0;
-      const g = (x, y) => { const i = (y * srcW + x) * ch; return 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; };
-      grid[dy][dx] = g(x0,y0)*(1-xf)*(1-yf) + g(x1,y0)*xf*(1-yf) + g(x0,y1)*(1-xf)*yf + g(x1,y1)*xf*yf;
+      const sx = dx * xr,
+        sy = dy * yr;
+      const x0 = Math.floor(sx),
+        y0 = Math.floor(sy);
+      const x1 = Math.min(x0 + 1, srcW - 1),
+        y1 = Math.min(y0 + 1, srcH - 1);
+      const xf = sx - x0,
+        yf = sy - y0;
+      const g = (x, y) => {
+        const i = (y * srcW + x) * ch;
+        return 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      };
+      grid[dy][dx] =
+        g(x0, y0) * (1 - xf) * (1 - yf) +
+        g(x1, y0) * xf * (1 - yf) +
+        g(x0, y1) * (1 - xf) * yf +
+        g(x1, y1) * xf * yf;
     }
   }
   return grid;
 }
 
 function dct1d(arr) {
-  const N = arr.length, out = new Array(N);
+  const N = arr.length,
+    out = new Array(N);
   for (let k = 0; k < N; k++) {
     let s = 0;
-    for (let n = 0; n < N; n++) s += arr[n] * Math.cos(Math.PI * (2*n+1) * k / (2*N));
+    for (let n = 0; n < N; n++)
+      s += arr[n] * Math.cos((Math.PI * (2 * n + 1) * k) / (2 * N));
     out[k] = k === 0 ? s / Math.sqrt(N) : s * Math.sqrt(2 / N);
   }
   return out;
@@ -100,7 +130,7 @@ function computePHashJS(buf) {
   const rowDct = pixels.map(dct1d);
   const colDct = Array.from({ length: DCT_SIZE }, () => new Array(DCT_SIZE));
   for (let x = 0; x < DCT_SIZE; x++) {
-    const col = dct1d(rowDct.map(r => r[x]));
+    const col = dct1d(rowDct.map((r) => r[x]));
     for (let y = 0; y < DCT_SIZE; y++) colDct[y][x] = col[y];
   }
   const sub = [];
@@ -124,9 +154,9 @@ if (!pngDir) {
 }
 
 const files = readdirSync(pngDir)
-  .filter(f => extname(f).toLowerCase() === ".png")
+  .filter((f) => extname(f).toLowerCase() === ".png")
   .slice(0, 50)
-  .map(f => join(pngDir, f));
+  .map((f) => join(pngDir, f));
 
 if (files.length === 0) {
   console.error("No PNG files found in", pngDir);
@@ -136,7 +166,7 @@ if (files.length === 0) {
 console.log(`\nFiles: ${files.length}  Iterations: ${iterations}\n`);
 
 // Pre-read all files into memory (exclude I/O from benchmark)
-const bufs = files.map(f => readFileSync(f));
+const bufs = files.map((f) => readFileSync(f));
 
 // ── Run benchmarks ────────────────────────────────────────────────────────────
 
@@ -145,18 +175,19 @@ function bench(label, fn) {
   for (const buf of bufs) fn(buf);
 
   const t0 = performance.now();
-  for (let i = 0; i < iterations; i++)
-    for (const buf of bufs) fn(buf);
+  for (let i = 0; i < iterations; i++) for (const buf of bufs) fn(buf);
   const elapsed = performance.now() - t0;
 
   const total = files.length * iterations;
   const msPerImg = elapsed / total;
-  console.log(`${label.padEnd(12)} ${elapsed.toFixed(0).padStart(7)} ms total  |  ${msPerImg.toFixed(2).padStart(7)} ms/img  |  ${(1000 / msPerImg).toFixed(0).padStart(5)} img/s`);
+  console.log(
+    `${label.padEnd(12)} ${elapsed.toFixed(0).padStart(7)} ms total  |  ${msPerImg.toFixed(2).padStart(7)} ms/img  |  ${(1000 / msPerImg).toFixed(0).padStart(5)} img/s`,
+  );
   return elapsed;
 }
 
-const jsTime     = bench("pure-JS",  computePHashJS);
-const nativeTime = bench("native",   buf => nativeAddon.computePHash(buf));
+const jsTime = bench("pure-JS", computePHashJS);
+const nativeTime = bench("native", (buf) => nativeAddon.computePHash(buf));
 
 console.log(`\nSpeedup: ${(jsTime / nativeTime).toFixed(2)}x`);
 

@@ -650,7 +650,9 @@ const SidebarSubfolderRow = memo(function SidebarSubfolderRow({
     <div
       className={cn(
         "group flex items-center gap-2 pl-4 pr-2 py-1 rounded-md cursor-pointer hover:bg-sidebar-accent",
-        isVisible ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/40 hover:text-muted-foreground",
+        isVisible
+          ? "text-muted-foreground hover:text-foreground"
+          : "text-muted-foreground/40 hover:text-muted-foreground",
       )}
       onClick={() => onToggle?.(subfolder.path, subfolder.folderId)}
     >

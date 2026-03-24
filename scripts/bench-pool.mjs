@@ -12,7 +12,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const WORKER_PATH = join(__dirname, "..", "out", "main", "nai.worker.js");
 
 const pngDir = process.argv[2];
-const poolSizes = process.argv.slice(3).map(Number).filter(n => n > 0);
+const poolSizes = process.argv
+  .slice(3)
+  .map(Number)
+  .filter((n) => n > 0);
 
 if (!pngDir || poolSizes.length === 0) {
   console.error("Usage: node scripts/bench-pool.mjs <png-dir> [pool-sizes...]");
@@ -21,8 +24,8 @@ if (!pngDir || poolSizes.length === 0) {
 }
 
 const files = readdirSync(pngDir)
-  .filter(f => [".png", ".webp"].includes(extname(f).toLowerCase()))
-  .map(f => join(pngDir, f));
+  .filter((f) => [".png", ".webp"].includes(extname(f).toLowerCase()))
+  .map((f) => join(pngDir, f));
 
 if (files.length === 0) {
   console.error("No PNG/WebP files found in", pngDir);
@@ -50,7 +53,7 @@ function runWithPoolSize(size) {
         callbacks.delete(id);
         completed++;
         if (completed === files.length) {
-          workers.forEach(w => w.terminate());
+          workers.forEach((w) => w.terminate());
           resolve();
         } else {
           dispatch(w);
@@ -66,7 +69,7 @@ function runWithPoolSize(size) {
         // count as completed on error
         completed++;
         if (completed === files.length) {
-          workers.forEach(w => w.terminate());
+          workers.forEach((w) => w.terminate());
           resolve();
         }
       });
@@ -86,9 +89,9 @@ for (const size of poolSizes) {
   const t0 = performance.now();
   await runWithPoolSize(size);
   const elapsed = performance.now() - t0;
-  const imgPerSec = (files.length / elapsed * 1000).toFixed(1);
+  const imgPerSec = ((files.length / elapsed) * 1000).toFixed(1);
   const msPerImg = (elapsed / files.length).toFixed(1);
   console.log(
-    `${String(size).padStart(5)} │ ${elapsed.toFixed(0).padStart(10)} │ ${imgPerSec.padStart(8)} │ ${msPerImg.padStart(6)}`
+    `${String(size).padStart(5)} │ ${elapsed.toFixed(0).padStart(10)} │ ${imgPerSec.padStart(8)} │ ${msPerImg.padStart(6)}`,
   );
 }

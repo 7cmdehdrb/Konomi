@@ -105,9 +105,7 @@ export function useSubfolderState() {
         if (visible) {
           next.delete(folderId);
         } else {
-          const allPaths = subfoldersByFolder
-            .get(folderId)
-            ?.map((s) => s.path);
+          const allPaths = subfoldersByFolder.get(folderId)?.map((s) => s.path);
           if (allPaths && allPaths.length > 0) {
             next.set(folderId, new Set(allPaths));
           }

@@ -78,19 +78,13 @@ export async function getSubfolderPaths(folderId: number): Promise<string[]> {
 
   const sep = process.platform === "win32" ? "\\" : "/";
   const folderNorm =
-    process.platform === "win32"
-      ? folder.path.toLowerCase()
-      : folder.path;
+    process.platform === "win32" ? folder.path.toLowerCase() : folder.path;
 
   const subfolderSet = new Set<string>();
   for (const img of images) {
     const imgNorm =
-      process.platform === "win32"
-        ? img.path.toLowerCase()
-        : img.path;
-    const prefix = folderNorm.endsWith(sep)
-      ? folderNorm
-      : folderNorm + sep;
+      process.platform === "win32" ? img.path.toLowerCase() : img.path;
+    const prefix = folderNorm.endsWith(sep) ? folderNorm : folderNorm + sep;
     if (!imgNorm.startsWith(prefix)) continue;
     const rel = imgNorm.slice(prefix.length);
     const firstSep = rel.indexOf(sep);

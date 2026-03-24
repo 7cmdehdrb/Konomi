@@ -452,7 +452,10 @@ function encodeImagesForNative(
   const hasPrompt = new Uint8Array(N);
   const hasChar = new Uint8Array(N);
 
-  let tp = 0, tc = 0, tn = 0, tx = 0;
+  let tp = 0,
+    tc = 0,
+    tn = 0,
+    tx = 0;
   for (const img of images) {
     tp += img.prompt.size;
     tc += img.character.size;
@@ -469,7 +472,10 @@ function encodeImagesForNative(
   const posData = new Uint32Array(tx);
   const posOffsets = new Int32Array(N + 1);
 
-  let pi = 0, ci = 0, ni = 0, xi = 0;
+  let pi = 0,
+    ci = 0,
+    ni = 0,
+    xi = 0;
   for (let i = 0; i < N; i++) {
     const img = images[i];
     imageIds[i] = img.id;
@@ -482,13 +488,25 @@ function encodeImagesForNative(
     hasChar[i] = img.character.size > 0 ? 1 : 0;
 
     promptOffsets[i] = pi;
-    for (const t of img.prompt) { const id = vocab.get(t); if (id !== undefined) promptData[pi++] = id; }
+    for (const t of img.prompt) {
+      const id = vocab.get(t);
+      if (id !== undefined) promptData[pi++] = id;
+    }
     charOffsets[i] = ci;
-    for (const t of img.character) { const id = vocab.get(t); if (id !== undefined) charData[ci++] = id; }
+    for (const t of img.character) {
+      const id = vocab.get(t);
+      if (id !== undefined) charData[ci++] = id;
+    }
     negOffsets[i] = ni;
-    for (const t of img.negative) { const id = vocab.get(t); if (id !== undefined) negData[ni++] = id; }
+    for (const t of img.negative) {
+      const id = vocab.get(t);
+      if (id !== undefined) negData[ni++] = id;
+    }
     posOffsets[i] = xi;
-    for (const t of img.positive) { const id = vocab.get(t); if (id !== undefined) posData[xi++] = id; }
+    for (const t of img.positive) {
+      const id = vocab.get(t);
+      if (id !== undefined) posData[xi++] = id;
+    }
   }
   promptOffsets[N] = pi;
   charOffsets[N] = ci;
@@ -502,11 +520,23 @@ function encodeImagesForNative(
   }
 
   return {
-    imageIds, pHashHex,
-    promptData, promptOffsets, charData, charOffsets,
-    negData, negOffsets, posData, posOffsets,
-    promptWts, charWts, negWts, posWts,
-    hasPrompt, hasChar, tokenWeights,
+    imageIds,
+    pHashHex,
+    promptData,
+    promptOffsets,
+    charData,
+    charOffsets,
+    negData,
+    negOffsets,
+    posData,
+    posOffsets,
+    promptWts,
+    charWts,
+    negWts,
+    posWts,
+    hasPrompt,
+    hasChar,
+    tokenWeights,
     uiThresholdMax: UI_THRESHOLD_MAX,
     textThreshold: LOOSE_THRESHOLD_CONFIG.textLinkThreshold,
     hybridThreshold: LOOSE_THRESHOLD_CONFIG.hybridLinkThreshold,

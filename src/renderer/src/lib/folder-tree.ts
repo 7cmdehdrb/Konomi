@@ -31,8 +31,7 @@ export function buildFolderTree(folders: Folder[]): FolderTreeNode[] {
       if (normalizedPath.startsWith(candidatePath + "/")) {
         if (
           !bestParent ||
-          candidatePath.length >
-            normalizePath(bestParent.folder.path).length
+          candidatePath.length > normalizePath(bestParent.folder.path).length
         ) {
           bestParent = candidate;
         }
