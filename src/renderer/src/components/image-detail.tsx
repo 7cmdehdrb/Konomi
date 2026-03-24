@@ -490,8 +490,10 @@ export function ImageDetail({
   const [anchorId, setAnchorId] = useState<string | null>(null);
   const panelOpenedRef = useRef(false);
 
-  // Defer info panel renders so similar-panel ring updates feel instant.
+  // Defer image for InfoPanel so heavy token rendering doesn't block panel open.
+  // Show a spinner while deferred value catches up (never stale data).
   const deferredImage = useDeferredValue(image);
+  const infoPanelPending = isOpen && image?.id !== deferredImage?.id;
 
   // Lock the anchor image when the panel opens; clear when it closes
   useEffect(() => {
@@ -607,7 +609,9 @@ export function ImageDetail({
     <div
       className={cn(
         "fixed inset-0 z-50 bg-background/95 flex flex-col",
-        !isOpen && "hidden",
+        isOpen
+          ? "animate-in fade-in-0 duration-150"
+          : "hidden",
       )}
     >
       {/* Top Bar */}
@@ -776,14 +780,13 @@ export function ImageDetail({
 
         {/* Info Panel */}
         <div className="w-80 shrink-0 border-l border-border/60 bg-card/70">
-          {isPanelLoading && !deferredImage ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-muted-foreground/70">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <p className="text-xs">{t("common.loading")}</p>
+          {infoPanelPending ? (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/70" />
             </div>
           ) : (
             <InfoPanel
-              image={deferredImage ?? image}
+              image={image}
               copiedKey={copiedKey}
               onCopy={handleCopy}
               onAddTagToSearch={onAddTagToSearch}
