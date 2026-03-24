@@ -923,45 +923,64 @@ export const ImageGallery = memo(function ImageGallery({
   const allPageSelected =
     paged.length > 0 && paged.every((img) => selectedIds.has(img.id));
 
-  const handleSelectImage = useCallback(
-    (id: string, selected: boolean) => {
-      const targetImage = images.find((image) => image.id === id);
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        if (selected) next.add(id);
-        else next.delete(id);
-        return next;
-      });
-      setSelectedImageMap((prev) => {
-        const next = new Map(prev);
-        if (selected && targetImage) next.set(id, targetImage);
-        else next.delete(id);
-        return next;
-      });
-    },
-    [images],
-  );
+  const imagesRef = useRef(images);
+  useEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
 
-  const handleSelectCurrentPage = useCallback(() => {
+  const pagedRef = useRef(paged);
+  useEffect(() => {
+    pagedRef.current = paged;
+  }, [paged]);
+
+  const selectedIdsRef = useRef(selectedIds);
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  }, [selectedIds]);
+
+  const handleSelectImage = useCallback((id: string, selected: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (allPageSelected) {
-        paged.forEach((img) => next.delete(img.id));
+      if (selected) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    setSelectedImageMap((prev) => {
+      const next = new Map(prev);
+      if (selected) {
+        const targetImage = imagesRef.current.find((image) => image.id === id);
+        if (targetImage) next.set(id, targetImage);
       } else {
-        paged.forEach((img) => next.add(img.id));
+        next.delete(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectCurrentPage = useCallback(() => {
+    const currentPaged = pagedRef.current;
+    const isAllSelected =
+      currentPaged.length > 0 &&
+      currentPaged.every((img) => selectedIdsRef.current.has(img.id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (isAllSelected) {
+        currentPaged.forEach((img) => next.delete(img.id));
+      } else {
+        currentPaged.forEach((img) => next.add(img.id));
       }
       return next;
     });
     setSelectedImageMap((prev) => {
       const next = new Map(prev);
-      if (allPageSelected) {
-        paged.forEach((img) => next.delete(img.id));
+      if (isAllSelected) {
+        currentPaged.forEach((img) => next.delete(img.id));
       } else {
-        paged.forEach((img) => next.set(img.id, img));
+        currentPaged.forEach((img) => next.set(img.id, img));
       }
       return next;
     });
-  }, [allPageSelected, paged]);
+  }, []);
 
   const handleSelectAllFiltered = useCallback(() => {
     if (allFilteredSelected) {
