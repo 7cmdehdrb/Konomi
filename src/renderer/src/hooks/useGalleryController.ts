@@ -23,6 +23,7 @@ interface UseGalleryControllerOptions {
   resolutionFilters: Array<{ width: number; height: number }>;
   modelFilters: string[];
   folderCount: number | null;
+  subfolderFilters?: ImageListQuery["subfolderFilters"];
 }
 
 export function useGalleryController({
@@ -33,6 +34,7 @@ export function useGalleryController({
   resolutionFilters,
   modelFilters,
   folderCount,
+  subfolderFilters,
 }: UseGalleryControllerOptions) {
   const [searchQuery, setSearchQuery] = useState("");
   const [galleryOverlayVisible, setGalleryOverlayVisible] = useState(false);
@@ -55,6 +57,7 @@ export function useGalleryController({
       randomSeed: queryFragment.randomSeed,
       resolutionFilters,
       modelFilters,
+      subfolderFilters,
     }),
     [
       modelFilters,
@@ -68,6 +71,7 @@ export function useGalleryController({
       searchQuery,
       selectedFolderIds,
       sortBy,
+      subfolderFilters,
     ],
   );
 

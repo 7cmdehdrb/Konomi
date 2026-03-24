@@ -80,6 +80,11 @@ export type ImageListQuery = {
   randomSeed?: number;
   resolutionFilters?: Array<{ width: number; height: number }>;
   modelFilters?: string[];
+  subfolderFilters?: Array<{
+    folderId: number;
+    selectedPaths: string[];
+    allPaths: string[];
+  }>;
 };
 
 export type ImageListResult = {
@@ -309,6 +314,7 @@ declare global {
       delete: (id: number) => Promise<void>;
       rename: (id: number, name: string) => Promise<Folder>;
       revealInExplorer: (id: number) => Promise<void>;
+      listSubdirectories: (id: number) => Promise<string[]>;
     };
     nai: {
       validateApiKey: (

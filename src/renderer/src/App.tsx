@@ -68,6 +68,11 @@ export default function App({ initialFolderCount = null }: AppProps) {
     folderCount,
     collapsedFolderIds,
     toggleCollapse,
+    subfoldersByFolder,
+    isSubfolderVisible,
+    toggleSubfolder,
+    refreshSubfolders,
+    subfolderFilters,
   } = useFolderController(initialFolderCount);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilter[]>([]);
   const generationViewRef = useRef<GenerationViewHandle | null>(null);
@@ -129,6 +134,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     resolutionFilters,
     modelFilters,
     folderCount,
+    subfolderFilters,
   });
 
   const {
@@ -175,6 +181,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     scheduleAnalysis,
     setActiveScanFolderIds,
     setRollbackFolderIds,
+    refreshSubfolders,
   });
   const { handleSettingsUpdate, handleSettingsReset, handleResetHashes } =
     useSettingsAnalysisController({
@@ -289,6 +296,8 @@ export default function App({ initialFolderCount = null }: AppProps) {
       rollbackRequest: folderRollbackRequest,
       scanningFolderIds: activeScanFolderIds,
       scanning,
+      subfoldersByFolder,
+      isSubfolderVisible,
     }),
     [
       activeScanFolderIds,
@@ -297,6 +306,8 @@ export default function App({ initialFolderCount = null }: AppProps) {
       folderRollbackRequest,
       scanning,
       selectedFolderIds,
+      subfoldersByFolder,
+      isSubfolderVisible,
     ],
   );
 
@@ -312,6 +323,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
       onFolderAdded: handleFolderAdded,
       onFolderCancelled: handleFolderCancelled,
       onFolderRescan: handleFolderRescan,
+      onSubfolderToggle: toggleSubfolder,
     }),
     [
       addFolder,
@@ -324,6 +336,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
       reorderFolders,
       toggleCollapse,
       toggleFolder,
+      toggleSubfolder,
     ],
   );
   const sidebarCategoryActions = useMemo(

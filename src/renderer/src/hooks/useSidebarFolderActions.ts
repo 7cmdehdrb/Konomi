@@ -20,6 +20,7 @@ interface UseSidebarFolderActionsOptions {
   scheduleAnalysis: (delay?: number) => void;
   setActiveScanFolderIds: Dispatch<SetStateAction<Set<number>>>;
   setRollbackFolderIds: Dispatch<SetStateAction<Set<number>>>;
+  refreshSubfolders: (folderIds: number[]) => Promise<void>;
 }
 
 export function useSidebarFolderActions({
@@ -31,6 +32,7 @@ export function useSidebarFolderActions({
   scheduleAnalysis,
   setActiveScanFolderIds,
   setRollbackFolderIds,
+  refreshSubfolders,
 }: UseSidebarFolderActionsOptions) {
   const handleFolderAdded = useCallback(
     (folderId: number) => {
@@ -118,12 +120,14 @@ export function useSidebarFolderActions({
       });
       void runScan({ folderIds: [folderId] }).then((ok) => {
         if (ok) {
+          void refreshSubfolders([folderId]);
           scheduleAnalysis(0);
         }
       });
     },
     [
       isAnalyzing,
+      refreshSubfolders,
       runScan,
       scanningRef,
       scheduleAnalysis,

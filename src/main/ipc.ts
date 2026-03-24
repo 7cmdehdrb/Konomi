@@ -105,6 +105,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("folder:rename", (_, id: number, name: string) =>
     bridge.request("folder:rename", { id, name }),
   );
+  ipcMain.handle("folder:listSubdirectories", (_, id: number) =>
+    bridge.request("folder:listSubdirectories", { id }),
+  );
   ipcMain.handle("folder:revealInExplorer", async (_, id: number) => {
     const folders = (await bridge.request("folder:list")) as Array<{
       id: number;

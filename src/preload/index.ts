@@ -294,4 +294,6 @@ contextBridge.exposeInMainWorld("folder", {
     ipcRenderer.invoke("folder:rename", id, name),
   revealInExplorer: (id: number) =>
     ipcRenderer.invoke("folder:revealInExplorer", id),
+  listSubdirectories: (id: number) =>
+    ipcRenderer.invoke("folder:listSubdirectories", id),
 });

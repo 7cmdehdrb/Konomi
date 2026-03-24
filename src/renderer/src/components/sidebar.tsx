@@ -48,7 +48,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Category, Folder as FolderRecord } from "@preload/index.d";
-import { buildFolderTree, type FolderTreeNode } from "@/lib/folder-tree";
+import type { Subfolder } from "@/hooks/useSubfolderState";
 import { useTranslation } from "react-i18next";
 
 interface SidebarViewState {
@@ -63,6 +63,8 @@ interface SidebarFolderState {
   rollbackRequest?: { id: number; folderIds: number[] } | null;
   scanningFolderIds?: Set<number>;
   scanning?: boolean;
+  subfoldersByFolder?: Map<number, Subfolder[]>;
+  isSubfolderVisible?: (path: string, folderId: number) => boolean;
 }
 
 interface SidebarFolderActions {
@@ -76,6 +78,7 @@ interface SidebarFolderActions {
   onFolderAdded?: (folderId: number) => void;
   onFolderCancelled?: (id: number) => void;
   onFolderRescan?: (id: number) => void;
+  onSubfolderToggle?: (path: string, folderId: number) => void;
 }
 
 interface SidebarCategoryState {
@@ -632,6 +635,48 @@ const SidebarFolderRow = memo(function SidebarFolderRow({
   );
 });
 
+interface SidebarSubfolderRowProps {
+  subfolder: Subfolder;
+  isVisible: boolean;
+  onToggle?: (path: string, folderId: number) => void;
+}
+
+const SidebarSubfolderRow = memo(function SidebarSubfolderRow({
+  subfolder,
+  isVisible,
+  onToggle,
+}: SidebarSubfolderRowProps) {
+  return (
+    <div
+      className={cn(
+        "group flex items-center gap-2 pl-4 pr-2 py-1 rounded-md cursor-pointer hover:bg-sidebar-accent",
+        isVisible ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/40 hover:text-muted-foreground",
+      )}
+      onClick={() => onToggle?.(subfolder.path, subfolder.folderId)}
+    >
+      <span className="h-3.5 w-3.5 shrink-0" />
+      <Folder className="h-3.5 w-3.5 shrink-0" />
+      <span className="flex-1 min-w-0 text-sm truncate">{subfolder.name}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+          "h-5 w-5",
+          isVisible
+            ? "opacity-0 group-hover:opacity-100 text-primary"
+            : "text-muted-foreground/40 hover:text-primary",
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle?.(subfolder.path, subfolder.folderId);
+        }}
+      >
+        <Eye className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+});
+
 interface SidebarCategoryRowProps {
   category: Category;
   isSelected: boolean;
@@ -885,6 +930,8 @@ interface SidebarFoldersSectionProps {
   folderDropTargetId: number | null;
   scanning?: boolean;
   isAnalyzing?: boolean;
+  subfoldersByFolder?: Map<number, Subfolder[]>;
+  isSubfolderVisible?: (path: string, folderId: number) => boolean;
   onOpenNewFolder: () => void;
   onToggle?: (id: number) => void;
   onToggleCollapse?: (id: number) => void;
@@ -896,6 +943,7 @@ interface SidebarFoldersSectionProps {
   onDragOver: (id: number) => void;
   onDrop: (id: number) => void;
   onDragEnd: () => void;
+  onSubfolderToggle?: (path: string, folderId: number) => void;
 }
 
 const SidebarFoldersSection = memo(function SidebarFoldersSection({
@@ -907,6 +955,8 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
   folderDropTargetId,
   scanning,
   isAnalyzing,
+  subfoldersByFolder,
+  isSubfolderVisible,
   onOpenNewFolder,
   onToggle,
   onToggleCollapse,
@@ -918,55 +968,9 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
   onDragOver,
   onDrop,
   onDragEnd,
+  onSubfolderToggle,
 }: SidebarFoldersSectionProps) {
   const { t } = useTranslation();
-  const folderTree = buildFolderTree(folders);
-
-  function renderNodes(
-    nodes: FolderTreeNode[],
-    depth: number,
-  ): React.ReactNode {
-    return nodes.map((node) => {
-      const { folder, children } = node;
-      const isScanning = scanningFolderIds?.has(folder.id) ?? false;
-      const isSelected = selectedFolderIds?.has(folder.id) ?? false;
-      const hasChildren = children.length > 0;
-      const isCollapsed = collapsedFolderIds?.has(folder.id) ?? false;
-      const isDragTarget =
-        depth === 0 &&
-        draggingFolderId !== null &&
-        draggingFolderId !== folder.id &&
-        folderDropTargetId === folder.id;
-
-      return (
-        <div key={folder.id}>
-          <SidebarFolderRow
-            folder={folder}
-            depth={depth}
-            hasChildren={hasChildren}
-            isCollapsed={isCollapsed}
-            isScanning={isScanning}
-            isSelected={isSelected}
-            isDragTarget={isDragTarget}
-            isDragging={draggingFolderId === folder.id}
-            scanning={scanning}
-            isAnalyzing={isAnalyzing}
-            onRename={onRename}
-            onToggle={onToggle}
-            onToggleCollapse={onToggleCollapse}
-            onDeleteRequest={onDeleteRequest}
-            onReveal={onReveal}
-            onRescan={onRescan}
-            onDragStart={depth === 0 ? onDragStart : undefined}
-            onDragOver={depth === 0 ? onDragOver : undefined}
-            onDrop={depth === 0 ? onDrop : undefined}
-            onDragEnd={depth === 0 ? onDragEnd : undefined}
-          />
-          {hasChildren && !isCollapsed && renderNodes(children, depth + 1)}
-        </div>
-      );
-    });
-  }
 
   return (
     <div className="pt-4 border-t border-border" data-tour="sidebar-folders">
@@ -995,7 +999,56 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
           {t("sidebar.folders.empty")}
         </p>
       ) : (
-        <div className="space-y-1">{renderNodes(folderTree, 0)}</div>
+        <div className="space-y-1">
+          {folders.map((folder) => {
+            const subfolders = subfoldersByFolder?.get(folder.id) ?? [];
+            const hasChildren = subfolders.length > 0;
+            const isCollapsed = collapsedFolderIds?.has(folder.id) ?? false;
+            const isDragTarget =
+              draggingFolderId !== null &&
+              draggingFolderId !== folder.id &&
+              folderDropTargetId === folder.id;
+
+            return (
+              <div key={folder.id}>
+                <SidebarFolderRow
+                  folder={folder}
+                  depth={0}
+                  hasChildren={hasChildren}
+                  isCollapsed={isCollapsed}
+                  isScanning={scanningFolderIds?.has(folder.id) ?? false}
+                  isSelected={selectedFolderIds?.has(folder.id) ?? false}
+                  isDragTarget={isDragTarget}
+                  isDragging={draggingFolderId === folder.id}
+                  scanning={scanning}
+                  isAnalyzing={isAnalyzing}
+                  onRename={onRename}
+                  onToggle={onToggle}
+                  onToggleCollapse={onToggleCollapse}
+                  onDeleteRequest={onDeleteRequest}
+                  onReveal={onReveal}
+                  onRescan={onRescan}
+                  onDragStart={onDragStart}
+                  onDragOver={onDragOver}
+                  onDrop={onDrop}
+                  onDragEnd={onDragEnd}
+                />
+                {hasChildren &&
+                  !isCollapsed &&
+                  subfolders.map((sf) => (
+                    <SidebarSubfolderRow
+                      key={sf.path}
+                      subfolder={sf}
+                      isVisible={
+                        isSubfolderVisible?.(sf.path, sf.folderId) ?? true
+                      }
+                      onToggle={onSubfolderToggle}
+                    />
+                  ))}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -1111,6 +1164,8 @@ export const Sidebar = memo(
       rollbackRequest,
       scanningFolderIds,
       scanning,
+      subfoldersByFolder,
+      isSubfolderVisible,
     } = folderState;
     const {
       createFolder,
@@ -1123,6 +1178,7 @@ export const Sidebar = memo(
       onFolderAdded,
       onFolderCancelled,
       onFolderRescan,
+      onSubfolderToggle,
     } = folderActions;
     const { categories, selectedCategoryId } = categoryState;
     const {
@@ -1448,6 +1504,8 @@ export const Sidebar = memo(
                 folderDropTargetId={folderDropTargetId}
                 scanning={scanning}
                 isAnalyzing={isAnalyzing}
+                subfoldersByFolder={subfoldersByFolder}
+                isSubfolderVisible={isSubfolderVisible}
                 onOpenNewFolder={handleOpenFolderDialog}
                 onToggle={onFolderToggle}
                 onToggleCollapse={onFolderToggleCollapse}
@@ -1459,6 +1517,7 @@ export const Sidebar = memo(
                 onDragOver={handleFolderDragOver}
                 onDrop={handleFolderDrop}
                 onDragEnd={handleFolderDragEnd}
+                onSubfolderToggle={onSubfolderToggle}
               />
 
               <SidebarCategoriesSection

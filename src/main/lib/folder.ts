@@ -65,3 +65,38 @@ export async function renameFolder(
 ): Promise<FolderRow> {
   return getDB().folder.update({ where: { id }, data: { name } });
 }
+
+export async function getSubfolderPaths(folderId: number): Promise<string[]> {
+  const db = getDB();
+  const folder = await db.folder.findUnique({ where: { id: folderId } });
+  if (!folder) return [];
+
+  const images = await db.image.findMany({
+    where: { folderId },
+    select: { path: true },
+  });
+
+  const sep = process.platform === "win32" ? "\\" : "/";
+  const folderNorm =
+    process.platform === "win32"
+      ? folder.path.toLowerCase()
+      : folder.path;
+
+  const subfolderSet = new Set<string>();
+  for (const img of images) {
+    const imgNorm =
+      process.platform === "win32"
+        ? img.path.toLowerCase()
+        : img.path;
+    const prefix = folderNorm.endsWith(sep)
+      ? folderNorm
+      : folderNorm + sep;
+    if (!imgNorm.startsWith(prefix)) continue;
+    const rel = imgNorm.slice(prefix.length);
+    const firstSep = rel.indexOf(sep);
+    if (firstSep === -1) continue; // image is directly in folder root
+    subfolderSet.add(prefix + rel.slice(0, firstSep));
+  }
+
+  return [...subfolderSet].sort();
+}

@@ -61,6 +61,11 @@ export type ImageListQuery = {
   randomSeed?: number;
   resolutionFilters?: ImageQueryResolutionFilter[];
   modelFilters?: string[];
+  subfolderFilters?: Array<{
+    folderId: number;
+    selectedPaths: string[];
+    allPaths: string[];
+  }>;
 };
 
 export type ImageListResult = {
@@ -1173,6 +1178,12 @@ export async function listImageIdsForFolder(
   return rows.map((row) => row.id);
 }
 
+type SubfolderFilter = {
+  folderId: number;
+  selectedPaths: string[];
+  allPaths: string[];
+};
+
 type NormalizedImageListQuery = {
   page: number;
   pageSize: number;
@@ -1186,6 +1197,7 @@ type NormalizedImageListQuery = {
   randomSeed: number;
   resolutionFilters: ImageQueryResolutionFilter[];
   modelFilters: string[];
+  subfolderFilters: SubfolderFilter[];
 };
 
 function normalizePositiveInt(
@@ -1322,6 +1334,14 @@ function normalizeImageListQuery(
       : 0,
     resolutionFilters: normalizeResolutionFilters(query?.resolutionFilters),
     modelFilters: normalizeModelFilters(query?.modelFilters),
+    subfolderFilters: Array.isArray(query?.subfolderFilters)
+      ? query.subfolderFilters.filter(
+          (f) =>
+            Number.isInteger(f.folderId) &&
+            Array.isArray(f.selectedPaths) &&
+            Array.isArray(f.allPaths),
+        )
+      : [],
   };
 }
 
@@ -1330,7 +1350,47 @@ function buildImageWhereInput(
 ): Prisma.ImageWhereInput {
   const andConditions: Prisma.ImageWhereInput[] = [];
 
-  andConditions.push({ folderId: { in: query.folderIds } });
+  if (query.subfolderFilters.length === 0) {
+    andConditions.push({ folderId: { in: query.folderIds } });
+  } else {
+    const sep = process.platform === "win32" ? "\\" : "/";
+    const filteredFolderIds = new Set(
+      query.subfolderFilters.map((f) => f.folderId),
+    );
+    const unfilteredIds = query.folderIds.filter(
+      (id) => !filteredFolderIds.has(id),
+    );
+    const orConditions: Prisma.ImageWhereInput[] = [];
+    if (unfilteredIds.length > 0) {
+      orConditions.push({ folderId: { in: unfilteredIds } });
+    }
+    for (const sf of query.subfolderFilters) {
+      const pathConditions: Prisma.ImageWhereInput[] = [
+        // selected subfolders
+        ...sf.selectedPaths.map((p) => ({
+          path: { startsWith: p.endsWith(sep) ? p : p + sep },
+        })),
+        // root images: not under any known subdir
+        ...(sf.allPaths.length > 0
+          ? [
+              {
+                AND: sf.allPaths.map((p) => ({
+                  path: {
+                    not: { startsWith: p.endsWith(sep) ? p : p + sep },
+                  },
+                })),
+              },
+            ]
+          : []),
+      ];
+      if (pathConditions.length > 0) {
+        orConditions.push({
+          AND: [{ folderId: sf.folderId }, { OR: pathConditions }],
+        });
+      }
+    }
+    andConditions.push({ OR: orConditions });
+  }
 
   if (query.searchGroups.length > 0) {
     for (const terms of query.searchGroups) {

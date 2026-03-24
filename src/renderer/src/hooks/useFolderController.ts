@@ -1,12 +1,8 @@
-import { useMemo, useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useFolders } from "@/hooks/useFolders";
 import { useFolderSelection } from "@/hooks/useFolderSelection";
 import { useFolderCollapse } from "@/hooks/useFolderCollapse";
-import {
-  buildFolderTree,
-  findNodeById,
-  getAllDescendantIds,
-} from "@/lib/folder-tree";
+import { useSubfolderState } from "@/hooks/useSubfolderState";
 
 export function useFolderController(initialFolderCount: number | null = null) {
   const {
@@ -25,29 +21,59 @@ export function useFolderController(initialFolderCount: number | null = null) {
     removeSelectedFolder,
   } = useFolderSelection();
   const { collapsedFolderIds, toggleCollapse } = useFolderCollapse();
+  const {
+    subfoldersByFolder,
+    isSubfolderVisible,
+    toggleSubfolder,
+    setFolderSubfoldersVisible,
+    clearFolderSubfolders,
+    refreshSubfolders,
+    loadSubfolders,
+    subfolderFilters,
+  } = useSubfolderState();
 
   const folderCount = hasLoaded ? folders.length : initialFolderCount;
 
-  const folderTree = useMemo(() => buildFolderTree(folders), [folders]);
+  // Load subfolders for all folders on mount and when folder list changes
+  useEffect(() => {
+    if (!hasLoaded || folders.length === 0) return;
+    void refreshSubfolders(folders.map((f) => f.id));
+  }, [hasLoaded, folders, refreshSubfolders]);
 
   const toggleFolderVisible = useCallback(
     (id: number) => {
-      const node = findNodeById(folderTree, id);
-      const descendantIds = node ? getAllDescendantIds(node) : [];
+      const subfolders = subfoldersByFolder.get(id) ?? [];
+      const descendantIds = subfolders.map((s) => s.path);
       if (descendantIds.length > 0) {
-        toggleFolderWithCascade(id, descendantIds);
+        const willBeOn = !selectedFolderIds.has(id);
+        toggleFolderWithCascade(id, []);
+        setFolderSubfoldersVisible(id, willBeOn);
       } else {
         toggleFolder(id);
       }
     },
-    [folderTree, toggleFolder, toggleFolderWithCascade],
+    [
+      subfoldersByFolder,
+      selectedFolderIds,
+      toggleFolderWithCascade,
+      toggleFolder,
+      setFolderSubfoldersVisible,
+    ],
+  );
+
+  const removeFolderAndCleanup = useCallback(
+    async (id: number) => {
+      await removeFolder(id);
+      clearFolderSubfolders(id);
+    },
+    [removeFolder, clearFolderSubfolders],
   );
 
   return {
     folders,
     hasLoaded,
     addFolder,
-    removeFolder,
+    removeFolder: removeFolderAndCleanup,
     renameFolder,
     reorderFolders,
     selectedFolderIds,
@@ -55,8 +81,13 @@ export function useFolderController(initialFolderCount: number | null = null) {
     addSelectedFolder,
     removeSelectedFolder,
     folderCount,
-    folderTree,
     collapsedFolderIds,
     toggleCollapse,
+    subfoldersByFolder,
+    isSubfolderVisible,
+    toggleSubfolder,
+    refreshSubfolders,
+    loadSubfolders,
+    subfolderFilters,
   };
 }

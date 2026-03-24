@@ -44,6 +44,7 @@ function renderSidebarFolderActions(options?: {
       scheduleAnalysis,
       setActiveScanFolderIds,
       setRollbackFolderIds,
+      refreshSubfolders: async () => {},
     });
 
     return {

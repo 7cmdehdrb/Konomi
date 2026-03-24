@@ -10,6 +10,7 @@ import {
   createFolder,
   deleteFolder,
   renameFolder,
+  getSubfolderPaths,
 } from "./lib/folder";
 import {
   listImages,
@@ -150,6 +151,10 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
     case "folder:rename": {
       const { id, name } = payload as { id: number; name: string };
       return renameFolder(id, name);
+    }
+    case "folder:listSubdirectories": {
+      const { id } = payload as { id: number };
+      return getSubfolderPaths(id);
     }
 
     case "image:list":
