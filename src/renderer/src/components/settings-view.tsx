@@ -272,7 +272,7 @@ export function SettingsView({
           </div>
           <div className="flex items-center gap-1">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={handleResetAll}
               className="text-xs h-8 gap-1.5 text-muted-foreground"
@@ -629,7 +629,7 @@ export function SettingsView({
           </p>
           <div className="flex gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={loadIgnoredDuplicates}
               disabled={ignoredLoading || ignoredClearing}
@@ -726,7 +726,7 @@ export function SettingsView({
             <p className="select-none">{t("settings.hashReset.warning")}</p>
           </div>
           <Button
-            variant="outline"
+            variant="secondary"
             onClick={handleReset}
             disabled={resetting || isAnalyzing}
           >

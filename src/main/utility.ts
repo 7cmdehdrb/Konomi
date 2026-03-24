@@ -73,6 +73,7 @@ import type { NaiConfigPatch, GenerateParams } from "./lib/nai-gen";
 import type { CancelToken } from "./lib/scanner";
 import { createLogger } from "./lib/logger";
 import { suggestPromptTags } from "./lib/prompts-db";
+import { getDB } from "./lib/db";
 
 let scanCancelToken: CancelToken | null = null;
 let computeHashesInFlight: Promise<number> | null = null;
@@ -139,6 +140,11 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
         folderStatRows,
         emitSearchStatsProgress,
       );
+      try {
+        await getDB().$executeRawUnsafe("VACUUM");
+      } catch {
+        /* ignore */
+      }
       return null;
     }
     case "folder:rename": {
