@@ -14,6 +14,7 @@
   RefreshCw,
   ChevronRight,
   ChevronDown,
+  X,
 } from "lucide-react";
 import {
   forwardRef,
@@ -37,6 +38,12 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -69,6 +76,10 @@ interface SidebarFolderState {
 
 interface SidebarFolderActions {
   createFolder: (name: string, path: string) => Promise<FolderRecord>;
+  addFolders: (paths: string[]) => Promise<{
+    added: FolderRecord[];
+    errors: { path: string; message: string }[];
+  }>;
   deleteFolder: (id: number) => Promise<void>;
   renameFolder: (id: number, name: string) => Promise<void>;
   reorderFolders: (ids: number[]) => void;
@@ -281,7 +292,7 @@ const SidebarNewFolderDialog = memo(function SidebarNewFolderDialog({
   }, [closeRequest, handleOpenChange]);
 
   return (
-    <Dialog modal={false} open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent closeDisabled={isSubmitting}>
         <DialogHeader>
           <DialogTitle>{t("sidebar.dialog.newFolderTitle")}</DialogTitle>
@@ -344,11 +355,185 @@ const SidebarNewFolderDialog = memo(function SidebarNewFolderDialog({
   );
 });
 
+interface MultiFolderEntry {
+  path: string;
+  name: string;
+}
+
+function pathToName(folderPath: string): string {
+  return (
+    folderPath.replace(/\\/g, "/").replace(/\/+$/, "").split("/").pop() ||
+    folderPath
+  );
+}
+
+interface SidebarMultiFolderDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (
+    paths: string[],
+  ) => Promise<{ errors: { path: string; message: string }[] }>;
+}
+
+const SidebarMultiFolderDialog = memo(function SidebarMultiFolderDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+}: SidebarMultiFolderDialogProps) {
+  const { t } = useTranslation();
+  const [entries, setEntries] = useState<MultiFolderEntry[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitErrors, setSubmitErrors] = useState<
+    { path: string; message: string }[]
+  >([]);
+
+  const reset = useCallback(() => {
+    setEntries([]);
+    setSubmitErrors([]);
+    setIsSubmitting(false);
+  }, []);
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next && isSubmitting) return;
+      if (!next) reset();
+      onOpenChange(next);
+    },
+    [isSubmitting, onOpenChange, reset],
+  );
+
+  const handleBrowse = useCallback(async () => {
+    if (isSubmitting) return;
+    try {
+      const paths = await window.dialog.selectDirectories();
+      if (!paths || paths.length === 0) return;
+      setEntries((prev) => {
+        const existing = new Set(prev.map((e) => e.path));
+        const newEntries = paths
+          .filter((p) => !existing.has(p))
+          .map((p) => ({ path: p, name: pathToName(p) }));
+        return [...prev, ...newEntries];
+      });
+    } catch {
+      // dialog cancelled
+    }
+  }, [isSubmitting]);
+
+  const handleRemove = useCallback((path: string) => {
+    setEntries((prev) => prev.filter((e) => e.path !== path));
+    setSubmitErrors((prev) => prev.filter((e) => e.path !== path));
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    setIsSubmitting(true);
+    setSubmitErrors([]);
+    const paths = entries.map((e) => e.path);
+    const { errors } = await onSubmit(paths);
+    setIsSubmitting(false);
+    if (errors.length > 0) {
+      setSubmitErrors(errors);
+      setEntries((prev) =>
+        prev.filter((e) => errors.some((err) => err.path === e.path)),
+      );
+    } else {
+      reset();
+      onOpenChange(false);
+    }
+  }, [entries, onOpenChange, onSubmit, reset]);
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent closeDisabled={isSubmitting}>
+        <DialogHeader>
+          <DialogTitle>{t("sidebar.dialog.multiFolderTitle")}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {entries.length > 0 && (
+            <div className="space-y-1.5 max-h-56 overflow-y-auto">
+              {entries.map((entry) => {
+                const error = submitErrors.find((e) => e.path === entry.path);
+                return (
+                  <div
+                    key={entry.path}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md border px-3 py-2",
+                      error && "border-destructive/40 bg-destructive/5",
+                    )}
+                  >
+                    <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {entry.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono truncate">
+                        {entry.path}
+                      </p>
+                      {error && (
+                        <p className="text-xs text-destructive mt-0.5">
+                          {error.message}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      onClick={() => handleRemove(entry.path)}
+                      disabled={isSubmitting}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {entries.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <FolderPlus className="h-8 w-8 mb-2 opacity-50" />
+              <p className="text-sm">{t("sidebar.dialog.multiFolderEmpty")}</p>
+            </div>
+          )}
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handleBrowse}
+            disabled={isSubmitting}
+          >
+            <FolderPlus className="h-4 w-4 mr-2" />
+            {t("sidebar.dialog.multiFolderBrowse")}
+          </Button>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="ghost" disabled={isSubmitting}>
+              {t("common.cancel")}
+            </Button>
+          </DialogClose>
+          <Button
+            onClick={handleSubmit}
+            disabled={entries.length === 0 || isSubmitting}
+          >
+            {isSubmitting ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+            ) : null}
+            {isSubmitting
+              ? t("sidebar.dialog.loadingFiles")
+              : t("sidebar.dialog.addCount", {
+                  count: entries.length,
+                })}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+});
+
 interface SidebarFolderRowProps {
   folder: FolderRecord;
   isScanning: boolean;
   isSelected: boolean;
-  isDragTarget: boolean;
+  dragTargetPosition: "before" | "after" | null;
   isDragging: boolean;
   scanning?: boolean;
   isAnalyzing?: boolean;
@@ -362,8 +547,8 @@ interface SidebarFolderRowProps {
   onReveal: (folderId: number) => void;
   onRescan: (folder: FolderRecord) => void;
   onDragStart?: (id: number) => void;
-  onDragOver?: (id: number) => void;
-  onDrop?: (id: number) => void;
+  onDragOver?: (id: number, position: "before" | "after") => void;
+  onDrop?: (id: number, position: "before" | "after") => void;
   onDragEnd?: () => void;
 }
 
@@ -371,7 +556,7 @@ const SidebarFolderRow = memo(function SidebarFolderRow({
   folder,
   isScanning,
   isSelected,
-  isDragTarget,
+  dragTargetPosition,
   isDragging,
   scanning,
   isAnalyzing,
@@ -498,18 +683,27 @@ const SidebarFolderRow = memo(function SidebarFolderRow({
           onDragOver={(e) => {
             if (isEditing || depth !== 0) return;
             e.preventDefault();
-            onDragOver?.(folder.id);
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pos =
+              e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+            onDragOver?.(folder.id, pos);
           }}
           onDrop={(e) => {
             if (depth !== 0) return;
             e.preventDefault();
-            onDrop?.(folder.id);
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pos =
+              e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+            onDrop?.(folder.id, pos);
           }}
           onDragEnd={() => onDragEnd?.()}
           className={cn(
-            "group flex items-center gap-2 py-1.5 rounded-md cursor-pointer hover:bg-sidebar-accent",
+            "group relative flex items-center gap-2 py-1.5 rounded-md cursor-pointer hover:bg-sidebar-accent",
             paddingClass,
-            isDragTarget && "bg-sidebar-accent ring-1 ring-primary/40",
+            dragTargetPosition === "before" &&
+              "before:absolute before:left-2 before:right-2 before:top-0 before:h-0.5 before:bg-primary before:rounded-full",
+            dragTargetPosition === "after" &&
+              "after:absolute after:left-2 after:right-2 after:bottom-0 after:h-0.5 after:bg-primary after:rounded-full",
             isDragging && "opacity-60",
           )}
         >
@@ -649,7 +843,7 @@ const SidebarSubfolderRow = memo(function SidebarSubfolderRow({
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 pl-4 pr-2 py-1 rounded-md cursor-pointer hover:bg-sidebar-accent",
+        "group flex items-center gap-2 pl-5 pr-2 py-0.5 rounded-md cursor-pointer hover:bg-sidebar-accent",
         isVisible
           ? "text-muted-foreground hover:text-foreground"
           : "text-muted-foreground/40 hover:text-muted-foreground",
@@ -930,11 +1124,13 @@ interface SidebarFoldersSectionProps {
   scanningFolderIds?: Set<number>;
   draggingFolderId: number | null;
   folderDropTargetId: number | null;
+  folderDropPosition: "before" | "after";
   scanning?: boolean;
   isAnalyzing?: boolean;
   subfoldersByFolder?: Map<number, Subfolder[]>;
   isSubfolderVisible?: (path: string, folderId: number) => boolean;
   onOpenNewFolder: () => void;
+  onAddMultipleFolders: () => void;
   onToggle?: (id: number) => void;
   onToggleCollapse?: (id: number) => void;
   onRename: (id: number, name: string) => Promise<void>;
@@ -942,8 +1138,8 @@ interface SidebarFoldersSectionProps {
   onReveal: (folderId: number) => void;
   onRescan: (folder: FolderRecord) => void;
   onDragStart: (id: number) => void;
-  onDragOver: (id: number) => void;
-  onDrop: (id: number) => void;
+  onDragOver: (id: number, position: "before" | "after") => void;
+  onDrop: (id: number, position: "before" | "after") => void;
   onDragEnd: () => void;
   onSubfolderToggle?: (path: string, folderId: number) => void;
 }
@@ -955,11 +1151,13 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
   scanningFolderIds,
   draggingFolderId,
   folderDropTargetId,
+  folderDropPosition,
   scanning,
   isAnalyzing,
   subfoldersByFolder,
   isSubfolderVisible,
   onOpenNewFolder,
+  onAddMultipleFolders,
   onToggle,
   onToggleCollapse,
   onRename,
@@ -973,6 +1171,7 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
   onSubfolderToggle,
 }: SidebarFoldersSectionProps) {
   const { t } = useTranslation();
+  const addDisabled = scanning || isAnalyzing;
 
   return (
     <div className="pt-4 border-t border-border" data-tour="sidebar-folders">
@@ -981,20 +1180,40 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
           <FolderPlus className="h-4 w-4" />
           {t("sidebar.sections.folders")}
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-foreground"
-          onClick={onOpenNewFolder}
-          disabled={scanning || isAnalyzing}
-          title={isAnalyzing ? t("sidebar.folders.addDisabled") : undefined}
-        >
-          {scanning || isAnalyzing ? (
+        {addDisabled ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground"
+            disabled
+            title={isAnalyzing ? t("sidebar.folders.addDisabled") : undefined}
+          >
             <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Plus className="h-4 w-4" />
-          )}
-        </Button>
+          </Button>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
+              <DropdownMenuItem onSelect={onOpenNewFolder}>
+                {t("sidebar.folders.addOne")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onAddMultipleFolders}>
+                {t("sidebar.folders.addMultiple")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       {folders.length === 0 ? (
         <p className="text-xs text-muted-foreground px-8 select-none">
@@ -1006,7 +1225,7 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
             const subfolders = subfoldersByFolder?.get(folder.id) ?? [];
             const hasChildren = subfolders.length > 0;
             const isCollapsed = collapsedFolderIds?.has(folder.id) ?? false;
-            const isDragTarget =
+            const isDropTarget =
               draggingFolderId !== null &&
               draggingFolderId !== folder.id &&
               folderDropTargetId === folder.id;
@@ -1020,7 +1239,7 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
                   isCollapsed={isCollapsed}
                   isScanning={scanningFolderIds?.has(folder.id) ?? false}
                   isSelected={selectedFolderIds?.has(folder.id) ?? false}
-                  isDragTarget={isDragTarget}
+                  dragTargetPosition={isDropTarget ? folderDropPosition : null}
                   isDragging={draggingFolderId === folder.id}
                   scanning={scanning}
                   isAnalyzing={isAnalyzing}
@@ -1035,18 +1254,20 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
                   onDrop={onDrop}
                   onDragEnd={onDragEnd}
                 />
-                {hasChildren &&
-                  !isCollapsed &&
-                  subfolders.map((sf) => (
-                    <SidebarSubfolderRow
-                      key={sf.path}
-                      subfolder={sf}
-                      isVisible={
-                        isSubfolderVisible?.(sf.path, sf.folderId) ?? true
-                      }
-                      onToggle={onSubfolderToggle}
-                    />
-                  ))}
+                {hasChildren && !isCollapsed && (
+                  <div className="mt-1">
+                    {subfolders.map((sf) => (
+                      <SidebarSubfolderRow
+                        key={sf.path}
+                        subfolder={sf}
+                        isVisible={
+                          isSubfolderVisible?.(sf.path, sf.folderId) ?? true
+                        }
+                        onToggle={onSubfolderToggle}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1171,6 +1392,7 @@ export const Sidebar = memo(
     } = folderState;
     const {
       createFolder,
+      addFolders,
       deleteFolder,
       renameFolder,
       reorderFolders,
@@ -1209,6 +1431,9 @@ export const Sidebar = memo(
     const [folderDropTargetId, setFolderDropTargetId] = useState<number | null>(
       null,
     );
+    const [folderDropPosition, setFolderDropPosition] = useState<
+      "before" | "after"
+    >("after");
     const [draggingCategoryId, setDraggingCategoryId] = useState<number | null>(
       null,
     );
@@ -1320,6 +1545,28 @@ export const Sidebar = memo(
       setFolderOpenRequest((current) => current + 1);
     }, []);
 
+    const [multiFolderOpen, setMultiFolderOpen] = useState(false);
+
+    const handleAddMultipleFolders = useCallback(() => {
+      setMultiFolderOpen(true);
+    }, []);
+
+    const handleMultiFolderSubmit = useCallback(
+      async (paths: string[]) => {
+        const { added, errors } = await addFolders(paths);
+        for (const folder of added) {
+          onFolderAdded?.(folder.id);
+        }
+        if (added.length > 0) {
+          toast.success(
+            t("sidebar.folders.addedMultiple", { count: added.length }),
+          );
+        }
+        return { errors };
+      },
+      [addFolders, onFolderAdded, t],
+    );
+
     useImperativeHandle(
       ref,
       () => ({
@@ -1383,9 +1630,10 @@ export const Sidebar = memo(
     }, []);
 
     const handleFolderDragOver = useCallback(
-      (id: number) => {
+      (id: number, position: "before" | "after") => {
         if (draggingFolderId === null || draggingFolderId === id) return;
         setFolderDropTargetId((prev) => (prev === id ? prev : id));
+        setFolderDropPosition(position);
       },
       [draggingFolderId],
     );
@@ -1393,10 +1641,11 @@ export const Sidebar = memo(
     const handleFolderDragEnd = useCallback(() => {
       setDraggingFolderId(null);
       setFolderDropTargetId(null);
+      setFolderDropPosition("after");
     }, []);
 
     const handleFolderDrop = useCallback(
-      (targetId: number) => {
+      (targetId: number, position: "before" | "after") => {
         if (draggingFolderId === null || draggingFolderId === targetId) {
           handleFolderDragEnd();
           return;
@@ -1404,15 +1653,18 @@ export const Sidebar = memo(
 
         const currentIds = folders.map((folder) => folder.id);
         const from = currentIds.indexOf(draggingFolderId);
-        const to = currentIds.indexOf(targetId);
+        let to = currentIds.indexOf(targetId);
         if (from < 0 || to < 0) {
           handleFolderDragEnd();
           return;
         }
 
         const nextIds = [...currentIds];
-        const [moved] = nextIds.splice(from, 1);
-        nextIds.splice(to, 0, moved);
+        nextIds.splice(from, 1);
+        // After removing, recalculate target index
+        to = nextIds.indexOf(targetId);
+        const insertAt = position === "before" ? to : to + 1;
+        nextIds.splice(insertAt, 0, draggingFolderId);
         reorderFolders(nextIds);
         handleFolderDragEnd();
       },
@@ -1504,11 +1756,13 @@ export const Sidebar = memo(
                 scanningFolderIds={scanningFolderIds}
                 draggingFolderId={draggingFolderId}
                 folderDropTargetId={folderDropTargetId}
+                folderDropPosition={folderDropPosition}
                 scanning={scanning}
                 isAnalyzing={isAnalyzing}
                 subfoldersByFolder={subfoldersByFolder}
                 isSubfolderVisible={isSubfolderVisible}
                 onOpenNewFolder={handleOpenFolderDialog}
+                onAddMultipleFolders={handleAddMultipleFolders}
                 onToggle={onFolderToggle}
                 onToggleCollapse={onFolderToggleCollapse}
                 onRename={handleFolderRename}
@@ -1596,6 +1850,11 @@ export const Sidebar = memo(
           openRequest={folderOpenRequest}
           closeRequest={folderAddResolvedSeq}
           onSubmit={handleFolderAddWithDuplicateCheck}
+        />
+        <SidebarMultiFolderDialog
+          open={multiFolderOpen}
+          onOpenChange={setMultiFolderOpen}
+          onSubmit={handleMultiFolderSubmit}
         />
       </>
     );
