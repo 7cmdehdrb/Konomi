@@ -7,6 +7,11 @@ const ko = {
         description:
           "정말로 이 이미지를 삭제할까요? 파일은 휴지통으로 이동됩니다.",
       },
+      bulkDelete: {
+        title: "이미지 일괄 삭제",
+        description:
+          "선택한 {{count}}개의 이미지를 삭제할까요? 파일은 휴지통으로 이동됩니다.",
+      },
       scanCancel: {
         title: "스캔 취소",
         description: "진행 중인 폴더 스캔을 취소할까요?",
@@ -70,6 +75,7 @@ const ko = {
       revealOriginal: "원본 보기",
       changeCategory: "카테고리 변경",
       delete: "삭제",
+      deleteSelected: "{{count}}개 이미지 삭제",
     },
     moreTokens: "+{{count}}개",
   },
@@ -126,6 +132,7 @@ const ko = {
     deselectAllResults: "검색 결과 전체 선택 해제",
     clearSelection: "선택 초기화",
     changeCategoryForSelection: "카테고리 일괄 변경",
+    deleteSelection: "선택 삭제",
     firstPage: "첫 페이지",
     previousPage: "이전 페이지",
     nextPage: "다음 페이지",
@@ -384,6 +391,8 @@ const ko = {
     categoryAddImagesFailed: "이미지 추가 실패: {{message}}",
     favoriteSetFailed: "즐겨찾기 설정 실패: {{message}}",
     imageDeleteFailed: "이미지 삭제 실패: {{message}}",
+    bulkDeletePartialFail:
+      "{{total}}개 중 {{failed}}개 이미지 삭제에 실패했습니다.",
     hashResetFailed: "해시 초기화 실패: {{message}}",
     folderRevealFailed: "Explorer에서 폴더 열기 실패: {{message}}",
   },

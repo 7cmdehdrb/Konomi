@@ -242,6 +242,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     generatorTransitioning,
     categoryDialog,
     deleteDialog,
+    bulkDeleteDialog,
     detail,
   } = useImageActions({
     images,
@@ -539,6 +540,30 @@ export default function App({ initialFolderCount = null }: AppProps) {
               <Button variant="ghost">{t("common.cancel")}</Button>
             </DialogClose>
             <Button variant="destructive" onClick={deleteDialog.onConfirm}>
+              {t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={bulkDeleteDialog.open}
+        onOpenChange={bulkDeleteDialog.onOpenChange}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("app.dialog.bulkDelete.title")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {t("app.dialog.bulkDelete.description", {
+              count: bulkDeleteDialog.count,
+            })}
+          </p>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="ghost">{t("common.cancel")}</Button>
+            </DialogClose>
+            <Button variant="destructive" onClick={bulkDeleteDialog.onConfirm}>
               {t("common.delete")}
             </Button>
           </DialogFooter>

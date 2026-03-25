@@ -68,6 +68,8 @@ interface ImageCardProps {
   selectionMode?: boolean;
   selected?: boolean;
   onSelectChange?: (id: string, selected: boolean) => void;
+  selectedCount?: number;
+  onBulkDelete?: () => void;
 }
 
 export const ImageCard = memo(function ImageCard({
@@ -84,6 +86,8 @@ export const ImageCard = memo(function ImageCard({
   selectionMode = false,
   selected = false,
   onSelectChange,
+  selectedCount = 0,
+  onBulkDelete,
 }: ImageCardProps) {
   const { t } = useTranslation();
   const { formatDate, formatDateTime } = useLocaleFormatters();
@@ -174,13 +178,23 @@ export const ImageCard = memo(function ImageCard({
         {t("imageCard.menu.changeCategory")}
       </ContextMenuItem>
       <ContextMenuSeparator />
-      <ContextMenuItem
-        className="text-destructive focus:text-destructive"
-        onSelect={() => onDelete(image.id)}
-      >
-        <Trash2 className="h-4 w-4" />
-        {t("imageCard.menu.delete")}
-      </ContextMenuItem>
+      {selectionMode && selected && selectedCount > 1 && onBulkDelete ? (
+        <ContextMenuItem
+          className="text-destructive focus:text-destructive"
+          onSelect={onBulkDelete}
+        >
+          <Trash2 className="h-4 w-4" />
+          {t("imageCard.menu.deleteSelected", { count: selectedCount })}
+        </ContextMenuItem>
+      ) : (
+        <ContextMenuItem
+          className="text-destructive focus:text-destructive"
+          onSelect={() => onDelete(image.id)}
+        >
+          <Trash2 className="h-4 w-4" />
+          {t("imageCard.menu.delete")}
+        </ContextMenuItem>
+      )}
     </ContextMenuContent>
   ) : null;
 

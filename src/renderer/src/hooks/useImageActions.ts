@@ -43,6 +43,9 @@ export function useImageActions({
     ImageData[] | null
   >(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [bulkDeleteImages, setBulkDeleteImages] = useState<ImageData[] | null>(
+    null,
+  );
   const [generatorTransitioning, setGeneratorTransitioning] = useState(false);
 
   const selectedImage = useMemo(() => {
@@ -199,6 +202,41 @@ export function useImageActions({
     setBulkCategoryDialogImages(targets);
   }, []);
 
+  const handleBulkDelete = useCallback((targets: ImageData[]) => {
+    if (targets.length === 0) return;
+    setBulkDeleteImages(targets);
+  }, []);
+
+  const handleConfirmBulkDelete = useCallback(() => {
+    if (!bulkDeleteImages || bulkDeleteImages.length === 0) return;
+    const paths = bulkDeleteImages.map((img) => img.path);
+    const ids = new Set(bulkDeleteImages.map((img) => img.id));
+    setBulkDeleteImages(null);
+
+    Promise.allSettled(paths.map((p) => window.image.delete(p))).then(
+      (results) => {
+        const failed = results.filter((r) => r.status === "rejected").length;
+        if (failed > 0) {
+          toast.error(
+            t("error.bulkDeletePartialFail", { failed, total: paths.length }),
+          );
+        }
+      },
+    );
+
+    if (selectedImage && ids.has(selectedImage.id)) {
+      setSelectedImage(null);
+      setIsDetailOpen(false);
+    }
+    schedulePageRefresh(60);
+  }, [bulkDeleteImages, schedulePageRefresh, selectedImage, t]);
+
+  const handleBulkDeleteDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setBulkDeleteImages(null);
+    }
+  }, []);
+
   const handleCategoryDialogClose = useCallback(() => {
     setCategoryDialogImage(null);
     setBulkCategoryDialogImages(null);
@@ -232,6 +270,7 @@ export function useImageActions({
       onDelete: handleDeleteImage,
       onChangeCategory: handleChangeCategory,
       onBulkChangeCategory: handleBulkChangeCategory,
+      onBulkDelete: handleBulkDelete,
       onSendToGenerator: handleSendToGenerator,
       onSendToSource: handleSendToSource,
       onAddTagToSearch: handleAddTagToSearch,
@@ -241,6 +280,7 @@ export function useImageActions({
       handleAddTagToGenerator,
       handleAddTagToSearch,
       handleBulkChangeCategory,
+      handleBulkDelete,
       handleChangeCategory,
       handleCopyPrompt,
       handleDeleteImage,
@@ -264,6 +304,12 @@ export function useImageActions({
       open: !!deleteConfirmId,
       onOpenChange: handleDeleteDialogOpenChange,
       onConfirm: handleConfirmDelete,
+    },
+    bulkDeleteDialog: {
+      open: !!bulkDeleteImages,
+      count: bulkDeleteImages?.length ?? 0,
+      onOpenChange: handleBulkDeleteDialogOpenChange,
+      onConfirm: handleConfirmBulkDelete,
     },
     detail: {
       image: selectedImage,

@@ -7,6 +7,11 @@ const en = {
         description:
           "Delete this image? The file will be moved to the recycle bin.",
       },
+      bulkDelete: {
+        title: "Delete Images",
+        description:
+          "Delete {{count}} selected images? The files will be moved to the recycle bin.",
+      },
       scanCancel: {
         title: "Cancel Scan",
         description: "Cancel the folder scan currently in progress?",
@@ -70,6 +75,7 @@ const en = {
       revealOriginal: "Reveal Original",
       changeCategory: "Change Category",
       delete: "Delete",
+      deleteSelected: "Delete {{count}} Images",
     },
     moreTokens: "+{{count}} more",
   },
@@ -126,6 +132,7 @@ const en = {
     deselectAllResults: "Deselect All Results",
     clearSelection: "Clear Selection",
     changeCategoryForSelection: "Change Category",
+    deleteSelection: "Delete Selected",
     firstPage: "First page",
     previousPage: "Previous page",
     nextPage: "Next page",
@@ -386,6 +393,7 @@ const en = {
     categoryAddImagesFailed: "Failed to add images: {{message}}",
     favoriteSetFailed: "Failed to update favorite: {{message}}",
     imageDeleteFailed: "Failed to delete image: {{message}}",
+    bulkDeletePartialFail: "Failed to delete {{failed}} of {{total}} images.",
     hashResetFailed: "Failed to reset hashes: {{message}}",
     folderRevealFailed: "Failed to open folder in Explorer: {{message}}",
   },

@@ -38,6 +38,7 @@ function renderImageGallery(overrides: ImageGalleryOverrides = {}) {
       onDelete: vi.fn(),
       onChangeCategory: vi.fn(),
       onBulkChangeCategory: vi.fn(),
+      onBulkDelete: vi.fn(),
     },
   };
   const props: ComponentProps<typeof ImageGallery> = {

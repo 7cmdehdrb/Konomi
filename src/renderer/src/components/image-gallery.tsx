@@ -18,6 +18,7 @@ import {
   ChevronRight,
   SquareCheckBig,
   Tags,
+  Trash2,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -141,6 +142,7 @@ interface ImageGalleryActions {
   onDelete: (id: string) => void;
   onChangeCategory: (image: ImageData) => void;
   onBulkChangeCategory: (images: ImageData[]) => void;
+  onBulkDelete: (images: ImageData[]) => void;
   onSendToGenerator?: (image: ImageData) => void;
   onSendToSource?: (image: ImageData) => void;
   onAddTagToSearch?: (tag: string) => void;
@@ -182,6 +184,7 @@ interface GalleryToolbarProps {
   onSelectAllFiltered: () => void;
   onClearSelection: () => void;
   onBulkCategory: () => void;
+  onBulkDelete: () => void;
 }
 
 const GalleryToolbar = memo(function GalleryToolbar({
@@ -203,6 +206,7 @@ const GalleryToolbar = memo(function GalleryToolbar({
   onSelectAllFiltered,
   onClearSelection,
   onBulkCategory,
+  onBulkDelete,
 }: GalleryToolbarProps) {
   const { t } = useTranslation();
 
@@ -339,6 +343,15 @@ const GalleryToolbar = memo(function GalleryToolbar({
               <Tags className="h-4 w-4" />
               {t("gallery.changeCategoryForSelection")}
             </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={onBulkDelete}
+              disabled={selectedCount === 0}
+            >
+              <Trash2 className="h-4 w-4" />
+              {t("gallery.deleteSelection")}
+            </Button>
           </>
         )}
       </div>
@@ -362,7 +375,9 @@ interface GalleryResultsProps {
   onAddTagToGenerator?: (tag: string) => void;
   selectionMode: boolean;
   selectedIds: Set<string>;
+  selectedCount: number;
   onSelectChange: (id: string, selected: boolean) => void;
+  onBulkDelete: () => void;
   isInitializing: boolean;
   hasFolders: boolean;
   onAddFolder?: () => void;
@@ -384,7 +399,9 @@ const GalleryResults = memo(function GalleryResults({
   onAddTagToGenerator,
   selectionMode,
   selectedIds,
+  selectedCount,
   onSelectChange,
+  onBulkDelete,
   isInitializing,
   hasFolders,
   onAddFolder,
@@ -569,6 +586,8 @@ const GalleryResults = memo(function GalleryResults({
                   selectionMode={selectionMode}
                   selected={selectedIds.has(image.id)}
                   onSelectChange={onSelectChange}
+                  selectedCount={selectedCount}
+                  onBulkDelete={onBulkDelete}
                 />
               );
 
@@ -828,6 +847,7 @@ export const ImageGallery = memo(function ImageGallery({
     onDelete,
     onChangeCategory,
     onBulkChangeCategory,
+    onBulkDelete,
     onSendToGenerator,
     onSendToSource,
     onAddTagToSearch,
@@ -1015,6 +1035,15 @@ export const ImageGallery = memo(function ImageGallery({
     onBulkChangeCategory(selected);
   }, [onBulkChangeCategory, selectedIds, selectedImageMap]);
 
+  const handleBulkDelete = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    const selected = Array.from(selectedIds)
+      .map((id) => selectedImageMap.get(id))
+      .filter((image): image is ImageData => image !== undefined);
+    if (selected.length === 0) return;
+    onBulkDelete(selected);
+  }, [onBulkDelete, selectedIds, selectedImageMap]);
+
   const handleToggleSelectionMode = useCallback(() => {
     setSelectionMode((prev) => !prev);
   }, []);
@@ -1050,6 +1079,7 @@ export const ImageGallery = memo(function ImageGallery({
         onSelectAllFiltered={handleSelectAllFiltered}
         onClearSelection={handleClearSelection}
         onBulkCategory={handleBulkCategory}
+        onBulkDelete={handleBulkDelete}
       />
 
       <GalleryResults
@@ -1068,7 +1098,9 @@ export const ImageGallery = memo(function ImageGallery({
         onAddTagToGenerator={onAddTagToGenerator}
         selectionMode={selectionMode}
         selectedIds={selectedIds}
+        selectedCount={selectedCount}
         onSelectChange={handleSelectImage}
+        onBulkDelete={handleBulkDelete}
         isInitializing={isInitializing}
         hasFolders={hasFolders}
         onAddFolder={onAddFolder}
