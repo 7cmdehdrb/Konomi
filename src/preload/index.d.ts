@@ -86,6 +86,7 @@ export type ImageListQuery = {
     folderId: number;
     selectedPaths: string[];
     allPaths: string[];
+    includeRoot?: boolean;
   }>;
 };
 

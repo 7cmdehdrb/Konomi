@@ -67,6 +67,7 @@ export type ImageListQuery = {
     folderId: number;
     selectedPaths: string[];
     allPaths: string[];
+    includeRoot?: boolean;
   }>;
 };
 
@@ -1188,6 +1189,7 @@ type SubfolderFilter = {
   folderId: number;
   selectedPaths: string[];
   allPaths: string[];
+  includeRoot: boolean;
 };
 
 type NormalizedImageListQuery = {
@@ -1373,12 +1375,19 @@ function normalizeImageListQuery(
     seedFilters: normalizeSeedFilters(query?.seedFilters),
     excludeTags: normalizeStringArray(query?.excludeTags),
     subfolderFilters: Array.isArray(query?.subfolderFilters)
-      ? query.subfolderFilters.filter(
-          (f) =>
-            Number.isInteger(f.folderId) &&
-            Array.isArray(f.selectedPaths) &&
-            Array.isArray(f.allPaths),
-        )
+      ? query.subfolderFilters
+          .filter(
+            (f) =>
+              Number.isInteger(f.folderId) &&
+              Array.isArray(f.selectedPaths) &&
+              Array.isArray(f.allPaths),
+          )
+          .map((f) => ({
+            folderId: f.folderId,
+            selectedPaths: f.selectedPaths,
+            allPaths: f.allPaths,
+            includeRoot: f.includeRoot !== false,
+          }))
       : [],
   };
 }
@@ -1408,8 +1417,8 @@ function buildImageWhereInput(
         ...sf.selectedPaths.map((p) => ({
           path: { startsWith: p.endsWith(sep) ? p : p + sep },
         })),
-        // root images: not under any known subdir
-        ...(sf.allPaths.length > 0
+        // root images: not under any known subdir (only if includeRoot)
+        ...(sf.includeRoot && sf.allPaths.length > 0
           ? [
               {
                 AND: sf.allPaths.map((p) => ({

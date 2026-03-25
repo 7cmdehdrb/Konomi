@@ -10,9 +10,11 @@ export type SubfolderFilter = {
   folderId: number;
   selectedPaths: string[];
   allPaths: string[];
+  includeRoot: boolean;
 };
 
 const VISIBILITY_KEY = "konomi-subfolder-visibility";
+const ROOT_SENTINEL = "__root__";
 
 function readDeselected(): Map<number, Set<string>> {
   try {
@@ -81,6 +83,26 @@ export function useSubfolderState() {
     [deselected],
   );
 
+  const isRootVisible = useCallback(
+    (folderId: number) => {
+      return !(deselected.get(folderId)?.has(ROOT_SENTINEL) ?? false);
+    },
+    [deselected],
+  );
+
+  const toggleRoot = useCallback((folderId: number) => {
+    setDeselected((prev) => {
+      const next = new Map(prev);
+      const set = new Set(next.get(folderId));
+      if (set.has(ROOT_SENTINEL)) set.delete(ROOT_SENTINEL);
+      else set.add(ROOT_SENTINEL);
+      if (set.size === 0) next.delete(folderId);
+      else next.set(folderId, set);
+      writeDeselected(next);
+      return next;
+    });
+  }, []);
+
   const toggleSubfolder = useCallback(
     (subfolderPath: string, folderId: number) => {
       setDeselected((prev) => {
@@ -107,7 +129,7 @@ export function useSubfolderState() {
         } else {
           const allPaths = subfoldersByFolder.get(folderId)?.map((s) => s.path);
           if (allPaths && allPaths.length > 0) {
-            next.set(folderId, new Set(allPaths));
+            next.set(folderId, new Set([...allPaths, ROOT_SENTINEL]));
           }
         }
         writeDeselected(next);
@@ -140,7 +162,8 @@ export function useSubfolderState() {
       if (allSubfolders.length === 0) continue;
       const allPaths = allSubfolders.map((s) => s.path);
       const selectedPaths = allPaths.filter((p) => !deselectedPaths.has(p));
-      filters.push({ folderId, selectedPaths, allPaths });
+      const includeRoot = !deselectedPaths.has(ROOT_SENTINEL);
+      filters.push({ folderId, selectedPaths, allPaths, includeRoot });
     }
     return filters;
   }, [deselected, subfoldersByFolder]);
@@ -148,7 +171,9 @@ export function useSubfolderState() {
   return {
     subfoldersByFolder,
     isSubfolderVisible,
+    isRootVisible,
     toggleSubfolder,
+    toggleRoot,
     setFolderSubfoldersVisible,
     clearFolderSubfolders,
     refreshSubfolders,

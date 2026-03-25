@@ -749,6 +749,8 @@ const en = {
       empty: "No folders added",
       addDisabled:
         "You cannot add folders while similarity analysis is running",
+      toggleAll: "Show/hide all",
+      toggleRoot: "Show/hide root images",
       addOne: "Add Folder",
       addMultiple: "Add Multiple Folders",
       addedMultiple: "{{count}} folders added",

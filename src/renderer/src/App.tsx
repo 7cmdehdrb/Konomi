@@ -71,7 +71,9 @@ export default function App({ initialFolderCount = null }: AppProps) {
     toggleCollapse,
     subfoldersByFolder,
     isSubfolderVisible,
+    isRootVisible,
     toggleSubfolder,
+    toggleRoot,
     refreshSubfolders,
     subfolderFilters,
   } = useFolderController(initialFolderCount);
@@ -322,6 +324,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
       scanning,
       subfoldersByFolder,
       isSubfolderVisible,
+      isRootVisible,
     }),
     [
       activeScanFolderIds,
@@ -332,6 +335,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
       selectedFolderIds,
       subfoldersByFolder,
       isSubfolderVisible,
+      isRootVisible,
     ],
   );
 
@@ -349,6 +353,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
       onFolderCancelled: handleFolderCancelled,
       onFolderRescan: handleFolderRescan,
       onSubfolderToggle: toggleSubfolder,
+      onRootToggle: toggleRoot,
     }),
     [
       addFolder,
@@ -363,6 +368,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
       toggleCollapse,
       toggleFolder,
       toggleSubfolder,
+      toggleRoot,
     ],
   );
   const sidebarCategoryActions = useMemo(

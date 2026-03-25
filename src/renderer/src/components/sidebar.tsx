@@ -72,6 +72,7 @@ interface SidebarFolderState {
   scanning?: boolean;
   subfoldersByFolder?: Map<number, Subfolder[]>;
   isSubfolderVisible?: (path: string, folderId: number) => boolean;
+  isRootVisible?: (folderId: number) => boolean;
 }
 
 interface SidebarFolderActions {
@@ -90,6 +91,7 @@ interface SidebarFolderActions {
   onFolderCancelled?: (id: number) => void;
   onFolderRescan?: (id: number) => void;
   onSubfolderToggle?: (path: string, folderId: number) => void;
+  onRootToggle?: (folderId: number) => void;
 }
 
 interface SidebarCategoryState {
@@ -550,6 +552,8 @@ interface SidebarFolderRowProps {
   onDragOver?: (id: number, position: "before" | "after") => void;
   onDrop?: (id: number, position: "before" | "after") => void;
   onDragEnd?: () => void;
+  isRootVisible?: boolean;
+  onRootToggle?: (id: number) => void;
 }
 
 const SidebarFolderRow = memo(function SidebarFolderRow({
@@ -573,6 +577,8 @@ const SidebarFolderRow = memo(function SidebarFolderRow({
   onDragOver,
   onDrop,
   onDragEnd,
+  isRootVisible,
+  onRootToggle,
 }: SidebarFolderRowProps) {
   const { t } = useTranslation();
   /* 
@@ -769,9 +775,29 @@ const SidebarFolderRow = memo(function SidebarFolderRow({
                     : "text-muted-foreground hover:text-primary",
                 )}
                 onClick={() => onToggle?.(folder.id)}
+                title={t("sidebar.folders.toggleAll")}
               >
                 <Eye className="h-3 w-3" />
               </Button>
+              {hasChildren && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-5 w-5",
+                    isRootVisible !== false
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-primary",
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRootToggle?.(folder.id);
+                  }}
+                  title={t("sidebar.folders.toggleRoot")}
+                >
+                  <Folder className="h-2.5 w-2.5" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -1129,6 +1155,7 @@ interface SidebarFoldersSectionProps {
   isAnalyzing?: boolean;
   subfoldersByFolder?: Map<number, Subfolder[]>;
   isSubfolderVisible?: (path: string, folderId: number) => boolean;
+  isRootVisible?: (folderId: number) => boolean;
   onOpenNewFolder: () => void;
   onAddMultipleFolders: () => void;
   onToggle?: (id: number) => void;
@@ -1142,6 +1169,7 @@ interface SidebarFoldersSectionProps {
   onDrop: (id: number, position: "before" | "after") => void;
   onDragEnd: () => void;
   onSubfolderToggle?: (path: string, folderId: number) => void;
+  onRootToggle?: (folderId: number) => void;
 }
 
 const SidebarFoldersSection = memo(function SidebarFoldersSection({
@@ -1156,6 +1184,7 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
   isAnalyzing,
   subfoldersByFolder,
   isSubfolderVisible,
+  isRootVisible,
   onOpenNewFolder,
   onAddMultipleFolders,
   onToggle,
@@ -1169,6 +1198,7 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
   onDrop,
   onDragEnd,
   onSubfolderToggle,
+  onRootToggle,
 }: SidebarFoldersSectionProps) {
   const { t } = useTranslation();
   const addDisabled = scanning || isAnalyzing;
@@ -1253,6 +1283,8 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
                   onDragOver={onDragOver}
                   onDrop={onDrop}
                   onDragEnd={onDragEnd}
+                  isRootVisible={isRootVisible?.(folder.id) ?? true}
+                  onRootToggle={onRootToggle}
                 />
                 {hasChildren && !isCollapsed && (
                   <div className="mt-1">
@@ -1389,6 +1421,7 @@ export const Sidebar = memo(
       scanning,
       subfoldersByFolder,
       isSubfolderVisible,
+      isRootVisible,
     } = folderState;
     const {
       createFolder,
@@ -1403,6 +1436,7 @@ export const Sidebar = memo(
       onFolderCancelled,
       onFolderRescan,
       onSubfolderToggle,
+      onRootToggle,
     } = folderActions;
     const { categories, selectedCategoryId } = categoryState;
     const {
@@ -1761,6 +1795,7 @@ export const Sidebar = memo(
                 isAnalyzing={isAnalyzing}
                 subfoldersByFolder={subfoldersByFolder}
                 isSubfolderVisible={isSubfolderVisible}
+                isRootVisible={isRootVisible}
                 onOpenNewFolder={handleOpenFolderDialog}
                 onAddMultipleFolders={handleAddMultipleFolders}
                 onToggle={onFolderToggle}
@@ -1774,6 +1809,7 @@ export const Sidebar = memo(
                 onDrop={handleFolderDrop}
                 onDragEnd={handleFolderDragEnd}
                 onSubfolderToggle={onSubfolderToggle}
+                onRootToggle={onRootToggle}
               />
 
               <SidebarCategoriesSection

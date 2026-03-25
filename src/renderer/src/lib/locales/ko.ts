@@ -742,6 +742,8 @@ const ko = {
       delete: "폴더 삭제",
       empty: "추가된 폴더가 없습니다",
       addDisabled: "유사 이미지 분석 중에는 폴더를 추가할 수 없습니다",
+      toggleAll: "전체 표시/숨기기",
+      toggleRoot: "루트 이미지 표시/숨기기",
       addOne: "폴더 추가",
       addMultiple: "여러 폴더 추가",
       addedMultiple: "{{count}}개 폴더가 추가되었습니다",
