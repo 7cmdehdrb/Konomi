@@ -3,6 +3,9 @@ import { builtinModules } from "module";
 import { defineConfig } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import pkg from "./package.json";
+
+const appVersion = JSON.stringify(pkg.version);
 
 // Packages that must remain external (native addons or complex runtime deps)
 const externalPackages = [
@@ -67,6 +70,9 @@ export default defineConfig({
   },
   preload: {},
   renderer: {
+    define: {
+      __APP_VERSION__: appVersion,
+    },
     resolve: {
       alias: {
         "@": resolve("src/renderer/src"),
