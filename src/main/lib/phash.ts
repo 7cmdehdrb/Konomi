@@ -637,6 +637,7 @@ async function readSimilaritySourceRows(): Promise<SimilaritySourceRow[]> {
 
 async function upsertSimilarityCacheRows(
   rows: SimilarityCacheRow[],
+  onProgress?: (done: number, total: number) => void,
 ): Promise<void> {
   if (rows.length === 0) return;
   const db = getDB();
@@ -661,6 +662,7 @@ async function upsertSimilarityCacheRows(
          updatedAt = excluded.updatedAt`,
       ...params,
     );
+    onProgress?.(Math.min(i + ROWS_PER_STMT, rows.length), rows.length);
     await yieldToEventLoop();
   }
 }
@@ -738,9 +740,7 @@ export async function refreshSimilarityCacheForImageIds(
   if (isFullCoverage) {
     const nativeRows = computeAllPairs(encodeImagesForNative(images, idfMap));
     if (nativeRows !== null) {
-      onProgress?.(0, nativeRows.length);
-      await upsertSimilarityCacheRows(nativeRows);
-      onProgress?.(nativeRows.length, nativeRows.length);
+      await upsertSimilarityCacheRows(nativeRows, onProgress);
       await markSimilarityCachePrimed();
       return;
     }

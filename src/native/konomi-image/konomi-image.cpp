@@ -487,23 +487,85 @@ Napi::Value ComputeAllPairs(const Napi::CallbackInfo& info) {
   build_idx(3, pos_d,  pos_o);
 
   // ── Accumulate weighted intersections via inverted index ──────────────────
-  // Tokens with df > N/4 are skipped: their IDF contribution is small
-  // (common tokens like "masterpiece") and iterating df² pairs is expensive.
+  // Tokens with df > N/4 are skipped from the O(df²) pair enumeration to
+  // avoid quadratic blowup on common tokens.  Their contributions are
+  // corrected in a separate pass over existing pairs below.
 
   std::unordered_map<uint64_t, PairAcc> tpairs;
   tpairs.reserve(std::min((uint64_t)N * N / 4, (uint64_t)4000000));
 
   const uint32_t max_df = std::max(N / 4u, 2u);
 
+  struct SkipEntry { float weight; uint32_t tid; };
+  std::vector<SkipEntry> skip_prompt, skip_char, skip_pos, skip_cross;
+
   for (uint32_t t = 0; t < vsz; ++t) {
     if (tok_w[t] <= 0.0) continue;
     float w = (float)tok_w[t];
 
-    if (fidx[0][t].size() <= max_df) acc_same(fidx[0][t], w, &PairAcc::promptInter,   tpairs);
-    if (fidx[1][t].size() <= max_df) acc_same(fidx[1][t], w, &PairAcc::charInter,     tpairs);
-    if (fidx[3][t].size() <= max_df) acc_same(fidx[3][t], w, &PairAcc::positiveInter, tpairs);
-    if (fidx[3][t].size() <= max_df && fidx[2][t].size() <= max_df)
-      acc_cross(fidx[3][t], fidx[2][t], w, tpairs);
+    bool ps = fidx[0][t].size() > max_df;
+    bool cs = fidx[1][t].size() > max_df;
+    bool xs = fidx[3][t].size() > max_df;
+    bool ns = fidx[2][t].size() > max_df;
+
+    if (!ps) acc_same(fidx[0][t], w, &PairAcc::promptInter,   tpairs);
+    else     skip_prompt.push_back({w, t});
+
+    if (!cs) acc_same(fidx[1][t], w, &PairAcc::charInter,     tpairs);
+    else     skip_char.push_back({w, t});
+
+    if (!xs) acc_same(fidx[3][t], w, &PairAcc::positiveInter, tpairs);
+    else     skip_pos.push_back({w, t});
+
+    if (!xs && !ns) acc_cross(fidx[3][t], fidx[2][t], w, tpairs);
+    else            skip_cross.push_back({w, t});
+  }
+
+  // ── Correct skipped-token contributions ──────────────────────────────────
+  // For each skipped token, build a per-image membership flag (O(N·S)),
+  // then iterate existing tpairs to add the missing intersection weight.
+  // S is small (typically 20-40 tokens), so this is cheap.
+
+  if (!tpairs.empty() &&
+      (!skip_prompt.empty() || !skip_char.empty() ||
+       !skip_pos.empty()    || !skip_cross.empty())) {
+
+    auto build_has = [&](const std::vector<SkipEntry>& entries, int field) {
+      std::vector<std::vector<uint8_t>> has(
+        entries.size(), std::vector<uint8_t>(N, 0));
+      for (size_t s = 0; s < entries.size(); ++s)
+        for (uint32_t idx : fidx[field][entries[s].tid])
+          has[s][idx] = 1;
+      return has;
+    };
+
+    auto hp = build_has(skip_prompt, 0);
+    auto hc = build_has(skip_char,   1);
+    auto hx = build_has(skip_pos,    3);
+    std::vector<std::vector<uint8_t>> hcp, hcn;
+    if (!skip_cross.empty()) {
+      hcp = build_has(skip_cross, 3);
+      hcn = build_has(skip_cross, 2);
+    }
+
+    for (auto& [key, acc] : tpairs) {
+      uint32_t ai = (uint32_t)(key >> 32);
+      uint32_t bi = (uint32_t)(key & 0xFFFFFFFF);
+
+      for (size_t s = 0; s < skip_prompt.size(); ++s)
+        if (hp[s][ai] && hp[s][bi]) acc.promptInter += skip_prompt[s].weight;
+
+      for (size_t s = 0; s < skip_char.size(); ++s)
+        if (hc[s][ai] && hc[s][bi]) acc.charInter += skip_char[s].weight;
+
+      for (size_t s = 0; s < skip_pos.size(); ++s)
+        if (hx[s][ai] && hx[s][bi]) acc.positiveInter += skip_pos[s].weight;
+
+      for (size_t s = 0; s < skip_cross.size(); ++s) {
+        if (hcp[s][ai] && hcn[s][bi]) acc.conflictABInter += skip_cross[s].weight;
+        if (hcp[s][bi] && hcn[s][ai]) acc.conflictBAInter += skip_cross[s].weight;
+      }
+    }
   }
 
   // ── pHash pass: find visually-close pairs not in tpairs ──────────────────
