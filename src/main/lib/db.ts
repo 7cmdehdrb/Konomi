@@ -70,6 +70,13 @@ function runMigrations(dbPath: string): void {
   }
 }
 
+/**
+ * SQLite crash safety:
+ * - better-sqlite3 defaults to DELETE journal mode → auto-rollback on next open
+ * - All writes use transactions ($transaction / db.transaction) → atomic
+ * - If DB is corrupted beyond journal recovery, delete konomi.db and re-scan
+ *   (image files are untouched; only user metadata like favorites/categories is lost)
+ */
 export function getDB(): PrismaClient {
   if (!client) {
     const dbPath = path.join(process.env.KONOMI_USER_DATA!, "konomi.db");

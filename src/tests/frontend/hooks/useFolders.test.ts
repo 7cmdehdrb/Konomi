@@ -88,8 +88,6 @@ describe("useFolders", () => {
 
     it("skips reload when all folders fail", async () => {
       preloadMocks.folder.create.mockRejectedValue(new Error("fail"));
-      const listCallCount = preloadMocks.folder.list.mock.calls.length;
-
       const { result } = renderHook(() => useFolders());
       await waitFor(() => expect(result.current.hasLoaded).toBe(true));
 
