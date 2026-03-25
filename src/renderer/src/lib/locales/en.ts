@@ -306,6 +306,7 @@ const en = {
       "Choose which categories should be applied to this image.",
     bulkDescription: "Apply categories to {{count}} selected images at once.",
     selectionLabel: "Selection",
+    imageCount: "{{count}} images",
     categoriesLabel: "Categories",
     categoryCount: "{{count}} categories",
     selectedCount: "{{count}} selected",

@@ -143,119 +143,85 @@ export function CategoryDialog({
     >
       <DialogContent className="w-[min(95vw,56rem)] max-w-3xl overflow-hidden p-0">
         <div className="flex flex-col">
-          <section className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-primary/14 via-background to-secondary/45 px-6 py-6 sm:px-7">
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute -right-12 top-0 h-36 w-36 rounded-full bg-primary/12 blur-3xl" />
-              <div className="absolute -left-10 bottom-0 h-28 w-28 rounded-full bg-secondary/80 blur-3xl" />
-            </div>
+          <section className="border-b border-border/60 px-6 py-4 sm:px-7">
+            <DialogHeader className="mb-0 space-y-1.5">
+              <DialogTitle className="text-lg tracking-tight">
+                {isBulk
+                  ? t("categoryDialog.title.bulk")
+                  : t("categoryDialog.title.single")}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                {dialogDescription}
+              </DialogDescription>
+            </DialogHeader>
 
-            <div className="relative z-10 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
-              <div className="space-y-4">
-                <DialogHeader className="mb-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant="secondary"
-                      className="rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-primary"
-                    >
-                      {isBulk ? (
-                        <Images className="h-3.5 w-3.5" />
-                      ) : (
-                        <ImageIcon className="h-3.5 w-3.5" />
-                      )}
-                      {targetImages.length}
-                    </Badge>
-                    <Badge variant="outline" className="rounded-full px-3 py-1">
-                      <Tag className="h-3.5 w-3.5" />
-                      {userCategories.length}
-                    </Badge>
-                  </div>
-                  <DialogTitle className="text-2xl tracking-tight">
-                    {isBulk
-                      ? t("categoryDialog.title.bulk")
-                      : t("categoryDialog.title.single")}
-                  </DialogTitle>
-                  <DialogDescription className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-                    {dialogDescription}
-                  </DialogDescription>
-                </DialogHeader>
-              </div>
+            <div className="mt-3 flex items-center gap-2">
+              {isBulk ? (
+                <>
+                  {previewImages.map((targetImage, index) => {
+                    const fileName = getImageFileName(targetImage.path);
+                    const showOverflowCount =
+                      hiddenPreviewCount > 0 &&
+                      index === previewImages.length - 1;
 
-              <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm backdrop-blur-sm">
-                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  {isBulk ? (
-                    <Images className="h-3.5 w-3.5" />
-                  ) : (
-                    <ImageIcon className="h-3.5 w-3.5" />
-                  )}
-                  {t("categoryDialog.selectionLabel")}
-                </p>
-
-                {isBulk ? (
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {previewImages.map((targetImage, index) => {
-                      const fileName = getImageFileName(targetImage.path);
-                      const showOverflowCount =
-                        hiddenPreviewCount > 0 &&
-                        index === previewImages.length - 1;
-
-                      return (
-                        <div
-                          key={targetImage.id}
-                          className="relative aspect-[4/3] overflow-hidden rounded-xl border border-border/60 bg-secondary/30"
-                        >
-                          {targetImage.src ? (
-                            <img
-                              src={targetImage.src}
-                              alt={fileName}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/12 to-secondary/40 text-muted-foreground">
-                              <Images className="h-5 w-5" />
-                            </div>
-                          )}
-                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-                          <span className="absolute bottom-2 left-2 right-2 truncate text-[11px] font-medium text-white">
-                            {fileName}
-                          </span>
-                          {showOverflowCount && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-background/72 backdrop-blur-[2px]">
-                              <span className="rounded-full border border-border/70 bg-background/90 px-3 py-1 text-sm font-semibold text-foreground shadow-sm">
-                                +{hiddenPreviewCount}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      );
+                    return (
+                      <div
+                        key={targetImage.id}
+                        className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-secondary/30"
+                      >
+                        {targetImage.src ? (
+                          <img
+                            src={targetImage.src}
+                            alt={fileName}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                            <Images className="h-4 w-4" />
+                          </div>
+                        )}
+                        {showOverflowCount && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-background/72 backdrop-blur-[2px]">
+                            <span className="text-xs font-semibold text-foreground">
+                              +{hiddenPreviewCount}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    {t("categoryDialog.imageCount", {
+                      count: targetImages.length,
                     })}
+                  </span>
+                </>
+              ) : targetImages[0] ? (
+                <>
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-secondary/30">
+                    {targetImages[0].src ? (
+                      <img
+                        src={targetImages[0].src}
+                        alt={getImageFileName(targetImages[0].path)}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                        <ImageIcon className="h-4 w-4" />
+                      </div>
+                    )}
                   </div>
-                ) : targetImages[0] ? (
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-secondary/30">
-                      {targetImages[0].src ? (
-                        <img
-                          src={targetImages[0].src}
-                          alt={getImageFileName(targetImages[0].path)}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/12 to-secondary/40 text-muted-foreground">
-                          <ImageIcon className="h-5 w-5" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {getImageFileName(targetImages[0].path)}
-                      </p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {targetImages[0].prompt?.trim() ||
-                          `${targetImages[0].width} x ${targetImages[0].height}`}
-                      </p>
-                    </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {getImageFileName(targetImages[0].path)}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {targetImages[0].prompt?.trim() ||
+                        `${targetImages[0].width} x ${targetImages[0].height}`}
+                    </p>
                   </div>
-                ) : null}
-              </div>
+                </>
+              ) : null}
             </div>
           </section>
 

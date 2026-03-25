@@ -305,6 +305,7 @@ const ko = {
     singleDescription: "이 이미지에 적용할 카테고리를 선택하세요.",
     bulkDescription: "선택된 {{count}}개 이미지에 카테고리를 일괄 적용합니다.",
     selectionLabel: "선택 대상",
+    imageCount: "{{count}}개 이미지",
     categoriesLabel: "카테고리",
     categoryCount: "{{count}}개 카테고리",
     selectedCount: "{{count}}개 선택됨",
