@@ -74,6 +74,7 @@ const en = {
       sendToSource: "Send as Reference",
       revealOriginal: "Reveal Original",
       changeCategory: "Change Category",
+      changeCategorySelected: "Change Category for {{count}} Images",
       delete: "Delete",
       deleteSelected: "Delete {{count}} Images",
     },

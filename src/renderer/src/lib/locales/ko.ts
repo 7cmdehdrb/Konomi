@@ -74,6 +74,7 @@ const ko = {
       sendToSource: "참고 이미지로 보내기",
       revealOriginal: "원본 보기",
       changeCategory: "카테고리 변경",
+      changeCategorySelected: "{{count}}개 이미지 카테고리 변경",
       delete: "삭제",
       deleteSelected: "{{count}}개 이미지 삭제",
     },

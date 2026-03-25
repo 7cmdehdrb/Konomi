@@ -70,6 +70,7 @@ interface ImageCardProps {
   onSelectChange?: (id: string, selected: boolean) => void;
   selectedCount?: number;
   onBulkDelete?: () => void;
+  onBulkCategory?: () => void;
 }
 
 export const ImageCard = memo(function ImageCard({
@@ -88,6 +89,7 @@ export const ImageCard = memo(function ImageCard({
   onSelectChange,
   selectedCount = 0,
   onBulkDelete,
+  onBulkCategory,
 }: ImageCardProps) {
   const { t } = useTranslation();
   const { formatDate, formatDateTime } = useLocaleFormatters();
@@ -173,10 +175,17 @@ export const ImageCard = memo(function ImageCard({
         <ExternalLink className="h-4 w-4" />
         {t("imageCard.menu.revealOriginal")}
       </ContextMenuItem>
-      <ContextMenuItem onSelect={() => onChangeCategory(image)}>
-        <Tag className="h-4 w-4" />
-        {t("imageCard.menu.changeCategory")}
-      </ContextMenuItem>
+      {selectionMode && selected && selectedCount > 1 && onBulkCategory ? (
+        <ContextMenuItem onSelect={onBulkCategory}>
+          <Tag className="h-4 w-4" />
+          {t("imageCard.menu.changeCategorySelected", { count: selectedCount })}
+        </ContextMenuItem>
+      ) : (
+        <ContextMenuItem onSelect={() => onChangeCategory(image)}>
+          <Tag className="h-4 w-4" />
+          {t("imageCard.menu.changeCategory")}
+        </ContextMenuItem>
+      )}
       <ContextMenuSeparator />
       {selectionMode && selected && selectedCount > 1 && onBulkDelete ? (
         <ContextMenuItem

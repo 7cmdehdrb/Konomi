@@ -378,6 +378,7 @@ interface GalleryResultsProps {
   selectedCount: number;
   onSelectChange: (id: string, selected: boolean) => void;
   onBulkDelete: () => void;
+  onBulkCategory: () => void;
   isInitializing: boolean;
   hasFolders: boolean;
   onAddFolder?: () => void;
@@ -402,6 +403,7 @@ const GalleryResults = memo(function GalleryResults({
   selectedCount,
   onSelectChange,
   onBulkDelete,
+  onBulkCategory,
   isInitializing,
   hasFolders,
   onAddFolder,
@@ -588,6 +590,7 @@ const GalleryResults = memo(function GalleryResults({
                   onSelectChange={onSelectChange}
                   selectedCount={selectedCount}
                   onBulkDelete={onBulkDelete}
+                  onBulkCategory={onBulkCategory}
                 />
               );
 
@@ -1101,6 +1104,7 @@ export const ImageGallery = memo(function ImageGallery({
         selectedCount={selectedCount}
         onSelectChange={handleSelectImage}
         onBulkDelete={handleBulkDelete}
+        onBulkCategory={handleBulkCategory}
         isInitializing={isInitializing}
         hasFolders={hasFolders}
         onAddFolder={onAddFolder}
