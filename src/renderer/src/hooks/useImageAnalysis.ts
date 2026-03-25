@@ -1,10 +1,4 @@
-import {
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-  startTransition,
-} from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { SimilarGroup } from "@preload/index.d";
 import type { Settings } from "@/hooks/useSettings";
@@ -56,12 +50,10 @@ export function useImageAnalysis({
   useEffect(() => {
     const offHashProgress = window.image.onHashProgress((data) => {
       if (analyzingRef.current)
-        startTransition(() =>
-          setHashProgress(data.done >= data.total ? null : data),
-        );
+        setHashProgress(data.done >= data.total ? null : data);
     });
     const offSimilarityProgress = window.image.onSimilarityProgress((data) => {
-      startTransition(() => setSimilarityProgress(data));
+      setSimilarityProgress(data);
     });
 
     return () => {

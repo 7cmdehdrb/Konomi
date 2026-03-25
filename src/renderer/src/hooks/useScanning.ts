@@ -1,10 +1,4 @@
-import {
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-  startTransition,
-} from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import i18n from "@/lib/i18n";
 import { createLogger } from "@/lib/logger";
@@ -45,9 +39,7 @@ export function useScanning({
   useEffect(() => {
     const offScanProgress = window.image.onScanProgress((data) => {
       if (scanningRef.current)
-        startTransition(() =>
-          setScanProgress(data.done >= data.total ? null : data),
-        );
+        setScanProgress(data.done >= data.total ? null : data);
     });
     const offScanFolder = window.image.onScanFolder(
       ({ folderId, folderName, active }) => {

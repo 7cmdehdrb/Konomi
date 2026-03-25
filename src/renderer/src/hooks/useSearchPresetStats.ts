@@ -55,7 +55,7 @@ export function useSearchPresetStats() {
 
   const handleSearchStatsProgress = useCallback(
     (data: { done: number; total: number }) => {
-      startTransition(() => setSearchStatsProgress(data));
+      setSearchStatsProgress(data);
       if (searchStatsClearTimerRef.current) {
         clearTimeout(searchStatsClearTimerRef.current);
         searchStatsClearTimerRef.current = null;
