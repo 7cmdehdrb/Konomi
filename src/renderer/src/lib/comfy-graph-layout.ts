@@ -196,7 +196,10 @@ function normalizeFromPrompt(prompt: ComfyPrompt): NormalizedGraph {
   const queue = sinks.map((id) => ({ id, d: 0 }));
   for (const s of sinks) depth.set(s, 0);
 
-  while (queue.length > 0) {
+  const maxIterations = rawNodes.size * rawNodes.size;
+  let iterations = 0;
+  while (queue.length > 0 && iterations < maxIterations) {
+    iterations++;
     const { id, d } = queue.shift()!;
     for (const p of parents.get(id) ?? []) {
       const newD = d + 1;

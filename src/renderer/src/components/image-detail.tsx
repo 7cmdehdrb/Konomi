@@ -517,6 +517,12 @@ export function ImageDetail({
   > | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(false);
 
+  // Reset workflow dialog state when image changes
+  useEffect(() => {
+    setWorkflowOpen(false);
+    setWorkflowRaw(null);
+  }, [image?.id]);
+
   // Defer image for InfoPanel so heavy token rendering doesn't block panel open.
   // Show a spinner while deferred value catches up (never stale data).
   const deferredImage = useDeferredValue(image);
