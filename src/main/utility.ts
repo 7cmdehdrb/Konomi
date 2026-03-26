@@ -42,6 +42,7 @@ import {
   renameGroup as renamePromptGroup,
   createToken,
   deleteToken,
+  reorderGroups as reorderPromptGroups,
   reorderTokens,
 } from "./lib/prompt";
 import {
@@ -307,6 +308,13 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
     case "prompt:deleteToken": {
       const { id } = payload as { id: number };
       return deleteToken(id);
+    }
+    case "prompt:reorderGroups": {
+      const { categoryId, ids } = payload as {
+        categoryId: number;
+        ids: number[];
+      };
+      return reorderPromptGroups(categoryId, ids);
     }
     case "prompt:reorderTokens": {
       const { groupId, ids } = payload as { groupId: number; ids: number[] };

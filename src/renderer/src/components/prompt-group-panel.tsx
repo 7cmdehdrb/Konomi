@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -9,6 +9,20 @@ import {
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -513,10 +527,35 @@ function GroupRow({ group, onSave, onDelete }: GroupRowProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: group.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
-    <div>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? "opacity-40" : undefined}
+    >
       <div className="group/grow flex items-center gap-1 px-2 py-0.5">
+        <button
+          type="button"
+          className="flex h-4 w-4 shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
         <DraggableGroupChip groupName={group.name} />
 
         <span className="flex-1 min-w-0 truncate select-none text-[11px] text-muted-foreground/50">
@@ -593,6 +632,7 @@ interface CategoryItemProps {
   onAddGroup: (name: string, tags: string[]) => void;
   onDeleteGroup: (groupId: number) => void;
   onSaveGroup: (groupId: number, name: string, tags: string[]) => void;
+  onReorderGroups: (groupIds: number[]) => void;
 }
 
 const BUILTIN_PROMPT_CATEGORY_KEYS = [
@@ -634,6 +674,7 @@ function CategoryItem({
   onAddGroup,
   onDeleteGroup,
   onSaveGroup,
+  onReorderGroups,
 }: CategoryItemProps) {
   const { t } = useTranslation();
   const displayName = getDisplayCategoryName(category, t);
@@ -643,6 +684,25 @@ function CategoryItem({
   const [addingGroup, setAddingGroup] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+  const groupIds = useMemo(
+    () => category.groups.map((g) => g.id),
+    [category.groups],
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = groupIds.indexOf(active.id as number);
+      const newIndex = groupIds.indexOf(over.id as number);
+      if (oldIndex === -1 || newIndex === -1) return;
+      onReorderGroups(arrayMove(groupIds, oldIndex, newIndex));
+    },
+    [groupIds, onReorderGroups],
+  );
 
   useEffect(() => {
     if (renaming) {
@@ -778,16 +838,23 @@ function CategoryItem({
               {t("promptGroupPanel.noGroups")}
             </p>
           ) : (
-            <div className="py-0.5">
-              {category.groups.map((group) => (
-                <GroupRow
-                  key={group.id}
-                  group={group}
-                  onSave={(name, tags) => onSaveGroup(group.id, name, tags)}
-                  onDelete={() => onDeleteGroup(group.id)}
-                />
-              ))}
-            </div>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <SortableContext
+                items={groupIds}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="py-0.5">
+                  {category.groups.map((group) => (
+                    <GroupRow
+                      key={group.id}
+                      group={group}
+                      onSave={(name, tags) => onSaveGroup(group.id, name, tags)}
+                      onDelete={() => onDeleteGroup(group.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
 
           {addingGroup ? (
@@ -915,6 +982,27 @@ export const PromptGroupPanel = memo(function PromptGroupPanel({
     );
   };
 
+  const handleReorderGroups = async (
+    categoryId: number,
+    groupIds: number[],
+  ) => {
+    await window.promptBuilder.reorderGroups(categoryId, groupIds);
+    onCategoriesChange(
+      categories.map((category) => {
+        if (category.id !== categoryId) return category;
+        const groupMap = new Map(
+          category.groups.map((g) => [g.id, g]),
+        );
+        return {
+          ...category,
+          groups: groupIds
+            .map((id) => groupMap.get(id))
+            .filter((g): g is PromptGroup => g != null),
+        };
+      }),
+    );
+  };
+
   const handleResetCategories = async () => {
     await window.promptBuilder.resetCategories();
     const nextCategories = await window.promptBuilder.listCategories();
@@ -995,6 +1083,9 @@ export const PromptGroupPanel = memo(function PromptGroupPanel({
               }
               onSaveGroup={(groupId, name, tags) =>
                 void handleSaveGroup(category.id, groupId, name, tags)
+              }
+              onReorderGroups={(groupIds) =>
+                void handleReorderGroups(category.id, groupIds)
               }
             />
           ))

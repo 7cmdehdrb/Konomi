@@ -250,6 +250,7 @@ declare global {
       renameGroup: (id: number, name: string) => Promise<void>;
       createToken: (groupId: number, label: string) => Promise<PromptToken>;
       deleteToken: (id: number) => Promise<void>;
+      reorderGroups: (categoryId: number, ids: number[]) => Promise<void>;
       reorderTokens: (groupId: number, ids: number[]) => Promise<void>;
     };
     image: {

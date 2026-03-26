@@ -261,6 +261,8 @@ contextBridge.exposeInMainWorld("promptBuilder", {
   createToken: (groupId: number, label: string) =>
     ipcRenderer.invoke("prompt:createToken", groupId, label),
   deleteToken: (id: number) => ipcRenderer.invoke("prompt:deleteToken", id),
+  reorderGroups: (categoryId: number, ids: number[]) =>
+    ipcRenderer.invoke("prompt:reorderGroups", categoryId, ids),
   reorderTokens: (groupId: number, ids: number[]) =>
     ipcRenderer.invoke("prompt:reorderTokens", groupId, ids),
 });

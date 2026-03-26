@@ -139,6 +139,18 @@ export async function deleteToken(id: number): Promise<void> {
   await getDB().promptToken.delete({ where: { id } });
 }
 
+export async function reorderGroups(
+  _categoryId: number,
+  ids: number[],
+): Promise<void> {
+  const db = getDB();
+  await db.$transaction(
+    ids.map((id, i) =>
+      db.promptGroup.update({ where: { id }, data: { order: i } }),
+    ),
+  );
+}
+
 export async function reorderTokens(
   _groupId: number,
   ids: number[],

@@ -275,6 +275,11 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("prompt:deleteToken", (_, id: number) =>
     bridge.request("prompt:deleteToken", { id }),
   );
+  ipcMain.handle(
+    "prompt:reorderGroups",
+    (_, categoryId: number, ids: number[]) =>
+      bridge.request("prompt:reorderGroups", { categoryId, ids }),
+  );
   ipcMain.handle("prompt:reorderTokens", (_, groupId: number, ids: number[]) =>
     bridge.request("prompt:reorderTokens", { groupId, ids }),
   );
