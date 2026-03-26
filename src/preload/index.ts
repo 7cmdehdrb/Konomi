@@ -290,6 +290,7 @@ contextBridge.exposeInMainWorld("category", {
 contextBridge.exposeInMainWorld("nai", {
   validateApiKey: (apiKey: string) =>
     ipcRenderer.invoke("nai:validateApiKey", apiKey),
+  getSubscription: () => ipcRenderer.invoke("nai:getSubscription"),
   getConfig: () => ipcRenderer.invoke("nai:getConfig"),
   updateConfig: (patch: object) =>
     ipcRenderer.invoke("nai:updateConfig", patch),

@@ -65,9 +65,15 @@ export async function updateNaiConfig(patch: NaiConfigPatch) {
   });
 }
 
+const TIER_NAMES: Record<number, string> = {
+  1: "Tablet",
+  2: "Scroll",
+  3: "Opus",
+};
+
 export async function validateApiKey(
   apiKey: string,
-): Promise<{ valid: boolean; tier?: string; error?: string }> {
+): Promise<{ valid: boolean; tier?: string; anlas?: number; error?: string }> {
   const res = await fetch("https://api.novelai.net/user/subscription", {
     headers: { Authorization: `Bearer ${apiKey}` },
   });
@@ -75,13 +81,46 @@ export async function validateApiKey(
     const body = await res.text().catch(() => "");
     throw new Error(`HTTP ${res.status}: ${body}`);
   }
-  const data = (await res.json()) as { tier?: number };
-  const tierNames: Record<number, string> = {
-    1: "Tablet",
-    2: "Scroll",
-    3: "Opus",
+  const data = (await res.json()) as {
+    tier?: number;
+    trainingStepsLeft?: { fixedTrainingStepsLeft?: number; purchasedTrainingSteps?: number };
   };
-  return { valid: true, tier: tierNames[data.tier ?? 0] ?? "Unknown" };
+  const fixed = data.trainingStepsLeft?.fixedTrainingStepsLeft ?? 0;
+  const purchased = data.trainingStepsLeft?.purchasedTrainingSteps ?? 0;
+  return {
+    valid: true,
+    tier: TIER_NAMES[data.tier ?? 0] ?? "Unknown",
+    anlas: fixed + purchased,
+  };
+}
+
+export async function getSubscriptionInfo(): Promise<{
+  tier: string;
+  anlas: number;
+  fixedAnlas: number;
+  purchasedAnlas: number;
+}> {
+  const config = await getNaiConfig();
+  if (!config.apiKey) throw new Error("API 키가 설정되지 않았습니다");
+  const res = await fetch("https://api.novelai.net/user/subscription", {
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status}: ${body}`);
+  }
+  const data = (await res.json()) as {
+    tier?: number;
+    trainingStepsLeft?: { fixedTrainingStepsLeft?: number; purchasedTrainingSteps?: number };
+  };
+  const fixedAnlas = data.trainingStepsLeft?.fixedTrainingStepsLeft ?? 0;
+  const purchasedAnlas = data.trainingStepsLeft?.purchasedTrainingSteps ?? 0;
+  return {
+    tier: TIER_NAMES[data.tier ?? 0] ?? "Unknown",
+    anlas: fixedAnlas + purchasedAnlas,
+    fixedAnlas,
+    purchasedAnlas,
+  };
 }
 
 export async function generateImage(

@@ -176,6 +176,13 @@ export type NaiConfig = {
   apiKey: string;
 };
 
+export type NaiSubscriptionInfo = {
+  tier: string;
+  anlas: number;
+  fixedAnlas: number;
+  purchasedAnlas: number;
+};
+
 export type GenerateParams = {
   prompt: string;
   negativePrompt?: string;
@@ -335,7 +342,8 @@ declare global {
     nai: {
       validateApiKey: (
         apiKey: string,
-      ) => Promise<{ valid: boolean; tier?: string }>;
+      ) => Promise<{ valid: boolean; tier?: string; anlas?: number }>;
+      getSubscription: () => Promise<NaiSubscriptionInfo>;
       getConfig: () => Promise<NaiConfig>;
       updateConfig: (patch: { apiKey?: string }) => Promise<NaiConfig>;
       generate: (params: GenerateParams) => Promise<string>;

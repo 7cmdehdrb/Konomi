@@ -521,6 +521,8 @@ const ko = {
       validApiKey: "유효한 API 키",
       invalidApiKey: "유효하지 않은 API 키",
       subscriptionTier: "구독 플랜: {{tier}}",
+      anlas: "Anlas: {{anlas}}",
+      anlasDetail: "구독 제공: {{fixed}} / 구매: {{purchased}}",
       confirm: "확인",
       imageAction: "이미지 작업",
       actionSelect: "작업 선택",

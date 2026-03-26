@@ -71,6 +71,7 @@ import {
   updateNaiConfig,
   generateImage,
   validateApiKey,
+  getSubscriptionInfo,
 } from "./lib/nai-gen";
 import type { NaiConfigPatch, GenerateParams } from "./lib/nai-gen";
 import type { CancelToken } from "./lib/scanner";
@@ -432,6 +433,8 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
 
     case "nai:validateApiKey":
       return validateApiKey(payload as string);
+    case "nai:getSubscription":
+      return getSubscriptionInfo();
     case "nai:getConfig":
       return getNaiConfig();
     case "nai:updateConfig":

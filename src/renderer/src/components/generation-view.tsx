@@ -40,6 +40,7 @@ import {
   Copy,
   Download,
   ArrowRightLeft,
+  RefreshCw,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -2842,6 +2843,9 @@ interface LeftPanelProps {
   onGenerate: () => void;
   onAutoGenerate: () => void;
   onCancelAutoGenerate: () => void;
+  anlas: number | null;
+  anlasLoading: boolean;
+  onRefreshAnlas: () => void;
 }
 
 // 원래 NAI/WebUI/Midjourney 생성 같이 가져가려고 했는데 이런저런 이유로 NAI만 남긴 흔적임
@@ -2849,12 +2853,19 @@ function GenerationServiceSelector({
   selectedService,
   setSelectedService,
   isDarkTheme,
+  anlas,
+  anlasLoading,
+  onRefreshAnlas,
 }: {
   selectedService: GenerationService;
   setSelectedService: Dispatch<SetStateAction<GenerationService>>;
   isDarkTheme: boolean;
+  anlas: number | null;
+  anlasLoading: boolean;
+  onRefreshAnlas: () => void;
 }) {
   void setSelectedService;
+  const { t } = useTranslation();
   const selectedServiceLabel =
     GENERATION_SERVICES.find((service) => service.id === selectedService)
       ?.label ?? "NovelAI";
@@ -2917,7 +2928,7 @@ function GenerationServiceSelector({
   return (
     <div className="border-b border-border/40 px-4 py-3 shrink-0 bg-sidebar">
       <div
-        className="flex items-center justify-start"
+        className="flex items-center justify-between"
         aria-label={`Generation service: ${selectedServiceLabel}`}
       >
         <img
@@ -2926,6 +2937,30 @@ function GenerationServiceSelector({
           className="block h-auto w-auto max-h-5 max-w-24 object-contain select-none"
           draggable={false}
         />
+        {(anlas != null || anlasLoading) && (
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-muted-foreground tabular-nums select-none">
+              {anlasLoading
+                ? "Anlas: ..."
+                : t("generation.dialogs.anlas", {
+                    anlas: anlas!.toLocaleString(),
+                  })}
+            </span>
+            <button
+              onClick={onRefreshAnlas}
+              disabled={anlasLoading}
+              className="h-4 w-4 rounded flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+              title="Refresh"
+            >
+              <RefreshCw
+                className={cn(
+                  "h-2.5 w-2.5",
+                  anlasLoading && "animate-spin",
+                )}
+              />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2994,6 +3029,9 @@ const LeftPanel = memo(function LeftPanel({
   onGenerate,
   onAutoGenerate,
   onCancelAutoGenerate,
+  anlas,
+  anlasLoading,
+  onRefreshAnlas,
 }: LeftPanelProps) {
   const { t } = useTranslation();
   const isNovelAIService = selectedService === "novelai";
@@ -3028,6 +3066,9 @@ const LeftPanel = memo(function LeftPanel({
         selectedService={selectedService}
         setSelectedService={setSelectedService}
         isDarkTheme={isDarkTheme}
+        anlas={anlas}
+        anlasLoading={anlasLoading}
+        onRefreshAnlas={onRefreshAnlas}
       />
 
       <div className="relative flex flex-1 min-h-0 flex-col">
@@ -3459,7 +3500,7 @@ function ValidateResultModal({
   result,
   onClose,
 }: {
-  result: { valid: boolean; tier?: string; error?: string } | null;
+  result: { valid: boolean; tier?: string; anlas?: number; error?: string } | null;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -3494,6 +3535,13 @@ function ValidateResultModal({
               <p className="text-xs text-muted-foreground mt-0.5">
                 {t("generation.dialogs.subscriptionTier", {
                   tier: result.tier,
+                })}
+              </p>
+            )}
+            {result.valid && result.anlas != null && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {t("generation.dialogs.anlas", {
+                  anlas: result.anlas.toLocaleString(),
                 })}
               </p>
             )}
@@ -3729,8 +3777,11 @@ export const GenerationView = memo(
     const [validateResult, setValidateResult] = useState<{
       valid: boolean;
       tier?: string;
+      anlas?: number;
       error?: string;
     } | null>(null);
+    const [anlas, setAnlas] = useState<number | null>(null);
+    const [anlasLoading, setAnlasLoading] = useState(false);
     const [categories, setCategories] = useState<PromptCategory[]>([]);
 
     const [prompt, setPrompt] = useState(
@@ -4104,13 +4155,30 @@ export const GenerationView = memo(
         .catch(() => {});
     };
 
+    // /user/subscription 호출 — 공식 rate limit 문서는 없으나 읽기 전용 엔드포인트로
+    // 생성 API보다 훨씬 관대함. 호출 시점: 마운트 1회(prod만) + 생성 완료 시 1회 +
+    // auto-gen 루프 종료 시 1회 + 수동 새로고침. 문제가 될 빈도가 아님.
+    const fetchAnlas = useCallback(() => {
+      setAnlasLoading(true);
+      window.nai
+        .getSubscription()
+        .then((info) => setAnlas(info.anlas))
+        .catch(() => setAnlas(null))
+        .finally(() => setAnlasLoading(false));
+    }, []);
+
     useEffect(() => {
       window.nai
         .getConfig()
         .then((cfg) => {
           setConfig(cfg);
           setApiKeyInput(cfg.apiKey);
-          if (cfg.apiKey) setApiKeyValidated(true);
+          if (cfg.apiKey) {
+            setApiKeyValidated(true);
+            // dev 모드에서는 HMR/재시작 시마다 외부 API를 호출하지 않도록
+            // 수동 새로고침 또는 첫 생성 시에만 Anlas를 가져온다.
+            if (!import.meta.env.DEV) fetchAnlas();
+          }
           if (!cfg.apiKey || !outputFolder) {
             openRightPanelTab("settings");
           }
@@ -4242,6 +4310,7 @@ export const GenerationView = memo(
           });
           setConfig(updated);
           setApiKeyValidated(true);
+          if (result.anlas != null) setAnlas(result.anlas);
         } else {
           setValidateResult({ valid: false });
         }
@@ -4465,10 +4534,12 @@ export const GenerationView = memo(
           setError(e instanceof Error ? e.message : String(e));
         } finally {
           setGenerating(false);
+          fetchAnlas();
         }
       },
       [
         buildGenerateParamsKey,
+        fetchAnlas,
         latestViewStateRef,
         pendingResultSelectedRef,
         resolveSeedForGeneration,
@@ -4600,7 +4671,9 @@ export const GenerationView = memo(
 
       setAutoGenProgress(null);
       setAutoCancelPending(false);
+      fetchAnlas();
     }, [
+      fetchAnlas,
       latestViewStateRef,
       pendingResultSelectedRef,
       resolveSeedForGeneration,
@@ -4931,6 +5004,9 @@ export const GenerationView = memo(
           onGenerate={() => void handleGenerate()}
           onAutoGenerate={handleAutoGenerate}
           onCancelAutoGenerate={handleCancelAutoGenerate}
+          anlas={anlas}
+          anlasLoading={anlasLoading}
+          onRefreshAnlas={fetchAnlas}
         />
         {/* Left panel resize handle */}
         <div

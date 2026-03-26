@@ -357,6 +357,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("nai:validateApiKey", (_, apiKey: string) =>
     bridge.request("nai:validateApiKey", apiKey),
   );
+  ipcMain.handle("nai:getSubscription", () =>
+    bridge.request("nai:getSubscription"),
+  );
   ipcMain.handle("nai:getConfig", () => bridge.request("nai:getConfig"));
   ipcMain.handle("nai:updateConfig", (_, patch) =>
     bridge.request("nai:updateConfig", patch),

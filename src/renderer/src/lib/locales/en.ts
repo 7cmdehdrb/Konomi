@@ -524,6 +524,8 @@ const en = {
       validApiKey: "Valid API Key",
       invalidApiKey: "Invalid API Key",
       subscriptionTier: "Subscription tier: {{tier}}",
+      anlas: "Anlas: {{anlas}}",
+      anlasDetail: "Subscription: {{fixed}} / Purchased: {{purchased}}",
       confirm: "Confirm",
       imageAction: "Image Actions",
       actionSelect: "Choose Action",
