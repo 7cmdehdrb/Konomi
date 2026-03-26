@@ -323,4 +323,8 @@ contextBridge.exposeInMainWorld("folder", {
     ipcRenderer.invoke("folder:revealInExplorer", id),
   listSubdirectories: (id: number) =>
     ipcRenderer.invoke("folder:listSubdirectories", id),
+  listSubdirectoriesByPath: (
+    folderPath: string,
+  ): Promise<{ name: string; path: string }[]> =>
+    ipcRenderer.invoke("folder:listSubdirectoriesByPath", folderPath),
 });

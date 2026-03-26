@@ -2,7 +2,7 @@ import { app, ipcMain, dialog, shell } from "electron";
 import { checkForUpdates, installUpdate } from "./lib/updater";
 import fs from "fs";
 import path from "path";
-import { unlink, readFile } from "fs/promises";
+import { readdir, unlink, readFile } from "fs/promises";
 import { readImageMeta, readImageMetaFromBuffer } from "./lib/image-meta";
 import {
   PROMPTS_DB_FILENAME,
@@ -83,6 +83,23 @@ export function registerIpcHandlers(): void {
       await unlink(path);
     }
   });
+
+  ipcMain.handle(
+    "folder:listSubdirectoriesByPath",
+    async (_, folderPath: string) => {
+      try {
+        const entries = await readdir(folderPath, { withFileTypes: true });
+        return entries
+          .filter((e) => e.isDirectory())
+          .map((e) => ({
+            name: e.name,
+            path: path.join(folderPath, e.name),
+          }));
+      } catch {
+        return [];
+      }
+    },
+  );
 
   // ── Utility process bridge handlers ────────────────────────────────────────
   ipcMain.handle("folder:list", () => bridge.request("folder:list"));

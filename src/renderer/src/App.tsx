@@ -79,6 +79,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     subfolderFilters,
   } = useFolderController(initialFolderCount);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilter[]>([]);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const generationViewRef = useRef<GenerationViewHandle | null>(null);
   const sidebarRef = useRef<SidebarHandle | null>(null);
   const { isDarkTheme } = useAppAppearance({
@@ -416,6 +417,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
         activePanel={activePanel}
         onPanelChange={handleHeaderPanelChange}
         scanning={scanning}
+        checkingDuplicates={checkingDuplicates}
         isAnalyzing={isAnalyzing}
         hashProgress={hashProgress}
         similarityProgress={similarityProgress}
@@ -468,6 +470,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
               categoryState={sidebarCategoryState}
               categoryActions={sidebarCategoryActions}
               isAnalyzing={isAnalyzing}
+              onCheckingDuplicatesChange={setCheckingDuplicates}
             />
             <div
               className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 transition-colors z-10"

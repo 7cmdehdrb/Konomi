@@ -55,6 +55,7 @@ const en = {
       appInfo: "App Info",
     },
     progress: {
+      checkingDuplicates: "Checking for duplicates...",
       scanFolders: "Scanning {{names}} {{done}}/{{total}}",
       scanImages: "Scanning images {{done}}/{{total}}",
       hashes: "Computing hashes {{done}}/{{total}}",
@@ -398,6 +399,7 @@ const en = {
     imageDeleteFailed: "Failed to delete image: {{message}}",
     bulkDeletePartialFail: "Failed to delete {{failed}} of {{total}} images.",
     hashResetFailed: "Failed to reset hashes: {{message}}",
+    folderAddFailed: "Failed to add folder",
     folderRevealFailed: "Failed to open folder in Explorer: {{message}}",
   },
   appStatus: {

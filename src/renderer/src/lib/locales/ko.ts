@@ -55,6 +55,7 @@ const ko = {
       appInfo: "프로그램 정보",
     },
     progress: {
+      checkingDuplicates: "중복 파일 확인 중...",
       scanFolders: "{{names}} 스캔 {{done}}/{{total}}",
       scanImages: "이미지 스캔 {{done}}/{{total}}",
       hashes: "해시 계산 {{done}}/{{total}}",
@@ -397,6 +398,7 @@ const ko = {
     bulkDeletePartialFail:
       "{{total}}개 중 {{failed}}개 이미지 삭제에 실패했습니다.",
     hashResetFailed: "해시 초기화 실패: {{message}}",
+    folderAddFailed: "폴더 추가 실패",
     folderRevealFailed: "Explorer에서 폴더 열기 실패: {{message}}",
   },
   appStatus: {

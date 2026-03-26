@@ -27,7 +27,10 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useFolderDialog } from "@/hooks/useFolderDialog";
-import { useDuplicateResolutionDialog } from "@/hooks/useDuplicateResolutionDialog";
+import {
+  useDuplicateResolutionDialog,
+  type PendingFolder,
+} from "@/hooks/useDuplicateResolutionDialog";
 import { Button } from "@/components/ui/button";
 import { DuplicateResolutionDialog } from "@/components/duplicate-resolution-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -116,6 +119,7 @@ interface SidebarProps {
   categoryState: SidebarCategoryState;
   categoryActions: SidebarCategoryActions;
   isAnalyzing?: boolean;
+  onCheckingDuplicatesChange?: (checking: boolean) => void;
 }
 
 export interface SidebarHandle {
@@ -265,8 +269,6 @@ const SidebarNewFolderDialog = memo(function SidebarNewFolderDialog({
     name,
     path,
     canSubmit,
-    isSubmitting,
-    submitError,
     setName,
     handleBrowse,
     handleSubmit,
@@ -295,7 +297,7 @@ const SidebarNewFolderDialog = memo(function SidebarNewFolderDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent closeDisabled={isSubmitting}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("sidebar.dialog.newFolderTitle")}</DialogTitle>
         </DialogHeader>
@@ -322,34 +324,18 @@ const SidebarNewFolderDialog = memo(function SidebarNewFolderDialog({
                 className="flex-1 font-mono text-xs"
                 readOnly
               />
-              <Button
-                variant="outline"
-                onClick={handleBrowse}
-                disabled={isSubmitting}
-              >
+              <Button variant="outline" onClick={handleBrowse}>
                 {t("sidebar.dialog.browse")}
               </Button>
             </div>
           </div>
-          {submitError && (
-            <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2">
-              {submitError}
-            </p>
-          )}
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="ghost" disabled={isSubmitting}>
-              {t("common.cancel")}
-            </Button>
+            <Button variant="ghost">{t("common.cancel")}</Button>
           </DialogClose>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-            ) : null}
-            {isSubmitting
-              ? t("sidebar.dialog.loadingFiles")
-              : t("sidebar.dialog.add")}
+            {t("sidebar.dialog.add")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1152,7 +1138,9 @@ interface SidebarFoldersSectionProps {
   folderDropTargetId: number | null;
   folderDropPosition: "before" | "after";
   scanning?: boolean;
+  checkingDuplicates?: boolean;
   isAnalyzing?: boolean;
+  pendingFolder?: PendingFolder | null;
   subfoldersByFolder?: Map<number, Subfolder[]>;
   isSubfolderVisible?: (path: string, folderId: number) => boolean;
   isRootVisible?: (folderId: number) => boolean;
@@ -1181,7 +1169,9 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
   folderDropTargetId,
   folderDropPosition,
   scanning,
+  checkingDuplicates,
   isAnalyzing,
+  pendingFolder,
   subfoldersByFolder,
   isSubfolderVisible,
   isRootVisible,
@@ -1201,7 +1191,7 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
   onRootToggle,
 }: SidebarFoldersSectionProps) {
   const { t } = useTranslation();
-  const addDisabled = scanning || isAnalyzing;
+  const addDisabled = scanning || checkingDuplicates || isAnalyzing;
 
   return (
     <div className="pt-4 border-t border-border" data-tour="sidebar-folders">
@@ -1245,7 +1235,7 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
           </DropdownMenu>
         )}
       </div>
-      {folders.length === 0 ? (
+      {folders.length === 0 && !pendingFolder ? (
         <p className="text-xs text-muted-foreground px-8 select-none">
           {t("sidebar.folders.empty")}
         </p>
@@ -1271,7 +1261,7 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
                   isSelected={selectedFolderIds?.has(folder.id) ?? false}
                   dragTargetPosition={isDropTarget ? folderDropPosition : null}
                   isDragging={draggingFolderId === folder.id}
-                  scanning={scanning}
+                  scanning={scanning || checkingDuplicates}
                   isAnalyzing={isAnalyzing}
                   onRename={onRename}
                   onToggle={onToggle}
@@ -1303,6 +1293,29 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
               </div>
             );
           })}
+          {pendingFolder && (
+            <div key="__pending__">
+              <div className="group flex items-center gap-1 px-2 py-1 text-xs rounded-md text-muted-foreground opacity-70">
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                <span className="truncate flex-1 ml-0.5">
+                  {pendingFolder.name}
+                </span>
+              </div>
+              {pendingFolder.subdirectories.length > 0 && (
+                <div className="mt-1">
+                  {pendingFolder.subdirectories.map((sub) => (
+                    <div
+                      key={sub.path}
+                      className="flex items-center gap-1 pl-7 pr-2 py-0.5 text-xs text-muted-foreground opacity-50"
+                    >
+                      <Folder className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{sub.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1407,6 +1420,7 @@ export const Sidebar = memo(
       categoryState,
       categoryActions,
       isAnalyzing,
+      onCheckingDuplicatesChange,
     },
     ref,
   ) {
@@ -1478,6 +1492,8 @@ export const Sidebar = memo(
     const {
       dialog: duplicateResolutionDialog,
       folderAddResolvedSeq,
+      checkingDuplicates,
+      pendingFolder,
       handleFolderAddWithDuplicateCheck,
       handleFolderRescanWithDuplicateCheck,
     } = useDuplicateResolutionDialog({
@@ -1485,6 +1501,11 @@ export const Sidebar = memo(
       onFolderAdded,
       onFolderRescan,
     });
+
+    useEffect(() => {
+      onCheckingDuplicatesChange?.(checkingDuplicates);
+    }, [checkingDuplicates, onCheckingDuplicatesChange]);
+
 
     const handleRemoveFolder = async (id: number) => {
       try {
@@ -1792,7 +1813,9 @@ export const Sidebar = memo(
                 folderDropTargetId={folderDropTargetId}
                 folderDropPosition={folderDropPosition}
                 scanning={scanning}
+                checkingDuplicates={checkingDuplicates}
                 isAnalyzing={isAnalyzing}
+                pendingFolder={pendingFolder}
                 subfoldersByFolder={subfoldersByFolder}
                 isSubfolderVisible={isSubfolderVisible}
                 isRootVisible={isRootVisible}

@@ -108,6 +108,7 @@ interface HeaderProps {
   activePanel: ActivePanel;
   onPanelChange: (panel: ActivePanel) => void;
   scanning?: boolean;
+  checkingDuplicates?: boolean;
   isAnalyzing?: boolean;
   hashProgress?: { done: number; total: number } | null;
   similarityProgress?: { done: number; total: number } | null;
@@ -618,6 +619,7 @@ export const Header = memo(function Header({
   activePanel,
   onPanelChange,
   scanning,
+  checkingDuplicates,
   isAnalyzing,
   hashProgress,
   similarityProgress,
@@ -672,42 +674,47 @@ export const Header = memo(function Header({
             />
           </div>
           {(scanning ||
+            checkingDuplicates ||
             isAnalyzing ||
             hasSimilarityProgress ||
             hasSearchStatsProgress) && (
             <div className="absolute left-full ml-3 flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
               <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
               <span className="tabular-nums select-none">
-                {scanProgress && scanProgress.total > 0
-                  ? (() => {
-                      const names =
-                        scanningFolderNames && scanningFolderNames.size > 0
-                          ? Array.from(scanningFolderNames.values()).join(", ")
-                          : null;
-                      return names
-                        ? t("header.progress.scanFolders", {
-                            names,
-                            done: scanProgress.done,
-                            total: scanProgress.total,
-                          })
-                        : t("header.progress.scanImages", {
-                            done: scanProgress.done,
-                            total: scanProgress.total,
-                          });
-                    })()
-                  : hashProgress && hashProgress.total > 0
-                    ? t("header.progress.hashes", {
-                        done: hashProgress.done,
-                        total: hashProgress.total,
-                      })
-                    : hasSimilarityProgress && similarityProgress
-                      ? t("header.progress.similarity")
-                      : hasSearchStatsProgress && searchStatsProgress
-                        ? t("header.progress.searchStats", {
-                            done: searchStatsProgress.done,
-                            total: searchStatsProgress.total,
-                          })
-                        : t("header.progress.working")}
+                {checkingDuplicates
+                  ? t("header.progress.checkingDuplicates")
+                  : scanProgress && scanProgress.total > 0
+                    ? (() => {
+                        const names =
+                          scanningFolderNames && scanningFolderNames.size > 0
+                            ? Array.from(scanningFolderNames.values()).join(
+                                ", ",
+                              )
+                            : null;
+                        return names
+                          ? t("header.progress.scanFolders", {
+                              names,
+                              done: scanProgress.done,
+                              total: scanProgress.total,
+                            })
+                          : t("header.progress.scanImages", {
+                              done: scanProgress.done,
+                              total: scanProgress.total,
+                            });
+                      })()
+                    : hashProgress && hashProgress.total > 0
+                      ? t("header.progress.hashes", {
+                          done: hashProgress.done,
+                          total: hashProgress.total,
+                        })
+                      : hasSimilarityProgress && similarityProgress
+                        ? t("header.progress.similarity")
+                        : hasSearchStatsProgress && searchStatsProgress
+                          ? t("header.progress.searchStats", {
+                              done: searchStatsProgress.done,
+                              total: searchStatsProgress.total,
+                            })
+                          : t("header.progress.working")}
               </span>
               {scanning && onCancelScan && (
                 <button

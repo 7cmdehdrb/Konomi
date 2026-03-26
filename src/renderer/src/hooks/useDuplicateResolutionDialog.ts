@@ -44,6 +44,12 @@ export type DuplicateResolutionDialogModel = {
   onPreviewOpenChange: (open: boolean) => void;
 };
 
+export type PendingFolder = {
+  name: string;
+  path: string;
+  subdirectories: { name: string; path: string }[];
+};
+
 type UseDuplicateResolutionDialogOptions = {
   addFolder: (name: string, path: string) => Promise<Folder>;
   onFolderAdded?: (folderId: number) => void;
@@ -158,17 +164,6 @@ const getInitialBulkDecision = (
   return "manual";
 };
 
-export class DuplicateResolutionRequiredError extends Error {
-  readonly suppressDialogError = true;
-
-  constructor(duplicateCount: number) {
-    super(
-      i18n.t("duplicateResolution.requiredError", { count: duplicateCount }),
-    );
-    this.name = "DuplicateResolutionRequiredError";
-  }
-}
-
 export function useDuplicateResolutionDialog({
   addFolder,
   onFolderAdded,
@@ -180,6 +175,8 @@ export function useDuplicateResolutionDialog({
   ) => Promise<void>;
   handleFolderRescanWithDuplicateCheck: (folder: Folder) => Promise<void>;
   folderAddResolvedSeq: number;
+  checkingDuplicates: boolean;
+  pendingFolder: PendingFolder | null;
   dialog: DuplicateResolutionDialogModel;
 } {
   const [open, setOpen] = useState(false);
@@ -201,6 +198,10 @@ export function useDuplicateResolutionDialog({
   const [pageIndex, setPageIndex] = useState(0);
   const [preview, setPreview] = useState<DuplicatePreview | null>(null);
   const [folderAddResolvedSeq, setFolderAddResolvedSeq] = useState(0);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [pendingFolder, setPendingFolder] = useState<PendingFolder | null>(
+    null,
+  );
 
   const resetDialogState = useCallback(() => {
     setOpen(false);
@@ -246,24 +247,40 @@ export function useDuplicateResolutionDialog({
 
   const handleFolderAddWithDuplicateCheck = useCallback(
     async (name: string, path: string) => {
-      const normalizedPath = normalizeFolderPath(path);
-      const existingFolders = await window.folder.list();
-      if (
-        existingFolders.some(
-          (folder) => normalizeFolderPath(folder.path) === normalizedPath,
-        )
-      ) {
-        throw new Error(i18n.t("duplicateResolution.pathAlreadyAdded"));
-      }
+      setCheckingDuplicates(true);
+      // Show folder in sidebar immediately while checking duplicates
+      const subdirs = await window.folder
+        .listSubdirectoriesByPath(path)
+        .catch(() => []);
+      setPendingFolder({ name, path, subdirectories: subdirs });
+      try {
+        const normalizedPath = normalizeFolderPath(path);
+        const existingFolders = await window.folder.list();
+        if (
+          existingFolders.some(
+            (folder) => normalizeFolderPath(folder.path) === normalizedPath,
+          )
+        ) {
+          toast.error(i18n.t("duplicateResolution.pathAlreadyAdded"));
+          return;
+        }
 
-      const duplicates = await window.folder.findDuplicates(path);
-      if (duplicates.length > 0) {
-        openFolderAddDialog(name, path, duplicates);
-        throw new DuplicateResolutionRequiredError(duplicates.length);
-      }
+        const duplicates = await window.folder.findDuplicates(path);
+        if (duplicates.length > 0) {
+          openFolderAddDialog(name, path, duplicates);
+          return;
+        }
 
-      const folder = await addFolder(name, path);
-      onFolderAdded?.(folder.id);
+        const folder = await addFolder(name, path);
+        onFolderAdded?.(folder.id);
+      } catch (e: unknown) {
+        toast.error(
+          e instanceof Error ? e.message : i18n.t("error.folderAddFailed"),
+        );
+      } finally {
+        setCheckingDuplicates(false);
+        setPendingFolder(null);
+      }
     },
     [addFolder, onFolderAdded, openFolderAddDialog],
   );
@@ -456,6 +473,8 @@ export function useDuplicateResolutionDialog({
     handleFolderAddWithDuplicateCheck,
     handleFolderRescanWithDuplicateCheck,
     folderAddResolvedSeq,
+    checkingDuplicates,
+    pendingFolder,
     dialog: {
       open,
       mode,

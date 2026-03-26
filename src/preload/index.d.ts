@@ -328,6 +328,9 @@ declare global {
       rename: (id: number, name: string) => Promise<Folder>;
       revealInExplorer: (id: number) => Promise<void>;
       listSubdirectories: (id: number) => Promise<string[]>;
+      listSubdirectoriesByPath: (
+        folderPath: string,
+      ) => Promise<{ name: string; path: string }[]>;
     };
     nai: {
       validateApiKey: (
