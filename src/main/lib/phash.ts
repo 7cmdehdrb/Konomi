@@ -858,7 +858,7 @@ export async function computeAllHashes(
       const chunk = updates.slice(i, i + HASH_WRITE_BATCH_SIZE);
       await db.$transaction(
         chunk.map(({ id, hash }) =>
-          db.image.update({ where: { id }, data: { pHash: hash } }),
+          db.image.updateMany({ where: { id }, data: { pHash: hash } }),
         ),
       );
       await yieldToEventLoop();

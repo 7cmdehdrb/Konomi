@@ -18,6 +18,7 @@ interface UseSidebarFolderActionsOptions {
   runScan: (options?: RunScanOptions) => Promise<boolean>;
   scanningRef: MutableRefObject<boolean>;
   scheduleAnalysis: (delay?: number) => void;
+  analyzeTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
   setActiveScanFolderIds: Dispatch<SetStateAction<Set<number>>>;
   setRollbackFolderIds: Dispatch<SetStateAction<Set<number>>>;
   refreshSubfolders: (folderIds: number[]) => Promise<void>;
@@ -30,6 +31,7 @@ export function useSidebarFolderActions({
   runScan,
   scanningRef,
   scheduleAnalysis,
+  analyzeTimerRef,
   setActiveScanFolderIds,
   setRollbackFolderIds,
   refreshSubfolders,
@@ -75,11 +77,15 @@ export function useSidebarFolderActions({
         next.delete(folderId);
         return next;
       });
-      scheduleAnalysis(500);
+      // 폴더 롤백 시 예약된 분석 타이머를 취소하여 불필요한 해시 계산 방지
+      if (analyzeTimerRef.current) {
+        clearTimeout(analyzeTimerRef.current);
+        analyzeTimerRef.current = null;
+      }
     },
     [
+      analyzeTimerRef,
       removeSelectedFolder,
-      scheduleAnalysis,
       setActiveScanFolderIds,
       setRollbackFolderIds,
     ],

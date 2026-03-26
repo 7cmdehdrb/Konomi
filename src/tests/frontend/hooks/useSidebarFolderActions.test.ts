@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { useSidebarFolderActions } from "@/hooks/useSidebarFolderActions";
 
@@ -35,6 +35,7 @@ function renderSidebarFolderActions(options?: {
       });
     }, []);
 
+    const analyzeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const actions = useSidebarFolderActions({
       isAnalyzing: options?.isAnalyzing ?? false,
       addSelectedFolder,
@@ -42,6 +43,7 @@ function renderSidebarFolderActions(options?: {
       runScan,
       scanningRef,
       scheduleAnalysis,
+      analyzeTimerRef,
       setActiveScanFolderIds,
       setRollbackFolderIds,
       refreshSubfolders: async () => {},

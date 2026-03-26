@@ -95,6 +95,10 @@ interface SidebarFolderActions {
   onFolderRescan?: (id: number) => void;
   onSubfolderToggle?: (path: string, folderId: number) => void;
   onRootToggle?: (folderId: number) => void;
+  seedSubfolders?: (
+    folderId: number,
+    subdirs: { name: string; path: string }[],
+  ) => void;
 }
 
 interface SidebarCategoryState {
@@ -1294,7 +1298,7 @@ const SidebarFoldersSection = memo(function SidebarFoldersSection({
             );
           })}
           {pendingFolder && (
-            <div key="__pending__">
+            <div key="__pending__" className="select-none">
               <div className="group flex items-center gap-1 px-2 py-1 text-xs rounded-md text-muted-foreground opacity-70">
                 <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
                 <span className="truncate flex-1 ml-0.5">
@@ -1451,6 +1455,7 @@ export const Sidebar = memo(
       onFolderRescan,
       onSubfolderToggle,
       onRootToggle,
+      seedSubfolders,
     } = folderActions;
     const { categories, selectedCategoryId } = categoryState;
     const {
@@ -1500,12 +1505,12 @@ export const Sidebar = memo(
       addFolder: createFolder,
       onFolderAdded,
       onFolderRescan,
+      seedSubfolders,
     });
 
     useEffect(() => {
       onCheckingDuplicatesChange?.(checkingDuplicates);
     }, [checkingDuplicates, onCheckingDuplicatesChange]);
-
 
     const handleRemoveFolder = async (id: number) => {
       try {

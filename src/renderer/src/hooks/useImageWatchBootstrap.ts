@@ -26,11 +26,21 @@ export function useImageWatchBootstrap({
     log.info("App mounted: loading initial data and starting watchers");
     void loadSearchPresetStats();
     scheduleAnalysis(0);
+    let scanFirstBatchFired = false;
 
     const offBatch = window.image.onBatch((rows: ImageRow[]) => {
       if (rows.length === 0) return;
-      schedulePageRefresh(scanningRef.current ? 1500 : 150);
-      if (!scanningRef.current) {
+      if (scanningRef.current) {
+        // 스캔 중 첫 배치는 즉시 갤러리에 표시하여 빈 화면 시간을 줄인다
+        if (!scanFirstBatchFired) {
+          scanFirstBatchFired = true;
+          schedulePageRefresh(0);
+        } else {
+          schedulePageRefresh(1500);
+        }
+      } else {
+        scanFirstBatchFired = false;
+        schedulePageRefresh(150);
         scheduleAnalysis();
         scheduleSearchStatsRefresh(180);
       }

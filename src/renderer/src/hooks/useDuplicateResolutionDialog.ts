@@ -54,11 +54,16 @@ type UseDuplicateResolutionDialogOptions = {
   addFolder: (name: string, path: string) => Promise<Folder>;
   onFolderAdded?: (folderId: number) => void;
   onFolderRescan?: (folderId: number) => void;
+  seedSubfolders?: (
+    folderId: number,
+    subdirs: { name: string; path: string }[],
+  ) => void;
 };
 
 type FolderAddPendingInfo = {
   name: string;
   path: string;
+  subdirectories: { name: string; path: string }[];
 };
 
 type FolderRescanPendingInfo = {
@@ -168,6 +173,7 @@ export function useDuplicateResolutionDialog({
   addFolder,
   onFolderAdded,
   onFolderRescan,
+  seedSubfolders,
 }: UseDuplicateResolutionDialogOptions): {
   handleFolderAddWithDuplicateCheck: (
     name: string,
@@ -216,9 +222,14 @@ export function useDuplicateResolutionDialog({
   }, []);
 
   const openFolderAddDialog = useCallback(
-    (name: string, path: string, duplicates: FolderDuplicateGroup[]) => {
+    (
+      name: string,
+      path: string,
+      duplicates: FolderDuplicateGroup[],
+      subdirectories: { name: string; path: string }[],
+    ) => {
       setMode("folderAdd");
-      setFolderAddPendingInfo({ name, path });
+      setFolderAddPendingInfo({ name, path, subdirectories });
       setFolderRescanPendingInfo(null);
       setItems(duplicates);
       const nextChoices = createChoicesForItems(duplicates, "existing");
@@ -267,11 +278,12 @@ export function useDuplicateResolutionDialog({
 
         const duplicates = await window.folder.findDuplicates(path);
         if (duplicates.length > 0) {
-          openFolderAddDialog(name, path, duplicates);
+          openFolderAddDialog(name, path, duplicates, subdirs);
           return;
         }
 
         const folder = await addFolder(name, path);
+        seedSubfolders?.(folder.id, subdirs);
         onFolderAdded?.(folder.id);
       } catch (e: unknown) {
         toast.error(
@@ -282,7 +294,7 @@ export function useDuplicateResolutionDialog({
         setPendingFolder(null);
       }
     },
-    [addFolder, onFolderAdded, openFolderAddDialog],
+    [addFolder, onFolderAdded, openFolderAddDialog, seedSubfolders],
   );
 
   const openFolderRescanDialog = useCallback(
@@ -367,6 +379,10 @@ export function useDuplicateResolutionDialog({
           folderAddPendingInfo.name,
           folderAddPendingInfo.path,
         );
+        seedSubfolders?.(
+          createdFolder.id,
+          folderAddPendingInfo.subdirectories,
+        );
         onFolderAdded?.(createdFolder.id);
         setFolderAddResolvedSeq((prev) => prev + 1);
       }
@@ -394,6 +410,7 @@ export function useDuplicateResolutionDialog({
     onFolderAdded,
     onFolderRescan,
     resetDialogState,
+    seedSubfolders,
   ]);
 
   const onOpenChange = useCallback(

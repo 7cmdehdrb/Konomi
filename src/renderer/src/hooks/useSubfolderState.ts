@@ -54,6 +54,11 @@ export function useSubfolderState() {
   const loadSubfolders = useCallback(async (folderId: number) => {
     const paths = await window.folder.listSubdirectories(folderId);
     setSubfoldersByFolder((prev) => {
+      // DB에 아직 이미지가 없으면 빈 배열이 돌아오는데,
+      // 이미 seed된 데이터가 있으면 보존한다 (스캔 완료 후 다시 갱신됨)
+      if (paths.length === 0 && (prev.get(folderId)?.length ?? 0) > 0) {
+        return prev;
+      }
       const next = new Map(prev);
       next.set(
         folderId,
@@ -139,6 +144,21 @@ export function useSubfolderState() {
     [subfoldersByFolder],
   );
 
+  const seedSubfolders = useCallback(
+    (folderId: number, subdirs: { name: string; path: string }[]) => {
+      if (subdirs.length === 0) return;
+      setSubfoldersByFolder((prev) => {
+        const next = new Map(prev);
+        next.set(
+          folderId,
+          subdirs.map((s) => ({ path: s.path, name: s.name, folderId })),
+        );
+        return next;
+      });
+    },
+    [],
+  );
+
   const clearFolderSubfolders = useCallback((folderId: number) => {
     setSubfoldersByFolder((prev) => {
       const next = new Map(prev);
@@ -176,6 +196,7 @@ export function useSubfolderState() {
     toggleRoot,
     setFolderSubfoldersVisible,
     clearFolderSubfolders,
+    seedSubfolders,
     refreshSubfolders,
     loadSubfolders,
     subfolderFilters,

@@ -75,6 +75,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     isRootVisible,
     toggleSubfolder,
     toggleRoot,
+    seedSubfolders,
     refreshSubfolders,
     subfolderFilters,
   } = useFolderController(initialFolderCount);
@@ -206,6 +207,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     runScan,
     scanningRef,
     scheduleAnalysis,
+    analyzeTimerRef,
     setActiveScanFolderIds,
     setRollbackFolderIds,
     refreshSubfolders,
@@ -356,6 +358,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
       onFolderRescan: handleFolderRescan,
       onSubfolderToggle: toggleSubfolder,
       onRootToggle: toggleRoot,
+      seedSubfolders,
     }),
     [
       addFolder,
@@ -367,6 +370,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
       removeFolder,
       renameFolder,
       reorderFolders,
+      seedSubfolders,
       toggleCollapse,
       toggleFolder,
       toggleSubfolder,
