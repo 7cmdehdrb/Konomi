@@ -99,7 +99,8 @@ describe("useSidebarFolderActions", () => {
     expect(result.current.selectedFolderIds.has(9)).toBe(false);
     expect(result.current.activeScanFolderIds.has(9)).toBe(false);
     expect(result.current.rollbackFolderIds.has(9)).toBe(false);
-    expect(scheduleAnalysis).toHaveBeenCalledWith(500);
+    // handleFolderCancelled does NOT schedule analysis — it clears the timer instead
+    expect(scheduleAnalysis).not.toHaveBeenCalledWith(500);
 
     act(() => {
       result.current.handleFolderAdded(11);

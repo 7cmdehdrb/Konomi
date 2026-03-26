@@ -118,7 +118,7 @@ describe("useImageWatchBootstrap", () => {
     });
   });
 
-  it("uses the slower batch refresh path while scanning is active", async () => {
+  it("uses immediate refresh for the first scan batch, then slower for subsequent", async () => {
     const scheduleSearchStatsRefresh = vi.fn();
     const scheduleAnalysis = vi.fn();
     const schedulePageRefresh = vi.fn();
@@ -134,12 +134,22 @@ describe("useImageWatchBootstrap", () => {
       }),
     );
 
+    // First batch during scan → immediate refresh
     act(() => {
       preloadEvents.image.batch.emit([createImageRow({ id: 1 })]);
     });
 
-    expect(schedulePageRefresh).toHaveBeenCalledWith(1500);
+    expect(schedulePageRefresh).toHaveBeenCalledWith(0);
     expect(scheduleAnalysis).toHaveBeenCalledTimes(1);
     expect(scheduleSearchStatsRefresh).not.toHaveBeenCalled();
+
+    schedulePageRefresh.mockClear();
+
+    // Second batch during scan → debounced refresh
+    act(() => {
+      preloadEvents.image.batch.emit([createImageRow({ id: 2 })]);
+    });
+
+    expect(schedulePageRefresh).toHaveBeenCalledWith(1500);
   });
 });
