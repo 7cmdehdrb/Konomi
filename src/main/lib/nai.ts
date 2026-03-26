@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import { inflateSync, gunzipSync } from "zlib";
 import type { NovelAIMeta } from "@/types/nai";
+import { readComfyuiMetaFromBuffer } from "./comfyui";
 import { readMidjourneyMetaFromBuffer } from "./midjourney";
 import { readWebuiMetaFromBuffer } from "./webui";
 import { readPngTextChunks } from "./png-meta";
@@ -322,6 +323,7 @@ export function readImageMetaFromBuffer(buf: Buffer): NovelAIMeta | null {
   if (isWebp(buf)) return readNaiMetaFromWebp(buf);
   return (
     readWebuiMetaFromBuffer(buf) ??
+    readComfyuiMetaFromBuffer(buf) ??
     readMidjourneyMetaFromBuffer(buf) ??
     readNaiMetaFromBuffer(buf)
   );

@@ -1,5 +1,5 @@
 export interface NovelAIMeta {
-  source: "nai" | "webui" | "midjourney" | "unknown";
+  source: "nai" | "webui" | "midjourney" | "comfyui" | "unknown";
   prompt: string;
   negativePrompt: string;
   characterPrompts: string[];
