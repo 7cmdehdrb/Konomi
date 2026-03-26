@@ -394,7 +394,7 @@ const ignoredDuplicatePaths = new Set<string>();
 let ignoredDuplicatePathsLoaded = false;
 let ignoredDuplicatePathsLoading: Promise<void> | null = null;
 
-async function ensureIgnoredDuplicatePathsLoaded(): Promise<void> {
+export async function ensureIgnoredDuplicatePathsLoaded(): Promise<void> {
   if (ignoredDuplicatePathsLoaded) return;
   if (ignoredDuplicatePathsLoading) {
     await ignoredDuplicatePathsLoading;
@@ -422,13 +422,17 @@ export async function registerIgnoredDuplicatePaths(
 ): Promise<void> {
   if (paths.length === 0) return;
   await ensureIgnoredDuplicatePathsLoaded();
+  const newPaths = paths.filter((p) => !ignoredDuplicatePaths.has(p));
+  if (newPaths.length === 0) return;
+  for (const p of newPaths) ignoredDuplicatePaths.add(p);
   const db = getDB();
-  for (const filePath of paths) {
-    if (ignoredDuplicatePaths.has(filePath)) continue;
-    ignoredDuplicatePaths.add(filePath);
+  const BATCH_SIZE = 500;
+  for (let i = 0; i < newPaths.length; i += BATCH_SIZE) {
+    const batch = newPaths.slice(i, i + BATCH_SIZE);
+    const placeholders = batch.map(() => "(?)").join(", ");
     await db.$executeRawUnsafe(
-      "INSERT OR IGNORE INTO IgnoredDuplicatePath (path) VALUES (?)",
-      filePath,
+      `INSERT OR IGNORE INTO IgnoredDuplicatePath (path) VALUES ${placeholders}`,
+      ...batch,
     );
   }
 }
@@ -991,50 +995,81 @@ export async function rebuildImageSearchPresetStats(
   done++;
   onProgress?.(done, total);
 
-  for (const row of resolutionRows) {
-    if (!Number.isInteger(row.width) || !Number.isInteger(row.height)) continue;
-    await db.$executeRawUnsafe(
-      `INSERT INTO ImageSearchStat (kind, key, width, height, model, count, updatedAt)
-       VALUES (?, ?, ?, ?, NULL, ?, CURRENT_TIMESTAMP)`,
-      "resolution",
-      `${row.width}x${row.height}`,
-      row.width,
-      row.height,
-      row.count,
-    );
-    done++;
+  const BATCH_SIZE = 500;
+
+  // Batch-insert resolution rows
+  for (let i = 0; i < resolutionRows.length; i += BATCH_SIZE) {
+    const batch = resolutionRows.slice(i, i + BATCH_SIZE);
+    const placeholders: string[] = [];
+    const params: unknown[] = [];
+    for (const row of batch) {
+      if (!Number.isInteger(row.width) || !Number.isInteger(row.height))
+        continue;
+      placeholders.push("(?, ?, ?, ?, NULL, ?, CURRENT_TIMESTAMP)");
+      params.push(
+        "resolution",
+        `${row.width}x${row.height}`,
+        row.width,
+        row.height,
+        row.count,
+      );
+    }
+    if (placeholders.length > 0) {
+      await db.$executeRawUnsafe(
+        `INSERT INTO ImageSearchStat (kind, key, width, height, model, count, updatedAt)
+         VALUES ${placeholders.join(", ")}`,
+        ...params,
+      );
+    }
+    done += batch.length;
     const now = Date.now();
     if (done === total || now - lastProgressAt >= 100) {
       lastProgressAt = now;
       onProgress?.(done, total);
     }
   }
-  for (const row of modelRows) {
-    await db.$executeRawUnsafe(
-      `INSERT INTO ImageSearchStat (kind, key, width, height, model, count, updatedAt)
-       VALUES (?, ?, NULL, NULL, ?, ?, CURRENT_TIMESTAMP)`,
-      "model",
-      row.model ?? "",
-      row.model ?? "",
-      row.count,
-    );
-    done++;
+
+  // Batch-insert model rows
+  for (let i = 0; i < modelRows.length; i += BATCH_SIZE) {
+    const batch = modelRows.slice(i, i + BATCH_SIZE);
+    const placeholders: string[] = [];
+    const params: unknown[] = [];
+    for (const row of batch) {
+      placeholders.push("(?, ?, NULL, NULL, ?, ?, CURRENT_TIMESTAMP)");
+      params.push("model", row.model ?? "", row.model ?? "", row.count);
+    }
+    if (placeholders.length > 0) {
+      await db.$executeRawUnsafe(
+        `INSERT INTO ImageSearchStat (kind, key, width, height, model, count, updatedAt)
+         VALUES ${placeholders.join(", ")}`,
+        ...params,
+      );
+    }
+    done += batch.length;
     const now = Date.now();
     if (done === total || now - lastProgressAt >= 100) {
       lastProgressAt = now;
       onProgress?.(done, total);
     }
   }
-  for (const row of tagRows) {
-    await db.$executeRawUnsafe(
-      `INSERT INTO ImageSearchStat (kind, key, width, height, model, count, updatedAt)
-       VALUES (?, ?, NULL, NULL, ?, ?, CURRENT_TIMESTAMP)`,
-      "tag",
-      row.key,
-      row.tag,
-      row.count,
-    );
-    done++;
+
+  // Batch-insert tag rows
+  for (let i = 0; i < tagRows.length; i += BATCH_SIZE) {
+    const batch = tagRows.slice(i, i + BATCH_SIZE);
+    const placeholders: string[] = [];
+    const params: unknown[] = [];
+    for (const row of batch) {
+      placeholders.push("(?, ?, NULL, NULL, ?, ?, CURRENT_TIMESTAMP)");
+      params.push("tag", row.key, row.tag, row.count);
+    }
+    if (placeholders.length > 0) {
+      await db.$executeRawUnsafe(
+        `INSERT INTO ImageSearchStat (kind, key, width, height, model, count, updatedAt)
+         VALUES ${placeholders.join(", ")}`,
+        ...params,
+      );
+    }
+    done += batch.length;
     const now = Date.now();
     if (done === total || now - lastProgressAt >= 100) {
       lastProgressAt = now;

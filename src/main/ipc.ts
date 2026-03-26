@@ -106,7 +106,7 @@ export function registerIpcHandlers(): void {
     ) => bridge.request("folder:resolveDuplicates", { resolutions }),
   );
   ipcMain.handle("folder:delete", (_, id: number) =>
-    bridge.request("folder:delete", { id }),
+    bridge.request("folder:delete", { id }, 0),
   );
   ipcMain.handle("folder:rename", (_, id: number, name: string) =>
     bridge.request("folder:rename", { id, name }),
@@ -129,9 +129,11 @@ export function registerIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle("image:list", () => bridge.request("image:list"));
+  ipcMain.handle("image:list", () =>
+    bridge.request("image:list", undefined, 0),
+  );
   ipcMain.handle("image:getSearchPresetStats", () =>
-    bridge.request("image:getSearchPresetStats"),
+    bridge.request("image:getSearchPresetStats", undefined, 0),
   );
   ipcMain.handle(
     "image:suggestTags",
@@ -186,7 +188,7 @@ export function registerIpcHandlers(): void {
         seedFilters?: number[];
         excludeTags?: string[];
       },
-    ) => bridge.request("image:listMatching", query),
+    ) => bridge.request("image:listMatching", query, 0),
   );
   ipcMain.handle("image:listByIds", (_, ids: number[]) =>
     bridge.request("image:listByIds", { ids }),
@@ -208,10 +210,10 @@ export function registerIpcHandlers(): void {
   );
   ipcMain.handle("image:watch", () => bridge.request("image:watch"));
   ipcMain.handle("image:listIgnoredDuplicates", () =>
-    bridge.request("image:listIgnoredDuplicates"),
+    bridge.request("image:listIgnoredDuplicates", undefined, 0),
   );
   ipcMain.handle("image:clearIgnoredDuplicates", () =>
-    bridge.request("image:clearIgnoredDuplicates"),
+    bridge.request("image:clearIgnoredDuplicates", undefined, 0),
   );
 
   ipcMain.handle("prompt:listCategories", () =>
@@ -284,10 +286,10 @@ export function registerIpcHandlers(): void {
       }),
   );
   ipcMain.handle("image:resetHashes", () =>
-    bridge.request("image:resetHashes"),
+    bridge.request("image:resetHashes", undefined, 0),
   );
   ipcMain.handle("image:refreshPrompts", () =>
-    bridge.request("image:refreshPrompts"),
+    bridge.request("image:refreshPrompts", undefined, 0),
   );
 
   ipcMain.handle("category:list", () => bridge.request("category:list"));

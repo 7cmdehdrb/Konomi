@@ -91,6 +91,14 @@ class UtilityBridge {
         if (this.webContents && !this.webContents.isDestroyed()) {
           this.webContents.send(m.event as string, m.payload);
         }
+      } else if (m.ack === true) {
+        // Utility process acknowledged the request — reset the timeout so
+        // queue-wait time doesn't count against it.
+        const id = m.id as number;
+        const pending = this.pending.get(id);
+        if (pending) {
+          this.resetTimeout(pending, id);
+        }
       } else {
         const id = m.id as number;
         const pending = this.pending.get(id);
@@ -153,6 +161,26 @@ class UtilityBridge {
       this.log.warn("Restarting utility process");
       this.spawnUtilityProcess();
     }, RESTART_DELAY_MS);
+  }
+
+  private resetTimeout(pending: PendingRequest, id: number): void {
+    if (!pending.timeout) return; // timeoutMs was 0 — no timeout to reset
+    clearTimeout(pending.timeout);
+    const effectiveTimeout = this.requestTimeoutMs;
+    pending.timeout = setTimeout(() => {
+      if (!this.pending.has(id)) return;
+      this.pending.delete(id);
+      this.log.error("Utility request timed out", {
+        id,
+        type: pending.type,
+        timeoutMs: effectiveTimeout,
+      });
+      pending.reject(
+        new Error(
+          `Utility request timed out after ${effectiveTimeout}ms: ${pending.type}`,
+        ),
+      );
+    }, effectiveTimeout);
   }
 
   setWebContents(wc: WebContents): void {

@@ -28,6 +28,7 @@ import {
   resolveFolderDuplicates,
   listIgnoredDuplicatePaths,
   clearIgnoredDuplicatePaths,
+  ensureIgnoredDuplicatePathsLoaded,
   refreshImagePrompts,
 } from "./lib/image";
 import {
@@ -452,6 +453,13 @@ seedBuiltinCategories()
     log.errorWithStack("Failed to seed builtin categories", error),
   );
 
+// Eager-load ignored duplicate paths so first request doesn't pay the cost
+ensureIgnoredDuplicatePathsLoaded()
+  .then(() => log.info("Loaded ignored duplicate paths"))
+  .catch((error) =>
+    log.errorWithStack("Failed to load ignored duplicate paths", error),
+  );
+
 process.parentPort.on("message", async (e: Electron.MessageEvent) => {
   const { id, type, payload } = e.data as {
     id: number;
@@ -460,6 +468,9 @@ process.parentPort.on("message", async (e: Electron.MessageEvent) => {
   };
   const startedAt = Date.now();
   log.debug("Request start", { id, type });
+  // Acknowledge receipt so the bridge resets its timeout — queue-wait time
+  // no longer counts against the request timeout.
+  process.parentPort.postMessage({ id, ack: true });
   try {
     const result = await handleRequest(type, payload);
     log.debug("Request success", {
