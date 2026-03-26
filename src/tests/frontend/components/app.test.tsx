@@ -343,6 +343,7 @@ vi.mock("@/components/image-detail", () => ({
     similarImages,
     similarImagesLoading,
     onSimilarImageClick,
+    onAnchorChange,
   }: {
     image?: ImageData | null;
     isOpen: boolean;
@@ -350,8 +351,17 @@ vi.mock("@/components/image-detail", () => ({
     similarImages: ImageData[];
     similarImagesLoading: boolean;
     onSimilarImageClick: (image: ImageData) => void;
-  }) =>
-    isOpen && image ? (
+    onAnchorChange?: (anchorId: string | null) => void;
+  }) => {
+    React.useEffect(() => {
+      if (isOpen && image?.id) {
+        onAnchorChange?.(image.id);
+      } else if (!isOpen) {
+        onAnchorChange?.(null);
+      }
+    }, [isOpen, image?.id, onAnchorChange]);
+
+    return isOpen && image ? (
       <div data-testid="image-detail">
         <div data-testid="image-detail-image-id">{image.id}</div>
         <div data-testid="image-detail-loading">
@@ -372,7 +382,8 @@ vi.mock("@/components/image-detail", () => ({
           </button>
         )}
       </div>
-    ) : null,
+    ) : null;
+  },
 }));
 
 vi.mock("@/components/feature-tour", () => ({
