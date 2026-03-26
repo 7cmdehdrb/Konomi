@@ -409,6 +409,7 @@ describe("App", () => {
   beforeEach(() => {
     localStorage.setItem("konomi-tour-completed", "true");
     localStorage.setItem("konomi-initial-language-selection-completed", "true");
+    localStorage.setItem("konomi-announcement-v0.6.0-similarity-fix", "true");
 
     useSettingsMock.mockReset();
     useSettingsMock.mockReturnValue({

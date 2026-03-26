@@ -2053,12 +2053,11 @@ export async function syncAllFolders(
             id: true,
             path: true,
             fileModifiedAt: true,
+            source: true,
             ...IMAGE_SEARCH_STAT_SOURCE_SELECT,
           },
         });
-        const existingMap = new Map(
-          existing.map((e) => [e.path, e.fileModifiedAt]),
-        );
+        const existingMap = new Map(existing.map((e) => [e.path, e] as const));
         const currentPathSet = new Set(filePaths);
         const staleRows = existing.filter(
           (row) => !currentPathSet.has(row.path),
@@ -2085,7 +2084,8 @@ export async function syncAllFolders(
             .filter((p) => existingMap.has(p))
             .sort(
               (a, b) =>
-                existingMap.get(b)!.getTime() - existingMap.get(a)!.getTime(),
+                existingMap.get(b)!.fileModifiedAt.getTime() -
+                existingMap.get(a)!.fileModifiedAt.getTime(),
             ),
         ];
 
@@ -2154,10 +2154,11 @@ export async function syncAllFolders(
               const stat = await fs.promises.stat(filePath);
               const mtime = stat.mtime;
 
-              const existingMtime = existingMap.get(filePath);
+              const existingRow = existingMap.get(filePath);
               if (
-                existingMtime &&
-                existingMtime.getTime() === mtime.getTime()
+                existingRow &&
+                existingRow.fileModifiedAt.getTime() === mtime.getTime() &&
+                existingRow.source !== "unknown"
               ) {
                 return;
               }
