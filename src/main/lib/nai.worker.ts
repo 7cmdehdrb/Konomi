@@ -1,5 +1,5 @@
 import { parentPort } from "worker_threads";
-import { readImageMeta } from "./nai";
+import { readImageMeta } from "./image-meta";
 
 parentPort!.on(
   "message",

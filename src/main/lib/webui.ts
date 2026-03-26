@@ -1,12 +1,12 @@
 import { readFileSync } from "fs";
-import type { NovelAIMeta } from "@/types/nai";
+import type { ImageMeta } from "@/types/image-meta";
 import { readPngSize, readPngTextChunks } from "./png-meta";
 
 function parseParameters(
   text: string,
   imgW: number,
   imgH: number,
-): NovelAIMeta {
+): ImageMeta {
   const lines = text.split("\n");
 
   const negStart = lines.findIndex((l) => l.startsWith("Negative prompt:"));
@@ -76,7 +76,7 @@ function parseParameters(
   };
 }
 
-export function readWebuiMeta(filePath: string): NovelAIMeta | null {
+export function readWebuiMeta(filePath: string): ImageMeta | null {
   try {
     const buf = readFileSync(filePath);
     return readWebuiMetaFromBuffer(buf);
@@ -85,7 +85,7 @@ export function readWebuiMeta(filePath: string): NovelAIMeta | null {
   }
 }
 
-export function readWebuiMetaFromBuffer(buf: Buffer): NovelAIMeta | null {
+export function readWebuiMetaFromBuffer(buf: Buffer): ImageMeta | null {
   try {
     const { width: w, height: h } = readPngSize(buf);
     const chunks = readPngTextChunks(buf);

@@ -1,6 +1,8 @@
-import type { NovelAIMeta } from "../renderer/src/types/nai";
+import type { ImageMeta } from "../renderer/src/types/image-meta";
 
-export type { NovelAIMeta };
+export type { ImageMeta };
+/** @deprecated Use ImageMeta instead */
+export type NovelAIMeta = ImageMeta;
 
 export type Folder = {
   id: number;
@@ -244,8 +246,8 @@ declare global {
       reorderTokens: (groupId: number, ids: number[]) => Promise<void>;
     };
     image: {
-      readNaiMeta: (path: string) => Promise<NovelAIMeta | null>;
-      readMetaFromBuffer: (data: Uint8Array) => Promise<NovelAIMeta | null>;
+      readNaiMeta: (path: string) => Promise<ImageMeta | null>;
+      readMetaFromBuffer: (data: Uint8Array) => Promise<ImageMeta | null>;
       readFile: (path: string) => Promise<Buffer>;
       list: () => Promise<ImageRow[]>;
       getSearchPresetStats: () => Promise<ImageSearchPresetStats>;

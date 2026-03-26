@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import type { NovelAIMeta } from "@/types/nai";
+import type { ImageMeta } from "@/types/image-meta";
 import { readPngSize, readPngTextChunks } from "./png-meta";
 
 type NodeId = string;
@@ -354,7 +354,7 @@ function parseComfyPrompt(
   promptJson: string,
   imgW: number,
   imgH: number,
-): NovelAIMeta | null {
+): ImageMeta | null {
   let graph: ComfyPrompt;
   try {
     graph = JSON.parse(promptJson) as ComfyPrompt;
@@ -393,7 +393,7 @@ function parseComfyPrompt(
   );
 }
 
-function buildMeta(params: ComfyParams, raw: Record<string, unknown>): NovelAIMeta {
+function buildMeta(params: ComfyParams, raw: Record<string, unknown>): ImageMeta {
   return {
     source: "comfyui",
     prompt: params.positive,
@@ -417,7 +417,7 @@ function buildMeta(params: ComfyParams, raw: Record<string, unknown>): NovelAIMe
   };
 }
 
-export function readComfyuiMetaFromBuffer(buf: Buffer): NovelAIMeta | null {
+export function readComfyuiMetaFromBuffer(buf: Buffer): ImageMeta | null {
   try {
     const { width, height } = readPngSize(buf);
     const chunks = readPngTextChunks(buf);
@@ -447,7 +447,7 @@ export function readComfyuiMetaFromBuffer(buf: Buffer): NovelAIMeta | null {
   }
 }
 
-export function readComfyuiMeta(filePath: string): NovelAIMeta | null {
+export function readComfyuiMeta(filePath: string): ImageMeta | null {
   try {
     const buf = readFileSync(filePath);
     return readComfyuiMetaFromBuffer(buf);

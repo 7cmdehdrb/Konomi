@@ -1,9 +1,6 @@
 import { readFileSync } from "fs";
 import { inflateSync, gunzipSync } from "zlib";
-import type { NovelAIMeta } from "@/types/nai";
-import { readComfyuiMetaFromBuffer } from "./comfyui";
-import { readMidjourneyMetaFromBuffer } from "./midjourney";
-import { readWebuiMetaFromBuffer } from "./webui";
+import type { ImageMeta } from "@/types/image-meta";
 import { readPngTextChunks } from "./png-meta";
 import { decodeWebpAlpha } from "./webp-alpha";
 import { extractNaiLsb } from "./konomi-image";
@@ -148,7 +145,7 @@ const SOURCE_TO_MODEL: Record<string, string> = {
   "Stable Diffusion XL 37C2B166": "nai-diffusion-furry-3",
 };
 
-function parseNaiComment(raw: Record<string, unknown>): NovelAIMeta | null {
+function parseNaiComment(raw: Record<string, unknown>): ImageMeta | null {
   if (typeof raw["Comment"] !== "string") return null;
 
   let comment: Record<string, unknown>;
@@ -245,7 +242,7 @@ function parseNaiComment(raw: Record<string, unknown>): NovelAIMeta | null {
   };
 }
 
-export function readNaiMeta(filePath: string): NovelAIMeta | null {
+export function readNaiMeta(filePath: string): ImageMeta | null {
   try {
     const buf = readFileSync(filePath);
     return readNaiMetaFromBuffer(buf);
@@ -254,7 +251,7 @@ export function readNaiMeta(filePath: string): NovelAIMeta | null {
   }
 }
 
-function readNaiMetaFromPngText(buf: Buffer): NovelAIMeta | null {
+function readNaiMetaFromPngText(buf: Buffer): ImageMeta | null {
   try {
     const chunks = readPngTextChunks(buf);
     if (!isNovelAI(chunks)) return null;
@@ -264,7 +261,7 @@ function readNaiMetaFromPngText(buf: Buffer): NovelAIMeta | null {
   }
 }
 
-function readNaiMetaFromLsb(buf: Buffer): NovelAIMeta | null {
+function readNaiMetaFromLsb(buf: Buffer): ImageMeta | null {
   try {
     // Try native path first (libpng decode + C++ LSB extraction)
     const lsb = extractNaiLsb(buf);
@@ -285,19 +282,11 @@ function readNaiMetaFromLsb(buf: Buffer): NovelAIMeta | null {
   }
 }
 
-export function readNaiMetaFromBuffer(buf: Buffer): NovelAIMeta | null {
+export function readNaiMetaFromBuffer(buf: Buffer): ImageMeta | null {
   return readNaiMetaFromPngText(buf) ?? readNaiMetaFromLsb(buf);
 }
 
-function isWebp(buf: Buffer): boolean {
-  return (
-    buf.length >= 12 &&
-    buf.subarray(0, 4).toString("ascii") === "RIFF" &&
-    buf.subarray(8, 12).toString("ascii") === "WEBP"
-  );
-}
-
-function readNaiMetaFromWebp(buf: Buffer): NovelAIMeta | null {
+export function readNaiMetaFromWebp(buf: Buffer): ImageMeta | null {
   try {
     const decoded = decodeWebpAlpha(buf);
     if (!decoded) return null;
@@ -314,25 +303,6 @@ function readNaiMetaFromWebp(buf: Buffer): NovelAIMeta | null {
     const raw = tryDecode(bA);
     if (!raw || !isNovelAI(raw)) return null;
     return parseNaiComment(raw);
-  } catch {
-    return null;
-  }
-}
-
-export function readImageMetaFromBuffer(buf: Buffer): NovelAIMeta | null {
-  if (isWebp(buf)) return readNaiMetaFromWebp(buf);
-  return (
-    readWebuiMetaFromBuffer(buf) ??
-    readComfyuiMetaFromBuffer(buf) ??
-    readMidjourneyMetaFromBuffer(buf) ??
-    readNaiMetaFromBuffer(buf)
-  );
-}
-
-export function readImageMeta(filePath: string): NovelAIMeta | null {
-  try {
-    const buf = readFileSync(filePath);
-    return readImageMetaFromBuffer(buf);
   } catch {
     return null;
   }

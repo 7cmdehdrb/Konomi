@@ -66,7 +66,7 @@ import type {
   PromptCategory,
   PromptGroup,
 } from "@preload/index.d";
-import type { NovelAIMeta } from "@/types/nai";
+import type { ImageMeta } from "@/types/image-meta";
 import type { ImageData } from "@/components/image-card";
 import { PromptInput } from "@/components/prompt-input";
 import { PromptGroupPanel } from "@/components/prompt-group-panel";
@@ -4750,7 +4750,7 @@ export const GenerationView = memo(
       setImporting(true);
       setImportError(null);
       try {
-        const meta: NovelAIMeta | null =
+        const meta: ImageMeta | null =
           dropItem.kind === "file"
             ? await window.image.readMetaFromBuffer(
                 new Uint8Array(await dropItem.file.arrayBuffer()),

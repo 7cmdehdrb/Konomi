@@ -36,7 +36,7 @@ vi.mock("../../../main/lib/folder", () => ({
   getFolders: mocks.getFolders,
 }));
 
-vi.mock("../../../main/lib/nai", () => ({
+vi.mock("../../../main/lib/image-meta", () => ({
   readImageMeta: mocks.readImageMeta,
 }));
 

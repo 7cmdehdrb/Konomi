@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import type { NovelAIMeta } from "@/types/nai";
+import type { ImageMeta } from "@/types/image-meta";
 import { readPngSize, readPngTextChunks } from "./png-meta";
 
 type MidjourneyParsedDescription = {
@@ -93,7 +93,7 @@ function buildMidjourneyMeta(
   chunks: Record<string, string>,
   width: number,
   height: number,
-): NovelAIMeta | null {
+): ImageMeta | null {
   const description = chunks["Description"]?.trim();
   if (!description) return null;
 
@@ -140,7 +140,7 @@ function buildMidjourneyMeta(
   };
 }
 
-export function readMidjourneyMeta(filePath: string): NovelAIMeta | null {
+export function readMidjourneyMeta(filePath: string): ImageMeta | null {
   try {
     const buf = readFileSync(filePath);
     return readMidjourneyMetaFromBuffer(buf);
@@ -149,7 +149,7 @@ export function readMidjourneyMeta(filePath: string): NovelAIMeta | null {
   }
 }
 
-export function readMidjourneyMetaFromBuffer(buf: Buffer): NovelAIMeta | null {
+export function readMidjourneyMetaFromBuffer(buf: Buffer): ImageMeta | null {
   try {
     const { width, height } = readPngSize(buf);
     const chunks = readPngTextChunks(buf);

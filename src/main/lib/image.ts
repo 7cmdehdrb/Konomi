@@ -9,7 +9,7 @@ import { scanPngFiles, withConcurrency } from "./scanner";
 import type { CancelToken } from "./scanner";
 import { parsePromptTokens } from "./token";
 import { deleteSimilarityCacheForImageIds } from "./phash";
-import type { NovelAIMeta } from "@/types/nai";
+import type { ImageMeta } from "@/types/image-meta";
 import type { Prisma } from "../../generated/prisma/client";
 
 export type ImageRow = {
@@ -139,9 +139,9 @@ class WorkerPool {
   private idle: Worker[] = [];
   private queue: Array<{
     filePath: string;
-    resolve: (r: NovelAIMeta | null) => void;
+    resolve: (r: ImageMeta | null) => void;
   }> = [];
-  private callbacks = new Map<number, (r: NovelAIMeta | null) => void>();
+  private callbacks = new Map<number, (r: ImageMeta | null) => void>();
   private workerTask = new Map<Worker, number>();
   private seq = 0;
 
@@ -153,7 +153,7 @@ class WorkerPool {
     const w = new Worker(workerPath);
     w.on(
       "message",
-      ({ id, result }: { id: number; result: NovelAIMeta | null }) => {
+      ({ id, result }: { id: number; result: ImageMeta | null }) => {
         this.workerTask.delete(w);
         this.callbacks.get(id)?.(result);
         this.callbacks.delete(id);
@@ -192,7 +192,7 @@ class WorkerPool {
     }
   }
 
-  run(filePath: string): Promise<NovelAIMeta | null> {
+  run(filePath: string): Promise<ImageMeta | null> {
     return new Promise((resolve) => {
       this.queue.push({ filePath, resolve });
       this.flush();

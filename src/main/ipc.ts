@@ -3,7 +3,7 @@ import { checkForUpdates, installUpdate } from "./lib/updater";
 import fs from "fs";
 import path from "path";
 import { unlink, readFile } from "fs/promises";
-import { readImageMeta, readImageMetaFromBuffer } from "./lib/nai";
+import { readImageMeta, readImageMetaFromBuffer } from "./lib/image-meta";
 import {
   PROMPTS_DB_FILENAME,
   readPromptsDBSchemaVersion,

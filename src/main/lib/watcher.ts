@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { getDB } from "./db";
-import { readImageMeta } from "./nai";
+import { readImageMeta } from "./image-meta";
 import { getFolders } from "./folder";
 import { parsePromptTokens } from "./token";
 import {
