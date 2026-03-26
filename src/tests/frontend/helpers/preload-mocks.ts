@@ -182,6 +182,9 @@ export const preloadMocks = {
     getConfig: vi.fn().mockResolvedValue({ id: 1, apiKey: "" }),
     updateConfig: vi.fn().mockResolvedValue({ id: 1, apiKey: "" }),
     generate: vi.fn().mockResolvedValue("C:/output/generated.png"),
+    getSubscription: vi
+      .fn()
+      .mockResolvedValue({ tier: "Scroll", anlas: 0, fixedAnlas: 0, purchasedAnlas: 0 }),
     onGeneratePreview: naiGeneratePreview.subscribe,
   },
   category: {
@@ -311,6 +314,9 @@ export function resetPreloadMocks(): void {
   preloadMocks.nai.generate
     .mockReset()
     .mockResolvedValue("C:/output/generated.png");
+  preloadMocks.nai.getSubscription
+    .mockReset()
+    .mockResolvedValue({ tier: "Scroll", anlas: 0, fixedAnlas: 0, purchasedAnlas: 0 });
 
   preloadMocks.category.list.mockReset().mockResolvedValue([]);
   preloadMocks.category.create.mockReset();

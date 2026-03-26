@@ -120,6 +120,7 @@ describe("nai-gen", () => {
     await expect(validateApiKey("token-123")).resolves.toEqual({
       valid: true,
       tier: "Scroll",
+      anlas: 0,
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.novelai.net/user/subscription",
