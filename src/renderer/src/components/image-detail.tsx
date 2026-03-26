@@ -480,6 +480,7 @@ interface ImageDetailProps {
   detailContentReady?: boolean;
   onSimilarImageClick?: (image: ImageData) => void;
   similarPageSize?: number;
+  onAnchorChange?: (anchorId: string | null) => void;
 }
 
 export function ImageDetail({
@@ -501,6 +502,7 @@ export function ImageDetail({
   detailContentReady = true,
   onSimilarImageClick,
   similarPageSize = 10,
+  onAnchorChange,
 }: ImageDetailProps) {
   const { t } = useTranslation();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -535,11 +537,16 @@ export function ImageDetail({
   // Lock the anchor image when the panel opens; clear when it closes
   useEffect(() => {
     if (isOpen && image?.id) {
-      setAnchorId((prev) => prev ?? image.id);
+      setAnchorId((prev) => {
+        const next = prev ?? image.id;
+        if (next !== prev) onAnchorChange?.(next);
+        return next;
+      });
     } else if (!isOpen) {
       setAnchorId(null);
+      onAnchorChange?.(null);
     }
-  }, [isOpen, image?.id]);
+  }, [isOpen, image?.id, onAnchorChange]);
 
   const effectiveAnchorId = anchorId ?? image?.id ?? null;
   const hasSimilar = deferredSimilarImages && deferredSimilarImages.length > 1;
@@ -607,6 +614,24 @@ export function ImageDetail({
     [onCopyPrompt],
   );
 
+  // Gallery Prev/Next: update anchorId so nav buttons stay visible
+  // and similar images refetch for the new image.
+  const handlePrev = useCallback(() => {
+    if (prevImage) {
+      setAnchorId(prevImage.id);
+      onAnchorChange?.(prevImage.id);
+      onPrev();
+    }
+  }, [onPrev, prevImage, onAnchorChange]);
+
+  const handleNext = useCallback(() => {
+    if (nextImage) {
+      setAnchorId(nextImage.id);
+      onAnchorChange?.(nextImage.id);
+      onNext();
+    }
+  }, [onNext, nextImage, onAnchorChange]);
+
   const handleFitModeToggle = useCallback(() => {
     setFitMode((m) => (m === "fit" ? "actual" : "fit"));
   }, []);
@@ -642,12 +667,18 @@ export function ImageDetail({
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowLeft" && prevImage) onPrev();
-      else if (e.key === "ArrowRight" && nextImage) onNext();
+      else if (e.key === "ArrowLeft" && prevImage) {
+        e.stopPropagation();
+        handlePrev();
+      } else if (e.key === "ArrowRight" && nextImage) {
+        e.stopPropagation();
+        handleNext();
+      }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, onClose, onPrev, onNext, prevImage, nextImage]);
+    // Use capture phase so this fires before gallery's page navigation handler
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [isOpen, onClose, handlePrev, handleNext, prevImage, nextImage]);
 
   // Never fully unmount — just hide with CSS so DOM isn't recreated on every open
   if (!image) return null;
@@ -689,7 +720,12 @@ export function ImageDetail({
             {t("imageDetail.similarImages")}
           </p>
           <div className="relative flex-1 min-h-0 overflow-y-auto">
-            {hasSimilar ? (
+            {isPanelLoading || similarImagesLoading ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/70">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <p className="text-[10px]">{t("common.loading")}</p>
+              </div>
+            ) : hasSimilar ? (
               <TooltipProvider delayDuration={300}>
                 <div className="p-2 space-y-1.5">
                   {currentThumb && similarPage === 0 && (
@@ -714,18 +750,9 @@ export function ImageDetail({
                 </div>
               </TooltipProvider>
             ) : (
-              !isPanelLoading &&
-              !similarImagesLoading && (
-                <p className="px-2 pt-4 text-center text-[10px] text-muted-foreground/70">
-                  {t("common.none")}
-                </p>
-              )
-            )}
-            {(isPanelLoading || similarImagesLoading) && !hasSimilar && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/70">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <p className="text-[10px]">{t("common.loading")}</p>
-              </div>
+              <p className="px-2 pt-4 text-center text-[10px] text-muted-foreground/70">
+                {t("common.none")}
+              </p>
             )}
           </div>
           {totalPages > 1 && (
@@ -816,7 +843,7 @@ export function ImageDetail({
               (!prevImage || image.id !== effectiveAnchorId) &&
                 "opacity-0 pointer-events-none",
             )}
-            onClick={onPrev}
+            onClick={handlePrev}
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -828,7 +855,7 @@ export function ImageDetail({
               (!nextImage || image.id !== effectiveAnchorId) &&
                 "opacity-0 pointer-events-none",
             )}
-            onClick={onNext}
+            onClick={handleNext}
           >
             <ChevronRight className="h-5 w-5" />
           </button>

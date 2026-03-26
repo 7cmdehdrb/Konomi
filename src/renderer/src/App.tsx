@@ -261,6 +261,11 @@ export default function App({ initialFolderCount = null }: AppProps) {
     generationViewRef,
     handlePanelChange,
   });
+  const [detailAnchorId, setDetailAnchorId] = useState<string | null>(null);
+  const handleDetailAnchorChange = useCallback(
+    (id: string | null) => setDetailAnchorId(id),
+    [],
+  );
   const deferredDetailContentImageId = useDeferredValue(
     detail.isOpen ? detail.imageId : null,
   );
@@ -268,7 +273,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     !!detail.imageId && deferredDetailContentImageId === detail.imageId;
   const { similarImages, similarReasons, similarScores, similarImagesLoading } =
     useSimilarImages({
-      selectedImageId: detail.imageId,
+      anchorId: detailAnchorId,
       isDetailOpen: detail.isOpen,
       detailContentReady,
       similarGroups,
@@ -608,6 +613,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
         detailContentReady={detailContentReady}
         onSimilarImageClick={detail.onSelectImage}
         similarPageSize={settings.similarPageSize}
+        onAnchorChange={handleDetailAnchorChange}
       />
 
       <FeatureTour

@@ -36,7 +36,7 @@ describe("useSimilarImages", () => {
 
     const { result, rerender } = renderHook(
       (props: {
-        selectedImageId: string | null;
+        anchorId: string | null;
         isDetailOpen: boolean;
         detailContentReady: boolean;
       }) =>
@@ -48,7 +48,7 @@ describe("useSimilarImages", () => {
         }),
       {
         initialProps: {
-          selectedImageId: "10",
+          anchorId: "10",
           isDetailOpen: true,
           detailContentReady: true,
         },
@@ -74,7 +74,7 @@ describe("useSimilarImages", () => {
     );
 
     rerender({
-      selectedImageId: "10",
+      anchorId: "10",
       isDetailOpen: false,
       detailContentReady: true,
     });
@@ -117,7 +117,7 @@ describe("useSimilarImages", () => {
 
     const { result, rerender } = renderHook(
       (props: {
-        selectedImageId: string | null;
+        anchorId: string | null;
         isDetailOpen: boolean;
         detailContentReady: boolean;
       }) =>
@@ -129,7 +129,7 @@ describe("useSimilarImages", () => {
         }),
       {
         initialProps: {
-          selectedImageId: "10",
+          anchorId: "10",
           isDetailOpen: true,
           detailContentReady: true,
         },
@@ -138,14 +138,14 @@ describe("useSimilarImages", () => {
 
     // Close the panel — anchor resets, first fetch is cancelled
     rerender({
-      selectedImageId: "10",
+      anchorId: "10",
       isDetailOpen: false,
       detailContentReady: true,
     });
 
     // Reopen for image 20 — new anchor, new fetch starts
     rerender({
-      selectedImageId: "20",
+      anchorId: "20",
       isDetailOpen: true,
       detailContentReady: true,
     });
@@ -200,7 +200,7 @@ describe("useSimilarImages", () => {
 
     const { result } = renderHook(() =>
       useSimilarImages({
-        selectedImageId: "10",
+        anchorId: "10",
         isDetailOpen: true,
         detailContentReady: true,
         similarGroups,

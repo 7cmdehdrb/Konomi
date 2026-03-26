@@ -4,14 +4,14 @@ import type { ImageData } from "@/components/image-card";
 import { rowToImageData } from "@/lib/image-utils";
 
 export function useSimilarImages({
-  selectedImageId,
+  anchorId,
   isDetailOpen,
   detailContentReady,
   similarGroups,
   visualThresholdRef,
   promptThresholdRef,
 }: {
-  selectedImageId: string | null;
+  anchorId: string | null;
   isDetailOpen: boolean;
   detailContentReady: boolean;
   similarGroups: SimilarGroup[];
@@ -27,22 +27,16 @@ export function useSimilarImages({
   );
   const [similarImagesLoading, setSimilarImagesLoading] = useState(false);
   const requestSeqRef = useRef(0);
-  // Lock the anchor image ID when the panel first opens; reset on close.
-  const [anchorId, setAnchorId] = useState<string | null>(null);
   // Track the anchor for which we last successfully initiated a fetch,
   // so we skip re-fetching when detailContentReady cycles for the same anchor.
   const fetchedAnchorRef = useRef<string | null>(null);
 
+  // Reset fetched tracking when panel closes
   useEffect(() => {
     if (!isDetailOpen) {
-      setAnchorId(null);
       fetchedAnchorRef.current = null;
-      return;
     }
-    if (selectedImageId) {
-      setAnchorId((prev) => prev ?? selectedImageId);
-    }
-  }, [isDetailOpen, selectedImageId]);
+  }, [isDetailOpen]);
 
   useEffect(() => {
     if (!anchorId || !isDetailOpen) {
