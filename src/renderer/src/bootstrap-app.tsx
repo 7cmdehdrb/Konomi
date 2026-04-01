@@ -247,6 +247,11 @@ export function BootstrapApp() {
     const offMigrationProgress = window.db.onMigrationProgress((data) => {
       if (data.total > 0 && data.done < data.total) {
         setMigrating(true);
+        const migrationPercent = Math.min(
+          7,
+          Math.round((data.done / data.total) * 7),
+        );
+        setProgressPercent(migrationPercent);
       } else {
         setMigrating(false);
       }
