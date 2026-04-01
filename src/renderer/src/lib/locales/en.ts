@@ -22,12 +22,14 @@ const en = {
     splash: {
       title: "Getting Konomi Ready",
       status: {
+        updatingDatabase: "Updating database...",
         checkingFolders: "Checking registered folders...",
         preparingOnboarding: "Preparing the start screen...",
         syncingLibrary: "Checking registered images...",
         finalizing: "Almost done.",
       },
       detail: {
+        updatingDatabase: "Updating the database to the latest version.",
         scanFolders: "Checking {{folderLabel}} {{done}}/{{total}}",
         scanImages: "Checking images {{done}}/{{total}}",
         checkingDuplicates: "Checking for duplicates {{done}}/{{total}}",

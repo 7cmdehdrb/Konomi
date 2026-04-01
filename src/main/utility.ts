@@ -78,7 +78,7 @@ import type { NaiConfigPatch, GenerateParams } from "./lib/nai-gen";
 import type { CancelToken } from "./lib/scanner";
 import { createLogger } from "./lib/logger";
 import { suggestPromptTags } from "./lib/prompts-db";
-import { getDB } from "./lib/db";
+import { getDB, runMigrations } from "./lib/db";
 
 let scanCancelToken: CancelToken | null = null;
 let computeHashesInFlight: Promise<number> | null = null;
@@ -99,6 +99,11 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
     utilitySender.send("image:searchStatsProgress", { done, total });
   };
   switch (type) {
+    case "db:runMigrations":
+      runMigrations((progress) => {
+        utilitySender.send("db:migrationProgress", progress);
+      });
+      return;
     case "folder:list":
       return getFolders();
     case "folder:create": {

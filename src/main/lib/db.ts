@@ -6,11 +6,25 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../../generated/prisma/client";
 
 let client: PrismaClient | null = null;
+let migrationsDone = false;
 
-function runMigrations(dbPath: string): void {
+export interface MigrationProgress {
+  done: number;
+  total: number;
+  migrationName: string;
+}
+
+export function runMigrations(
+  onProgress?: (progress: MigrationProgress) => void,
+): void {
+  if (migrationsDone) return;
   const migrationsPath = process.env.KONOMI_MIGRATIONS_PATH;
-  if (!migrationsPath) return;
+  if (!migrationsPath) {
+    migrationsDone = true;
+    return;
+  }
 
+  const dbPath = path.join(process.env.KONOMI_USER_DATA!, "konomi.db");
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   try {
@@ -32,6 +46,7 @@ function runMigrations(dbPath: string): void {
         .filter((d) => /^\d{14}/.test(d))
         .sort();
     } catch {
+      migrationsDone = true;
       return;
     }
 
@@ -40,16 +55,20 @@ function runMigrations(dbPath: string): void {
       .all() as { migration_name: string }[];
     const appliedSet = new Set(applied.map((m) => m.migration_name));
 
-    for (const dir of dirs) {
-      if (appliedSet.has(dir)) continue;
+    const pending = dirs.filter((d) => !appliedSet.has(d));
+    let done = 0;
+
+    for (const dir of pending) {
       const sqlPath = path.join(migrationsPath, dir, "migration.sql");
       let sql: string;
       try {
         sql = fs.readFileSync(sqlPath, "utf-8");
       } catch {
+        done++;
         continue;
       }
       const checksum = crypto.createHash("sha256").update(sql).digest("hex");
+      onProgress?.({ done, total: pending.length, migrationName: dir });
       const applyMigration = db.transaction(
         (
           migrationName: string,
@@ -64,10 +83,16 @@ function runMigrations(dbPath: string): void {
         },
       );
       applyMigration(dir, sql, checksum);
+      done++;
+    }
+
+    if (pending.length > 0) {
+      onProgress?.({ done, total: pending.length, migrationName: "" });
     }
   } finally {
     db.close();
   }
+  migrationsDone = true;
 }
 
 /**
@@ -79,8 +104,8 @@ function runMigrations(dbPath: string): void {
  */
 export function getDB(): PrismaClient {
   if (!client) {
+    runMigrations();
     const dbPath = path.join(process.env.KONOMI_USER_DATA!, "konomi.db");
-    runMigrations(dbPath);
     const adapter = new PrismaBetterSqlite3({ url: dbPath });
     client = new PrismaClient({ adapter });
   }

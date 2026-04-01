@@ -233,6 +233,19 @@ contextBridge.exposeInMainWorld("image", {
     return () => ipcRenderer.removeListener("image:scanFolder", handler);
   },
 });
+contextBridge.exposeInMainWorld("db", {
+  runMigrations: () => ipcRenderer.invoke("db:runMigrations"),
+  onMigrationProgress: (
+    cb: (data: { done: number; total: number; migrationName: string }) => void,
+  ) => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      data: { done: number; total: number; migrationName: string },
+    ) => cb(data);
+    ipcRenderer.on("db:migrationProgress", handler);
+    return () => ipcRenderer.removeListener("db:migrationProgress", handler);
+  },
+});
 contextBridge.exposeInMainWorld("dialog", {
   selectDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke("selectDirectory"),

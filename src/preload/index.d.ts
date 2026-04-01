@@ -321,6 +321,16 @@ declare global {
         }) => void,
       ) => () => void;
     };
+    db: {
+      runMigrations: () => Promise<void>;
+      onMigrationProgress: (
+        cb: (data: {
+          done: number;
+          total: number;
+          migrationName: string;
+        }) => void,
+      ) => () => void;
+    };
     dialog: {
       selectDirectory: () => Promise<string | null>;
       selectDirectories: () => Promise<string[] | null>;

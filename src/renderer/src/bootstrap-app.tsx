@@ -15,10 +15,22 @@ const APP_SPLASH_FADE_OUT_MS = 240;
 const FOLDER_ORDER_STORAGE_KEY = "konomi-folder-order";
 const TOASTER_POSITION = "bottom-right";
 
+let migrationPromise: Promise<void> | null = null;
 let initialFolderCountPromise: Promise<number | null> | null = null;
 let bootstrapPromise: Promise<number | null> | null = null;
 let bootstrappedFolderCount: number | null = null;
 let bootstrapCompleted = false;
+
+function ensureMigrationsRun(): Promise<void> {
+  if (!migrationPromise) {
+    migrationPromise = window.db.runMigrations().catch((error: unknown) => {
+      log.error("Database migration failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
+  return migrationPromise;
+}
 
 function readOrderedFolderIds(): number[] | undefined {
   try {
@@ -35,8 +47,8 @@ function readOrderedFolderIds(): number[] | undefined {
 
 function ensureInitialFolderCount(): Promise<number | null> {
   if (!initialFolderCountPromise) {
-    initialFolderCountPromise = window.folder
-      .list()
+    initialFolderCountPromise = ensureMigrationsRun()
+      .then(() => window.folder.list())
       .then((folders) => {
         bootstrappedFolderCount = folders.length;
         return bootstrappedFolderCount;
@@ -184,6 +196,7 @@ export function BootstrapApp() {
   const [scanningFolderNames, setScanningFolderNames] = useState<
     Map<number, string>
   >(new Map());
+  const [migrating, setMigrating] = useState(false);
   const [mountApp, setMountApp] = useState(bootstrapCompleted);
   const [bootstrapReady, setBootstrapReady] = useState(bootstrapCompleted);
   const [renderSplash, setRenderSplash] = useState(!bootstrapCompleted);
@@ -231,6 +244,13 @@ export function BootstrapApp() {
     }
 
     let cancelled = false;
+    const offMigrationProgress = window.db.onMigrationProgress((data) => {
+      if (data.total > 0 && data.done < data.total) {
+        setMigrating(true);
+      } else {
+        setMigrating(false);
+      }
+    });
     const offScanProgress = window.image.onScanProgress((data) => {
       const nextProgress =
         data.total > 0
@@ -292,6 +312,7 @@ export function BootstrapApp() {
     return () => {
       cancelled = true;
       clearSplashTimers();
+      offMigrationProgress();
       offScanProgress();
       offScanFolder();
       offDupCheckProgress();
@@ -299,6 +320,9 @@ export function BootstrapApp() {
   }, [clearSplashTimers]);
 
   const statusText = useMemo(() => {
+    if (migrating) {
+      return t("app.splash.status.updatingDatabase");
+    }
     if (folderCount === null) {
       return t("app.splash.status.checkingFolders");
     }
@@ -309,9 +333,12 @@ export function BootstrapApp() {
       return t("app.splash.status.syncingLibrary");
     }
     return t("app.splash.status.finalizing");
-  }, [bootstrapReady, folderCount, t]);
+  }, [bootstrapReady, folderCount, migrating, t]);
 
   const detailText = useMemo(() => {
+    if (migrating) {
+      return t("app.splash.detail.updatingDatabase");
+    }
     if (dupCheckProgress && dupCheckProgress.total > 0) {
       return t("app.splash.detail.checkingDuplicates", {
         done: dupCheckProgress.done,

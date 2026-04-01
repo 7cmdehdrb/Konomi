@@ -22,12 +22,15 @@ const ko = {
     splash: {
       title: "앱 시작 준비 중",
       status: {
+        updatingDatabase: "데이터베이스 업데이트 중...",
         checkingFolders: "등록된 폴더 확인 중...",
         preparingOnboarding: "시작 화면 준비 중...",
         syncingLibrary: "등록된 이미지 확인 중...",
         finalizing: "거의 다 마무리 됐습니다.",
       },
       detail: {
+        updatingDatabase:
+          "데이터베이스를 최신 버전으로 업데이트하고 있습니다.",
         scanFolders: "{{folderLabel}} 확인 중 {{done}}/{{total}}",
         scanImages: "이미지 확인 중 {{done}}/{{total}}",
         checkingDuplicates: "중복 파일 확인 중 {{done}}/{{total}}",

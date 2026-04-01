@@ -57,6 +57,11 @@ const imageDupCheckProgress = createEventChannel<{
   done: number;
   total: number;
 }>();
+const dbMigrationProgress = createEventChannel<{
+  done: number;
+  total: number;
+  migrationName: string;
+}>();
 const naiGeneratePreview = createEventChannel<string>();
 const appUpdateAvailable = createEventChannel<{
   version: string;
@@ -65,6 +70,9 @@ const appUpdateAvailable = createEventChannel<{
 const appUpdateDownloaded = createEventChannel<{ version: string }>();
 
 export const preloadEvents = {
+  db: {
+    migrationProgress: dbMigrationProgress,
+  },
   image: {
     batch: imageBatch,
     removed: imageRemoved,
@@ -86,6 +94,10 @@ export const preloadEvents = {
 };
 
 export const preloadMocks = {
+  db: {
+    runMigrations: vi.fn().mockResolvedValue(undefined),
+    onMigrationProgress: dbMigrationProgress.subscribe,
+  },
   appInfo: {
     get: vi.fn().mockResolvedValue({
       appName: "Konomi",
@@ -208,6 +220,7 @@ function installPreloadMocks(): void {
 }
 
 export function resetPreloadMocks(): void {
+  preloadEvents.db.migrationProgress.reset();
   preloadEvents.image.batch.reset();
   preloadEvents.image.removed.reset();
   preloadEvents.image.watchDuplicate.reset();
@@ -285,6 +298,8 @@ export function resetPreloadMocks(): void {
   preloadMocks.image.similarGroups.mockReset().mockResolvedValue([]);
   preloadMocks.image.similarReasons.mockReset().mockResolvedValue([]);
   preloadMocks.image.cancelScan.mockReset().mockResolvedValue(undefined);
+
+  preloadMocks.db.runMigrations.mockReset().mockResolvedValue(undefined);
 
   preloadMocks.dialog.selectDirectory.mockReset().mockResolvedValue(null);
   preloadMocks.dialog.selectDirectories.mockReset().mockResolvedValue(null);

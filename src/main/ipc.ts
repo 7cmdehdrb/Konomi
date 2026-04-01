@@ -102,6 +102,9 @@ export function registerIpcHandlers(): void {
   );
 
   // ── Utility process bridge handlers ────────────────────────────────────────
+  ipcMain.handle("db:runMigrations", () =>
+    bridge.request("db:runMigrations"),
+  );
   ipcMain.handle("folder:list", () => bridge.request("folder:list"));
   ipcMain.handle("folder:create", (_, name: string, path: string) =>
     bridge.request("folder:create", { name, path }),
