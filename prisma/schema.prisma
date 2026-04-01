@@ -131,4 +131,8 @@ model Image {
   createdAt      DateTime @default(now())
   folder         Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
   categories     ImageCategory[]
+
+  @@index([folderId, fileModifiedAt, id])
+  @@index([folderId, isFavorite, fileModifiedAt, id])
+  @@index([folderId, path, id])
 }

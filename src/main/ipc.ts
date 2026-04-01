@@ -195,7 +195,7 @@ export function registerIpcHandlers(): void {
         seedFilters?: number[];
         excludeTags?: string[];
       },
-    ) => bridge.request("image:listPage", query),
+    ) => bridge.request("image:listPage", query, 0),
   );
   ipcMain.handle(
     "image:listMatching",
