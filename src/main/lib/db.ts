@@ -4,6 +4,9 @@ import crypto from "crypto";
 import Database from "better-sqlite3";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../../generated/prisma/client";
+import { createLogger } from "./logger";
+
+const log = createLogger("main/db");
 
 let client: PrismaClient | null = null;
 let migrationsDone = false;
@@ -56,6 +59,9 @@ export function runMigrations(
     const appliedSet = new Set(applied.map((m) => m.migration_name));
 
     const pending = dirs.filter((d) => !appliedSet.has(d));
+    if (pending.length > 0) {
+      log.info("Pending migrations", { count: pending.length });
+    }
     let done = 0;
 
     for (const dir of pending) {
@@ -64,11 +70,15 @@ export function runMigrations(
       try {
         sql = fs.readFileSync(sqlPath, "utf-8");
       } catch {
+        log.warn("Migration SQL file not found, skipping", {
+          migration: dir,
+        });
         done++;
         continue;
       }
       const checksum = crypto.createHash("sha256").update(sql).digest("hex");
       onProgress?.({ done, total: pending.length, migrationName: dir });
+      log.info("Applying migration", { migration: dir });
       const applyMigration = db.transaction(
         (
           migrationName: string,
@@ -82,7 +92,17 @@ export function runMigrations(
           ).run(crypto.randomUUID(), migrationChecksum, migrationName);
         },
       );
-      applyMigration(dir, sql, checksum);
+      try {
+        applyMigration(dir, sql, checksum);
+        log.info("Migration applied", { migration: dir });
+      } catch (error) {
+        // 트랜잭션 실패 시 롤백됨 — _prisma_migrations에 기록되지 않으므로
+        // 다음 실행 시 자동 재시도됨
+        log.errorWithStack("Migration failed, will retry on next launch", error, {
+          migration: dir,
+        });
+        throw error;
+      }
       done++;
     }
 
