@@ -89,17 +89,22 @@ export function registerIpcHandlers(): void {
       const rows = await bridge.request("image:listByIds", { ids }) as Array<{ path: string }>;
       let deleted = 0;
       let failed = 0;
-      for (const row of rows) {
-        try {
-          await assertManagedImagePath(row.path);
-          try {
-            await shell.trashItem(row.path);
-          } catch {
-            await unlink(row.path);
-          }
-          deleted++;
-        } catch {
-          failed++;
+      const BATCH = 20;
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const batch = rows.slice(i, i + BATCH);
+        const results = await Promise.allSettled(
+          batch.map(async (row) => {
+            await assertManagedImagePath(row.path);
+            try {
+              await shell.trashItem(row.path);
+            } catch {
+              await unlink(row.path);
+            }
+          }),
+        );
+        for (const r of results) {
+          if (r.status === "fulfilled") deleted++;
+          else failed++;
         }
       }
       return { deleted, failed };

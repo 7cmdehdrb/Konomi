@@ -160,9 +160,7 @@ class FolderWatcher {
         }
       }
       if (allRemovedIds.length === 0 || this.sender.isDestroyed()) return;
-      if (!this.sender.isDestroyed()) {
-        this.sender.send("image:removed", allRemovedIds);
-      }
+      this.sender.send("image:removed", allRemovedIds);
     } catch {
       // ignore reconciliation failures
     }

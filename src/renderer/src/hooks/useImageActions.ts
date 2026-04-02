@@ -210,24 +210,28 @@ export function useImageActions({
     const idSet = new Set(bulkDeleteIds.map(String));
     setBulkDeleteIds(null);
 
-    window.image.bulkDelete(bulkDeleteIds).then(({ failed }) => {
-      if (failed > 0) {
+    const deleteIds = bulkDeleteIds;
+    window.image.bulkDelete(deleteIds).then(
+      ({ failed }) => {
+        if (failed > 0) {
+          toast.error(
+            t("error.bulkDeletePartialFail", {
+              failed,
+              total: deleteIds.length,
+            }),
+          );
+        }
+      },
+      (error: unknown) => {
         toast.error(
           t("error.bulkDeletePartialFail", {
-            failed,
-            total: bulkDeleteIds.length,
+            failed: deleteIds.length,
+            total: deleteIds.length,
+            message: error instanceof Error ? error.message : String(error),
           }),
         );
-      }
-    }).catch((error: unknown) => {
-      toast.error(
-        t("error.bulkDeletePartialFail", {
-          failed: bulkDeleteIds.length,
-          total: bulkDeleteIds.length,
-          message: error instanceof Error ? error.message : String(error),
-        }),
-      );
-    });
+      },
+    );
 
     if (selectedImage && idSet.has(selectedImage.id)) {
       setSelectedImage(null);
