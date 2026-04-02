@@ -218,17 +218,9 @@ describe("ImageGallery", () => {
         prompt: "second prompt",
       }),
     ];
-    const allImages = [
-      ...pageImages,
-      createGalleryImage({
-        id: "image-3",
-        path: "C:\\gallery\\image-3.png",
-        src: "konomi://local/C%3A%2Fgallery%2Fimage-3.png",
-        prompt: "third prompt",
-      }),
-    ];
     const onBulkChangeCategory = vi.fn();
-    const onLoadAllSelectableImages = vi.fn().mockResolvedValue(allImages);
+    const allIds = [1, 2, 3];
+    const onLoadAllSelectableIds = vi.fn().mockResolvedValue(allIds);
 
     renderImageGallery({
       gallery: {
@@ -237,7 +229,7 @@ describe("ImageGallery", () => {
       },
       actions: {
         onBulkChangeCategory,
-        onLoadAllSelectableImages,
+        onLoadAllSelectableIds,
       },
     });
 
@@ -247,14 +239,15 @@ describe("ImageGallery", () => {
     );
     await user.click(screen.getByRole("button", { name: "Change Category" }));
 
-    expect(onBulkChangeCategory).toHaveBeenLastCalledWith(pageImages);
+    const pageNumericIds = pageImages.map((img) => parseInt(img.id, 10));
+    expect(onBulkChangeCategory).toHaveBeenLastCalledWith(pageNumericIds);
 
     await user.click(
       screen.getByRole("button", { name: "Select All Results (3)" }),
     );
 
     await waitFor(() =>
-      expect(onLoadAllSelectableImages).toHaveBeenCalledTimes(1),
+      expect(onLoadAllSelectableIds).toHaveBeenCalledTimes(1),
     );
     await waitFor(() =>
       expect(
@@ -264,6 +257,6 @@ describe("ImageGallery", () => {
 
     await user.click(screen.getByRole("button", { name: "Change Category" }));
 
-    expect(onBulkChangeCategory).toHaveBeenLastCalledWith(allImages);
+    expect(onBulkChangeCategory).toHaveBeenLastCalledWith(allIds);
   });
 });

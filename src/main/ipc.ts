@@ -83,6 +83,28 @@ export function registerIpcHandlers(): void {
       await unlink(path);
     }
   });
+  ipcMain.handle(
+    "image:bulkDelete",
+    async (_, ids: number[]): Promise<{ deleted: number; failed: number }> => {
+      const rows = await bridge.request("image:listByIds", { ids }) as Array<{ path: string }>;
+      let deleted = 0;
+      let failed = 0;
+      for (const row of rows) {
+        try {
+          await assertManagedImagePath(row.path);
+          try {
+            await shell.trashItem(row.path);
+          } catch {
+            await unlink(row.path);
+          }
+          deleted++;
+        } catch {
+          failed++;
+        }
+      }
+      return { deleted, failed };
+    },
+  );
 
   ipcMain.handle(
     "folder:listSubdirectoriesByPath",
@@ -198,7 +220,7 @@ export function registerIpcHandlers(): void {
     ) => bridge.request("image:listPage", query),
   );
   ipcMain.handle(
-    "image:listMatching",
+    "image:listMatchingIds",
     (
       _,
       query: {
@@ -217,7 +239,7 @@ export function registerIpcHandlers(): void {
         seedFilters?: number[];
         excludeTags?: string[];
       },
-    ) => bridge.request("image:listMatching", query),
+    ) => bridge.request("image:listMatchingIds", query),
   );
   ipcMain.handle("image:listByIds", (_, ids: number[]) =>
     bridge.request("image:listByIds", { ids }),

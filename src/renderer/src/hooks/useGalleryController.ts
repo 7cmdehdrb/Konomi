@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ImageListQuery } from "@preload/index.d";
 import { useGalleryImages } from "@/hooks/useGalleryImages";
-import { rowToImageData } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
 
 type ViewMode = "grid" | "compact" | "list";
@@ -199,10 +198,9 @@ export function useGalleryController({
     handleSearchChange("");
   }, [handleSearchChange]);
 
-  const handleLoadAllSelectableImages = useCallback(async () => {
+  const handleLoadAllSelectableIds = useCallback(async () => {
     try {
-      const rows = await window.image.listMatching(listBaseQuery);
-      return rows.map(rowToImageData);
+      return await window.image.listMatchingIds(listBaseQuery);
     } catch (error: unknown) {
       toast.error(
         i18n.t("error.imageListLoadFailed", {
@@ -254,9 +252,9 @@ export function useGalleryController({
       onViewModeChange: setViewMode,
       onSortChange: setSortBy,
       onClearSearch: handleClearSearch,
-      onLoadAllSelectableImages: handleLoadAllSelectableImages,
+      onLoadAllSelectableIds: handleLoadAllSelectableIds,
     }),
-    [handleClearSearch, handleLoadAllSelectableImages],
+    [handleClearSearch, handleLoadAllSelectableIds],
   );
 
   return {

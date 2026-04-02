@@ -159,14 +159,7 @@ describe("useGalleryController", () => {
       pageSize: 20,
       totalPages: 1,
     });
-    preloadMocks.image.listMatching.mockResolvedValue([
-      createImageRow({
-        id: 33,
-        path: "C:\\gallery\\selected.png",
-        prompt: "selected prompt",
-        promptTokens: JSON.stringify([{ text: "selected prompt", weight: 1 }]),
-      }),
-    ]);
+    preloadMocks.image.listMatchingIds.mockResolvedValue([33]);
 
     const selectedFolderIds = new Set([4]);
     const queryFragment = {
@@ -197,15 +190,10 @@ describe("useGalleryController", () => {
     );
 
     await expect(
-      result.current.galleryCommands.onLoadAllSelectableImages(),
-    ).resolves.toMatchObject([
-      {
-        id: "33",
-        prompt: "selected prompt",
-      },
-    ]);
+      result.current.galleryCommands.onLoadAllSelectableIds(),
+    ).resolves.toEqual([33]);
 
-    expect(preloadMocks.image.listMatching).toHaveBeenCalledWith(
+    expect(preloadMocks.image.listMatchingIds).toHaveBeenCalledWith(
       expect.objectContaining({
         pageSize: 20,
         folderIds: [4],
@@ -321,7 +309,7 @@ describe("useGalleryController", () => {
       pageSize: 20,
       totalPages: 1,
     });
-    preloadMocks.image.listMatching.mockRejectedValueOnce(
+    preloadMocks.image.listMatchingIds.mockRejectedValueOnce(
       new Error("index unavailable"),
     );
 
@@ -352,7 +340,7 @@ describe("useGalleryController", () => {
     await waitFor(() => expect(preloadMocks.image.listPage).toHaveBeenCalled());
 
     await expect(
-      result.current.galleryCommands.onLoadAllSelectableImages(),
+      result.current.galleryCommands.onLoadAllSelectableIds(),
     ).rejects.toThrow("index unavailable");
     expect(toast.error).toHaveBeenCalledWith(
       "Failed to load image list: index unavailable",

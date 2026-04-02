@@ -520,7 +520,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
 
       <CategoryDialog
         image={categoryDialog.image}
-        images={categoryDialog.images}
+        bulkImageIds={categoryDialog.bulkImageIds}
         categories={categories}
         onClose={categoryDialog.onClose}
       />

@@ -150,7 +150,8 @@ export const preloadMocks = {
       pageSize: 20,
       totalPages: 1,
     }),
-    listMatching: vi.fn().mockResolvedValue([]),
+    listMatchingIds: vi.fn().mockResolvedValue([]),
+    bulkDelete: vi.fn().mockResolvedValue({ deleted: 0, failed: 0 }),
     listByIds: vi.fn().mockResolvedValue([]),
     scan: vi.fn().mockResolvedValue(undefined),
     setFavorite: vi.fn().mockResolvedValue(undefined),
@@ -282,7 +283,10 @@ export function resetPreloadMocks(): void {
     pageSize: 20,
     totalPages: 1,
   });
-  preloadMocks.image.listMatching.mockReset().mockResolvedValue([]);
+  preloadMocks.image.listMatchingIds.mockReset().mockResolvedValue([]);
+  preloadMocks.image.bulkDelete
+    .mockReset()
+    .mockResolvedValue({ deleted: 0, failed: 0 });
   preloadMocks.image.listByIds.mockReset().mockResolvedValue([]);
   preloadMocks.image.scan.mockReset().mockResolvedValue(undefined);
   preloadMocks.image.setFavorite.mockReset().mockResolvedValue(undefined);

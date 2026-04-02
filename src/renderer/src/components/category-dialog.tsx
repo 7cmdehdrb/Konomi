@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ImageData } from "@/components/image-card";
+import { rowToImageData } from "@/lib/image-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,7 +21,7 @@ import type { Category } from "@preload/index.d";
 
 interface CategoryDialogProps {
   image: ImageData | null;
-  images?: ImageData[] | null;
+  bulkImageIds?: number[] | null;
   categories: Category[];
   onClose: () => void;
 }
@@ -32,32 +33,44 @@ function getImageFileName(path: string): string {
 
 export function CategoryDialog({
   image,
-  images,
+  bulkImageIds,
   categories,
   onClose,
 }: CategoryDialogProps) {
   const { t } = useTranslation();
-  const targetImages = useMemo(() => {
-    if (images && images.length > 0) return images;
-    return image ? [image] : [];
-  }, [image, images]);
 
-  const targetImageIds = useMemo(
-    () => targetImages.map((img) => parseInt(img.id, 10)),
-    [targetImages],
-  );
+  const targetImageIds = useMemo(() => {
+    if (bulkImageIds && bulkImageIds.length > 0) return bulkImageIds;
+    return image ? [parseInt(image.id, 10)] : [];
+  }, [image, bulkImageIds]);
+
   const isBulk = targetImageIds.length > 1;
-  const previewImages = useMemo(() => targetImages.slice(0, 4), [targetImages]);
+
+  // For bulk mode, load preview data for the first few images
+  const [previewImages, setPreviewImages] = useState<ImageData[]>([]);
+  useEffect(() => {
+    if (!isBulk || targetImageIds.length === 0) {
+      setPreviewImages([]);
+      return;
+    }
+    const previewIds = targetImageIds.slice(0, 4);
+    window.image
+      .listByIds(previewIds)
+      .then((rows) => setPreviewImages(rows.map(rowToImageData)))
+      .catch(() => setPreviewImages([]));
+  }, [isBulk, targetImageIds]);
+
+  const singleImage = !isBulk ? image : null;
   const hiddenPreviewCount = Math.max(
     0,
-    targetImages.length - previewImages.length,
+    targetImageIds.length - Math.min(4, targetImageIds.length),
   );
   const userCategories = useMemo(
     () => categories.filter((category) => !category.isBuiltin),
     [categories],
   );
   const dialogDescription = isBulk
-    ? t("categoryDialog.bulkDescription", { count: targetImages.length })
+    ? t("categoryDialog.bulkDescription", { count: targetImageIds.length })
     : t("categoryDialog.singleDescription");
 
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
@@ -136,7 +149,7 @@ export function CategoryDialog({
 
   return (
     <Dialog
-      open={targetImages.length > 0}
+      open={targetImageIds.length > 0}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
@@ -192,17 +205,17 @@ export function CategoryDialog({
                   })}
                   <span className="ml-1 text-xs text-muted-foreground">
                     {t("categoryDialog.imageCount", {
-                      count: targetImages.length,
+                      count: targetImageIds.length,
                     })}
                   </span>
                 </>
-              ) : targetImages[0] ? (
+              ) : singleImage ? (
                 <>
                   <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-secondary/30">
-                    {targetImages[0].src ? (
+                    {singleImage.src ? (
                       <img
-                        src={targetImages[0].src}
-                        alt={getImageFileName(targetImages[0].path)}
+                        src={singleImage.src}
+                        alt={getImageFileName(singleImage.path)}
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -213,11 +226,11 @@ export function CategoryDialog({
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">
-                      {getImageFileName(targetImages[0].path)}
+                      {getImageFileName(singleImage.path)}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {targetImages[0].prompt?.trim() ||
-                        `${targetImages[0].width} x ${targetImages[0].height}`}
+                      {singleImage.prompt?.trim() ||
+                        `${singleImage.width} x ${singleImage.height}`}
                     </p>
                   </div>
                 </>

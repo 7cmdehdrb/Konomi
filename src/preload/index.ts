@@ -59,7 +59,7 @@ contextBridge.exposeInMainWorld("image", {
     seedFilters?: number[];
     excludeTags?: string[];
   }) => ipcRenderer.invoke("image:listPage", query),
-  listMatching: (query: {
+  listMatchingIds: (query: {
     page?: number;
     pageSize?: number;
     folderIds?: number[];
@@ -74,7 +74,8 @@ contextBridge.exposeInMainWorld("image", {
     modelFilters?: string[];
     seedFilters?: number[];
     excludeTags?: string[];
-  }) => ipcRenderer.invoke("image:listMatching", query),
+  }) => ipcRenderer.invoke("image:listMatchingIds", query),
+  bulkDelete: (ids: number[]) => ipcRenderer.invoke("image:bulkDelete", ids),
   listByIds: (ids: number[]) => ipcRenderer.invoke("image:listByIds", ids),
   scan: (options?: {
     detectDuplicates?: boolean;

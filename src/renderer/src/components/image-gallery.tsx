@@ -141,15 +141,15 @@ interface ImageGalleryActions {
   onReveal: (path: string) => void;
   onDelete: (id: string) => void;
   onChangeCategory: (image: ImageData) => void;
-  onBulkChangeCategory: (images: ImageData[]) => void;
-  onBulkDelete: (images: ImageData[]) => void;
+  onBulkChangeCategory: (ids: number[]) => void;
+  onBulkDelete: (ids: number[]) => void;
   onSendToGenerator?: (image: ImageData) => void;
   onSendToSource?: (image: ImageData) => void;
   onAddTagToSearch?: (tag: string) => void;
   onAddTagToGenerator?: (tag: string) => void;
   onClearSearch?: () => void;
   onAddFolder?: () => void;
-  onLoadAllSelectableImages?: () => Promise<ImageData[]>;
+  onLoadAllSelectableIds?: () => Promise<number[]>;
 }
 
 interface ImageGalleryPagination {
@@ -857,15 +857,12 @@ export const ImageGallery = memo(function ImageGallery({
     onAddTagToGenerator,
     onClearSearch,
     onAddFolder,
-    onLoadAllSelectableImages,
+    onLoadAllSelectableIds,
   } = actions;
   const { pageSize = 50, page, totalPages, onPageChange } = pagination ?? {};
   const [internalPage, setInternalPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectedImageMap, setSelectedImageMap] = useState<
-    Map<string, ImageData>
-  >(new Map());
   const [selectingAllResults, setSelectingAllResults] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectAllRequestSeqRef = useRef(0);
@@ -890,7 +887,6 @@ export const ImageGallery = memo(function ImageGallery({
   const resetSelectionState = useCallback(() => {
     selectAllRequestSeqRef.current += 1;
     setSelectedIds(new Set());
-    setSelectedImageMap(new Map());
     setSelectingAllResults(false);
   }, []);
 
@@ -903,20 +899,6 @@ export const ImageGallery = memo(function ImageGallery({
   useEffect(() => {
     resetSelectionState();
   }, [resetSelectionState, selectionScopeKey]);
-
-  useEffect(() => {
-    setSelectedImageMap((prev) => {
-      let changed = false;
-      const next = new Map(prev);
-      for (const image of images) {
-        if (!selectedIds.has(image.id)) continue;
-        if (next.get(image.id) === image) continue;
-        next.set(image.id, image);
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
-  }, [images, selectedIds]);
 
   useEffect(() => {
     if (currentPage <= computedTotalPages) return;
@@ -966,11 +948,6 @@ export const ImageGallery = memo(function ImageGallery({
   const allPageSelected =
     paged.length > 0 && paged.every((img) => selectedIds.has(img.id));
 
-  const imagesRef = useRef(images);
-  useEffect(() => {
-    imagesRef.current = images;
-  }, [images]);
-
   const pagedRef = useRef(paged);
   useEffect(() => {
     pagedRef.current = paged;
@@ -986,16 +963,6 @@ export const ImageGallery = memo(function ImageGallery({
       const next = new Set(prev);
       if (selected) next.add(id);
       else next.delete(id);
-      return next;
-    });
-    setSelectedImageMap((prev) => {
-      const next = new Map(prev);
-      if (selected) {
-        const targetImage = imagesRef.current.find((image) => image.id === id);
-        if (targetImage) next.set(id, targetImage);
-      } else {
-        next.delete(id);
-      }
       return next;
     });
   }, []);
@@ -1014,31 +981,20 @@ export const ImageGallery = memo(function ImageGallery({
       }
       return next;
     });
-    setSelectedImageMap((prev) => {
-      const next = new Map(prev);
-      if (isAllSelected) {
-        currentPaged.forEach((img) => next.delete(img.id));
-      } else {
-        currentPaged.forEach((img) => next.set(img.id, img));
-      }
-      return next;
-    });
   }, []);
 
   const handleSelectAllFiltered = useCallback(() => {
     if (allFilteredSelected) {
       setSelectedIds(new Set());
-      setSelectedImageMap(new Map());
       return;
     }
-    if (!onLoadAllSelectableImages) return;
+    if (!onLoadAllSelectableIds) return;
     const requestId = ++selectAllRequestSeqRef.current;
     setSelectingAllResults(true);
-    void onLoadAllSelectableImages()
-      .then((loadedImages) => {
+    void onLoadAllSelectableIds()
+      .then((loadedIds) => {
         if (requestId !== selectAllRequestSeqRef.current) return;
-        setSelectedIds(new Set(loadedImages.map((img) => img.id)));
-        setSelectedImageMap(new Map(loadedImages.map((img) => [img.id, img])));
+        setSelectedIds(new Set(loadedIds.map(String)));
       })
       .catch(() => {
         // Errors are handled by the caller.
@@ -1047,25 +1003,19 @@ export const ImageGallery = memo(function ImageGallery({
         if (requestId !== selectAllRequestSeqRef.current) return;
         setSelectingAllResults(false);
       });
-  }, [allFilteredSelected, onLoadAllSelectableImages]);
+  }, [allFilteredSelected, onLoadAllSelectableIds]);
 
   const handleBulkCategory = useCallback(() => {
     if (selectedIds.size === 0) return;
-    const selected = Array.from(selectedIds)
-      .map((id) => selectedImageMap.get(id))
-      .filter((image): image is ImageData => image !== undefined);
-    if (selected.length === 0) return;
-    onBulkChangeCategory(selected);
-  }, [onBulkChangeCategory, selectedIds, selectedImageMap]);
+    const numericIds = Array.from(selectedIds).map((id) => parseInt(id, 10));
+    onBulkChangeCategory(numericIds);
+  }, [onBulkChangeCategory, selectedIds]);
 
   const handleBulkDelete = useCallback(() => {
     if (selectedIds.size === 0) return;
-    const selected = Array.from(selectedIds)
-      .map((id) => selectedImageMap.get(id))
-      .filter((image): image is ImageData => image !== undefined);
-    if (selected.length === 0) return;
-    onBulkDelete(selected);
-  }, [onBulkDelete, selectedIds, selectedImageMap]);
+    const numericIds = Array.from(selectedIds).map((id) => parseInt(id, 10));
+    onBulkDelete(numericIds);
+  }, [onBulkDelete, selectedIds]);
 
   const handleToggleSelectionMode = useCallback(() => {
     setSelectionMode((prev) => !prev);
@@ -1076,7 +1026,7 @@ export const ImageGallery = memo(function ImageGallery({
   }, [resetSelectionState]);
 
   const canSelectAllResults =
-    totalCount > 0 && !selectingAllResults && !!onLoadAllSelectableImages;
+    totalCount > 0 && !selectingAllResults && !!onLoadAllSelectableIds;
 
   return (
     <div

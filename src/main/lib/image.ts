@@ -1668,24 +1668,22 @@ export async function listImagesPage(
   };
 }
 
-export async function listMatchingImages(
+export async function listMatchingImageIds(
   query?: ImageListQuery,
-): Promise<ImageRow[]> {
+): Promise<number[]> {
   const normalized = normalizeImageListQuery(query);
   if (normalized.folderIds.length === 0) return [];
 
   if (normalized.builtinCategory === "random") {
     const pageResult = await listImagesPage(query);
-    return pageResult.rows;
+    return pageResult.rows.map((r) => r.id);
   }
 
-  const offset = (normalized.page - 1) * normalized.pageSize;
-  return (await getDB().image.findMany({
+  const rows = await getDB().image.findMany({
     where: buildImageWhereInput(normalized),
-    orderBy: buildImageOrderBy(normalized.sortBy),
-    skip: offset,
-    take: normalized.pageSize,
-  })) as unknown as ImageRow[];
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
 }
 
 export async function listImagesByIds(imageIds: number[]): Promise<ImageRow[]> {

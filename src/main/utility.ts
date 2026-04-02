@@ -14,7 +14,7 @@ import {
 } from "./lib/folder";
 import {
   listImagesPage,
-  listMatchingImages,
+  listMatchingImageIds,
   listImagesByIds,
   listImageIdsForFolder,
   getImageSearchPresetStats,
@@ -194,8 +194,8 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
           excludeTags?: string[];
         }) ?? {},
       );
-    case "image:listMatching":
-      return listMatchingImages(
+    case "image:listMatchingIds":
+      return listMatchingImageIds(
         (payload as {
           page?: number;
           pageSize?: number;

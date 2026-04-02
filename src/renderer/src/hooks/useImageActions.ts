@@ -39,13 +39,11 @@ export function useImageActions({
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [categoryDialogImage, setCategoryDialogImage] =
     useState<ImageData | null>(null);
-  const [bulkCategoryDialogImages, setBulkCategoryDialogImages] = useState<
-    ImageData[] | null
+  const [bulkCategoryDialogIds, setBulkCategoryDialogIds] = useState<
+    number[] | null
   >(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [bulkDeleteImages, setBulkDeleteImages] = useState<ImageData[] | null>(
-    null,
-  );
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<number[] | null>(null);
   const [generatorTransitioning, setGeneratorTransitioning] = useState(false);
 
   const selectedImage = useMemo(() => {
@@ -192,54 +190,61 @@ export function useImageActions({
   );
 
   const handleChangeCategory = useCallback((image: ImageData) => {
-    setBulkCategoryDialogImages(null);
+    setBulkCategoryDialogIds(null);
     setCategoryDialogImage(image);
   }, []);
 
-  const handleBulkChangeCategory = useCallback((targets: ImageData[]) => {
-    if (targets.length === 0) return;
+  const handleBulkChangeCategory = useCallback((ids: number[]) => {
+    if (ids.length === 0) return;
     setCategoryDialogImage(null);
-    setBulkCategoryDialogImages(targets);
+    setBulkCategoryDialogIds(ids);
   }, []);
 
-  const handleBulkDelete = useCallback((targets: ImageData[]) => {
-    if (targets.length === 0) return;
-    setBulkDeleteImages(targets);
+  const handleBulkDelete = useCallback((ids: number[]) => {
+    if (ids.length === 0) return;
+    setBulkDeleteIds(ids);
   }, []);
 
   const handleConfirmBulkDelete = useCallback(() => {
-    if (!bulkDeleteImages || bulkDeleteImages.length === 0) return;
-    const paths = bulkDeleteImages.map((img) => img.path);
-    const ids = new Set(bulkDeleteImages.map((img) => img.id));
-    setBulkDeleteImages(null);
+    if (!bulkDeleteIds || bulkDeleteIds.length === 0) return;
+    const idSet = new Set(bulkDeleteIds.map(String));
+    setBulkDeleteIds(null);
 
-    Promise.allSettled(paths.map((p) => window.image.delete(p))).then(
-      (results) => {
-        const failed = results.filter((r) => r.status === "rejected").length;
-        if (failed > 0) {
-          toast.error(
-            t("error.bulkDeletePartialFail", { failed, total: paths.length }),
-          );
-        }
-      },
-    );
+    window.image.bulkDelete(bulkDeleteIds).then(({ failed }) => {
+      if (failed > 0) {
+        toast.error(
+          t("error.bulkDeletePartialFail", {
+            failed,
+            total: bulkDeleteIds.length,
+          }),
+        );
+      }
+    }).catch((error: unknown) => {
+      toast.error(
+        t("error.bulkDeletePartialFail", {
+          failed: bulkDeleteIds.length,
+          total: bulkDeleteIds.length,
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    });
 
-    if (selectedImage && ids.has(selectedImage.id)) {
+    if (selectedImage && idSet.has(selectedImage.id)) {
       setSelectedImage(null);
       setIsDetailOpen(false);
     }
     schedulePageRefresh(60);
-  }, [bulkDeleteImages, schedulePageRefresh, selectedImage, t]);
+  }, [bulkDeleteIds, schedulePageRefresh, selectedImage, t]);
 
   const handleBulkDeleteDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {
-      setBulkDeleteImages(null);
+      setBulkDeleteIds(null);
     }
   }, []);
 
   const handleCategoryDialogClose = useCallback(() => {
     setCategoryDialogImage(null);
-    setBulkCategoryDialogImages(null);
+    setBulkCategoryDialogIds(null);
     schedulePageRefresh(0);
   }, [schedulePageRefresh]);
 
@@ -297,7 +302,7 @@ export function useImageActions({
     generatorTransitioning,
     categoryDialog: {
       image: categoryDialogImage,
-      images: bulkCategoryDialogImages,
+      bulkImageIds: bulkCategoryDialogIds,
       onClose: handleCategoryDialogClose,
     },
     deleteDialog: {
@@ -306,8 +311,8 @@ export function useImageActions({
       onConfirm: handleConfirmDelete,
     },
     bulkDeleteDialog: {
-      open: !!bulkDeleteImages,
-      count: bulkDeleteImages?.length ?? 0,
+      open: !!bulkDeleteIds,
+      count: bulkDeleteIds?.length ?? 0,
       onOpenChange: handleBulkDeleteDialogOpenChange,
       onConfirm: handleConfirmBulkDelete,
     },
