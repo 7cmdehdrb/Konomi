@@ -16,6 +16,7 @@
   ChevronRight,
   ChevronDown,
   X,
+  Search,
 } from "lucide-react";
 import {
   forwardRef,
@@ -23,6 +24,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -1386,6 +1388,20 @@ const SidebarCategoriesSection = memo(function SidebarCategoriesSection({
   onDragEnd,
 }: SidebarCategoriesSectionProps) {
   const { t } = useTranslation();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return categories;
+    return categories.filter((c) => {
+      const displayName = c.isBuiltin
+        ? c.order === 0
+          ? t("sidebar.categories.favorites")
+          : t("sidebar.categories.randomPick")
+        : c.name;
+      return displayName.toLowerCase().includes(q);
+    });
+  }, [categories, searchQuery, t]);
 
   return (
     <div className="border-t border-border pt-4" data-tour="sidebar-categories">
@@ -1403,8 +1419,26 @@ const SidebarCategoriesSection = memo(function SidebarCategoriesSection({
           <Plus className="h-4 w-4" />
         </Button>
       </div>
+      <div className="relative mb-2">
+        <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t("sidebar.categories.searchPlaceholder")}
+          className="h-7 pl-7 pr-7 text-xs"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+            onClick={() => setSearchQuery("")}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
       <div className="space-y-1">
-        {categories.map((category) => {
+        {filteredCategories.map((category) => {
           const isSelected = selectedCategoryId === category.id;
           const isDragTarget =
             draggingCategoryId !== null &&
@@ -1431,9 +1465,11 @@ const SidebarCategoriesSection = memo(function SidebarCategoriesSection({
             />
           );
         })}
-        {categories.length === 0 && (
+        {filteredCategories.length === 0 && (
           <p className="text-xs text-muted-foreground px-1">
-            {t("sidebar.categories.empty")}
+            {searchQuery
+              ? t("sidebar.categories.noResults")
+              : t("sidebar.categories.empty")}
           </p>
         )}
       </div>

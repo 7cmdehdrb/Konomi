@@ -1,4 +1,4 @@
-import { AlertTriangle, ImageIcon, Images, Loader2, Tag } from "lucide-react";
+import { AlertTriangle, ImageIcon, Images, Loader2, Search, Tag, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { rowToImageData } from "@/lib/image-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -69,6 +70,12 @@ export function CategoryDialog({
     () => categories.filter((category) => !category.isBuiltin),
     [categories],
   );
+  const [searchQuery, setSearchQuery] = useState("");
+  const filteredUserCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return userCategories;
+    return userCategories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [userCategories, searchQuery]);
   const dialogDescription = isBulk
     ? t("categoryDialog.bulkDescription", { count: targetImageIds.length })
     : t("categoryDialog.singleDescription");
@@ -83,6 +90,7 @@ export function CategoryDialog({
       setCheckedIds(new Set());
       setLoading(false);
       setLoadError(null);
+      setSearchQuery("");
       return;
     }
 
@@ -301,9 +309,33 @@ export function CategoryDialog({
                   </div>
                 </div>
 
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={t("categoryDialog.searchPlaceholder")}
+                    className="pl-9 pr-8"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+                      onClick={() => setSearchQuery("")}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
                 <ScrollArea className="max-h-[24rem]">
                   <div className="space-y-2 pr-3">
-                    {userCategories.map((category) => {
+                    {filteredUserCategories.length === 0 && searchQuery ? (
+                      <p className="py-6 text-center text-sm text-muted-foreground">
+                        {t("categoryDialog.noResults")}
+                      </p>
+                    ) : null}
+                    {filteredUserCategories.map((category) => {
                       const checked = checkedIds.has(category.id);
 
                       return (
