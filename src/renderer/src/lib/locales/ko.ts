@@ -109,6 +109,9 @@ const ko = {
       prompt: "프롬프트 유사 (Jaccard)",
       both: "시각 + 프롬프트 유사",
     },
+    tagSearch: {
+      placeholder: "태그 검색...",
+    },
     info: {
       title: "정보",
       model: "Model",

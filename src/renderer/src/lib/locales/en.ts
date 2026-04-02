@@ -108,6 +108,9 @@ const en = {
       prompt: "Prompt Similarity (Jaccard)",
       both: "Visual + Prompt Similarity",
     },
+    tagSearch: {
+      placeholder: "Search tags...",
+    },
     info: {
       title: "Info",
       model: "Model",

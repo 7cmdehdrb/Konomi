@@ -31,6 +31,7 @@ interface TokenContainerProps {
   onTokensChange?: (tokens: PromptToken[]) => void;
   onAddTagToSearch?: (tag: string) => void;
   onAddTagToGeneration?: (tag: string) => void;
+  highlightFilter?: string;
 }
 
 interface SortableTokenContainerShellProps {
@@ -64,6 +65,7 @@ export const TokenContainer = memo(function TokenContainer({
   onTokensChange,
   onAddTagToSearch,
   onAddTagToGeneration,
+  highlightFilter,
 }: TokenContainerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -166,11 +168,18 @@ export const TokenContainer = memo(function TokenContainer({
 
   const tokenIds = useMemo(() => tokens.map((_, i) => `view-${i}`), [tokens]);
 
+  const normalizedFilter = highlightFilter
+    ? highlightFilter.trim().toLowerCase().replace(/_/g, " ")
+    : "";
+
   const chips = useMemo(
     () =>
       tokens.map((token, i) => {
         const key = tokenIds[i];
         const raw = tokenToRawString(token);
+        const isHighlighted =
+          normalizedFilter.length > 0 &&
+          token.text.toLowerCase().replace(/_/g, " ").includes(normalizedFilter);
         return (
           <TokenChip
             key={key}
@@ -178,6 +187,7 @@ export const TokenContainer = memo(function TokenContainer({
             raw={raw}
             isEditable={isEditable}
             copied={copiedKey === key}
+            highlighted={isHighlighted}
             onCopy={() => handleChipCopy(key, token)}
             onAddTagToSearch={onAddTagToSearch}
             onAddTagToGeneration={onAddTagToGeneration}
@@ -194,6 +204,7 @@ export const TokenContainer = memo(function TokenContainer({
       handleChipCopy,
       isDndEnabled,
       isEditable,
+      normalizedFilter,
       onAddTagToGeneration,
       onAddTagToSearch,
       tokenIds,

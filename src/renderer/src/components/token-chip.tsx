@@ -114,6 +114,7 @@ interface TokenChipProps {
   editorOpen?: boolean;
   inlineEditOpen?: boolean;
   copied?: boolean;
+  highlighted?: boolean;
   onCopy?: () => void;
   onAddTagToSearch?: (tag: string) => void;
   onAddTagToGeneration?: (tag: string) => void;
@@ -148,6 +149,7 @@ function TokenChipCore({
   editorOpen,
   inlineEditOpen = false,
   copied = false,
+  highlighted = false,
   onCopy,
   onAddTagToSearch,
   onAddTagToGeneration,
@@ -581,6 +583,7 @@ function TokenChipCore({
         ? getPromptWeightToneClass(token.weight)
         : "bg-muted text-foreground/80",
     copied && "ring-1 ring-primary/50 text-primary",
+    highlighted && "ring-1 ring-primary bg-primary/15",
   );
   const syntaxWarningMessage = hasEmphasisSyntaxIssue
     ? emphasisSyntaxIssue === "invalidExplicitWeight"

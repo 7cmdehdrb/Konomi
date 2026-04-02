@@ -16,7 +16,9 @@ import {
   Maximize2,
   Minimize2,
   Loader2,
+  ChevronDown,
   Pin,
+  Search,
   Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -251,16 +253,78 @@ const InfoPanel = memo(function InfoPanel({
   const { t } = useTranslation();
   const { formatDate } = useLocaleFormatters();
   const hasSeed = Number.isFinite(image.seed);
+  const [tagFilterInput, setTagFilterInput] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+
+  type SectionKey = "prompt" | "negative" | "char" | "info";
+  const STORAGE_KEY = "konomi-info-panel-collapsed";
+  const [collapsed, setCollapsed] = useState<Record<SectionKey, boolean>>(
+    () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {
+        /* ignore */
+      }
+      return { prompt: false, negative: false, char: false, info: false };
+    },
+  );
+  const toggleSection = useCallback((key: SectionKey) => {
+    setCollapsed((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // Reset filter when viewing a different image
+  useEffect(() => {
+    setTagFilterInput("");
+    setTagFilter("");
+  }, [image.id]);
+
+  // Debounce highlight filter
+  useEffect(() => {
+    const timer = window.setTimeout(() => setTagFilter(tagFilterInput), 150);
+    return () => window.clearTimeout(timer);
+  }, [tagFilterInput]);
 
   return (
-    <ScrollArea className="h-full">
+    <div className="flex h-full flex-col">
+      {/* Tag Search — pinned */}
+      <div className="shrink-0 border-b border-border/40 px-4 py-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+          <input
+            value={tagFilterInput}
+            onChange={(e) => setTagFilterInput(e.target.value)}
+            placeholder={t("imageDetail.tagSearch.placeholder")}
+            className="h-7 w-full rounded border border-border/40 bg-muted/50 pl-7 pr-7 text-xs text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/50"
+          />
+          {tagFilterInput && (
+            <button
+              onClick={() => setTagFilterInput("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1 min-h-0">
       <div className="p-4 space-y-3">
         {/* Prompt */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+            <button
+              type="button"
+              onClick={() => toggleSection("prompt")}
+              className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none hover:text-muted-foreground transition-colors"
+            >
+              <ChevronDown className={cn("h-3 w-3 transition-transform", collapsed.prompt && "-rotate-90")} />
               Prompt
-            </p>
+            </button>
             <Button
               variant="ghost"
               size="sm"
@@ -274,21 +338,29 @@ const InfoPanel = memo(function InfoPanel({
               )}
             </Button>
           </div>
-          <TokenContainer
-            tokens={image.tokens}
-            isEditable={false}
-            onAddTagToSearch={onAddTagToSearch}
-            onAddTagToGeneration={onAddTagToGenerator}
-          />
+          {!collapsed.prompt && (
+            <TokenContainer
+              tokens={image.tokens}
+              isEditable={false}
+              onAddTagToSearch={onAddTagToSearch}
+              onAddTagToGeneration={onAddTagToGenerator}
+              highlightFilter={tagFilter}
+            />
+          )}
         </div>
 
         {/* Negative Prompt */}
         {image.negativePrompt && (
           <div className="space-y-1 border-t border-border/60 pt-3">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+              <button
+                type="button"
+                onClick={() => toggleSection("negative")}
+                className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none hover:text-muted-foreground transition-colors"
+              >
+                <ChevronDown className={cn("h-3 w-3 transition-transform", collapsed.negative && "-rotate-90")} />
                 Negative
-              </p>
+              </button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -302,12 +374,15 @@ const InfoPanel = memo(function InfoPanel({
                 )}
               </Button>
             </div>
-            <TokenContainer
-              tokens={image.negativeTokens}
-              isEditable={false}
-              onAddTagToSearch={onAddTagToSearch}
-              onAddTagToGeneration={onAddTagToGenerator}
-            />
+            {!collapsed.negative && (
+              <TokenContainer
+                tokens={image.negativeTokens}
+                isEditable={false}
+                onAddTagToSearch={onAddTagToSearch}
+                onAddTagToGeneration={onAddTagToGenerator}
+                highlightFilter={tagFilter}
+              />
+            )}
           </div>
         )}
 
@@ -316,9 +391,14 @@ const InfoPanel = memo(function InfoPanel({
           image.characterPrompts.map((cp, i) => (
             <div key={i} className="space-y-1 border-t border-border/60 pt-3">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+                <button
+                  type="button"
+                  onClick={() => toggleSection("char")}
+                  className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none hover:text-muted-foreground transition-colors"
+                >
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", collapsed.char && "-rotate-90")} />
                   Char {i + 1}
-                </p>
+                </button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -332,22 +412,31 @@ const InfoPanel = memo(function InfoPanel({
                   )}
                 </Button>
               </div>
-              <TokenContainer
-                tokens={parsePromptTokens(cp).filter(
-                  (t): t is PromptToken => !isGroupRef(t),
-                )}
-                isEditable={false}
-                onAddTagToSearch={onAddTagToSearch}
-                onAddTagToGeneration={onAddTagToGenerator}
-              />
+              {!collapsed.char && (
+                <TokenContainer
+                  tokens={parsePromptTokens(cp).filter(
+                    (t): t is PromptToken => !isGroupRef(t),
+                  )}
+                  isEditable={false}
+                  onAddTagToSearch={onAddTagToSearch}
+                  onAddTagToGeneration={onAddTagToGenerator}
+                  highlightFilter={tagFilter}
+                />
+              )}
             </div>
           ))}
 
         {/* Metadata */}
         <div className="border-t border-border/60 pt-3 space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+          <button
+            type="button"
+            onClick={() => toggleSection("info")}
+            className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none hover:text-muted-foreground transition-colors"
+          >
+            <ChevronDown className={cn("h-3 w-3 transition-transform", collapsed.info && "-rotate-90")} />
             Info
-          </p>
+          </button>
+          {!collapsed.info && (<>
           <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
             <span className="text-muted-foreground/70">
               {t("imageDetail.info.model")}
@@ -455,9 +544,11 @@ const InfoPanel = memo(function InfoPanel({
               {t("imageDetail.info.viewWorkflow")}
             </Button>
           )}
+          </>)}
         </div>
       </div>
     </ScrollArea>
+    </div>
   );
 });
 
