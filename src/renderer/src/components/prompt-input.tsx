@@ -2178,6 +2178,15 @@ export const PromptInput = memo(function PromptInput({
   const handleDraftPaste = async () => {
     const text = await navigator.clipboard.readText();
     if (!text) return;
+    const pastedTokens = toEditableTokens(parsePromptTokens(text.trim()));
+    if (pastedTokens.length > 0) {
+      const draftToken = draft.trim()
+        ? [{ ...parseRawToken(draft.trim()), id: createTokenId() }]
+        : [];
+      const toInsert = [...draftToken, ...pastedTokens];
+      insertTokensAtCursor(toInsert);
+      return;
+    }
     const el = inputRef.current;
     const start = el?.selectionStart ?? draft.length;
     const end = el?.selectionEnd ?? start;

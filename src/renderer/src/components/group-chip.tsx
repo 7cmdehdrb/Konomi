@@ -21,7 +21,11 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import type { GroupRefToken, TokenWeightExpression } from "@/lib/token";
+import {
+  tokenToRawString,
+  type GroupRefToken,
+  type TokenWeightExpression,
+} from "@/lib/token";
 import type { PromptGroup } from "@preload/index.d";
 import { PromptInput } from "@/components/prompt-input";
 import { Switch } from "@/components/ui/switch";
@@ -147,7 +151,7 @@ function GroupChipCore({
     setActivePopup("editor");
   };
 
-  const handleApply = () => {
+  const buildDraftToken = (): GroupRefToken => {
     const trimmedName = draftName.trim() || token.groupName;
     const targetGroup = groups.find((item) => item.name === trimmedName);
     const dbTags = targetGroup?.tokens.map((item) => item.label) ?? [];
@@ -157,7 +161,7 @@ function GroupChipCore({
       draftTags.every((tag, index) => tag === dbTags[index]);
 
     const hasWeight = Math.abs(draftWeight - 1.0) > 0.001;
-    onChange?.({
+    return {
       kind: "group",
       groupName: trimmedName,
       ...(tagsMatchDb ? {} : { overrideTags: draftTags }),
@@ -165,7 +169,11 @@ function GroupChipCore({
       ...(draftExpression === "keyword"
         ? { weightExpression: "keyword" as const }
         : {}),
-    });
+    };
+  };
+
+  const handleApply = () => {
+    onChange?.(buildDraftToken());
     setActivePopup(null);
   };
 
@@ -277,7 +285,7 @@ function GroupChipCore({
         role="button"
         tabIndex={0}
         data-token-chip="true"
-        data-token-raw={`@{${token.groupName}}`}
+        data-token-raw={tokenToRawString(token)}
         onDoubleClick={(e) => {
           if (!onChange) return;
           e.preventDefault();
@@ -509,7 +517,9 @@ function GroupChipCore({
                   : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
               )}
               onClick={() => {
-                void navigator.clipboard.writeText(draftTagsValue);
+                void navigator.clipboard.writeText(
+                  tokenToRawString(buildDraftToken()),
+                );
                 setActionsCopied(true);
                 setTimeout(() => setActionsCopied(false), 1200);
               }}
@@ -527,7 +537,9 @@ function GroupChipCore({
                 type="button"
                 className="flex h-7 w-7 items-center justify-center rounded border border-border text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                 onClick={() => {
-                  void navigator.clipboard.writeText(draftTagsValue);
+                  void navigator.clipboard.writeText(
+                    tokenToRawString(buildDraftToken()),
+                  );
                   setActivePopup(null);
                   onDelete();
                 }}
@@ -688,7 +700,7 @@ function GroupChipCore({
                   : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
               )}
               onClick={() => {
-                void navigator.clipboard.writeText(actionsRawText);
+                void navigator.clipboard.writeText(tokenToRawString(token));
                 setActionsCopied(true);
                 setTimeout(() => setActionsCopied(false), 1200);
               }}
@@ -706,7 +718,7 @@ function GroupChipCore({
                 type="button"
                 className="flex h-7 w-7 items-center justify-center rounded border border-border text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                 onClick={() => {
-                  void navigator.clipboard.writeText(actionsRawText);
+                  void navigator.clipboard.writeText(tokenToRawString(token));
                   setActivePopup(null);
                   onDelete();
                 }}
