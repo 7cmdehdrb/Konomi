@@ -15,6 +15,9 @@ dist
 # Native addon build artifacts
 src/native/*/build/
 
+# npm lock (use bun)
+package-lock.json
+
 # Custom ignores
 .eslintcache
 *.tsbuildinfo

@@ -64,6 +64,12 @@ const en = {
       similarity: "Computing similarity...",
       searchStats: "Search stats {{done}}/{{total}}",
       working: "Working...",
+      phase: {
+        loadingLibrary: "Loading library...",
+        scanningFiles: "Scanning file list...",
+        checkingDuplicates: "Checking duplicates...",
+        syncing: "Syncing images...",
+      },
     },
   },
   imageCard: {
@@ -146,6 +152,8 @@ const en = {
     goToPage: "Go",
     initializingTitle: "Preparing Library",
     initializingDescription: "Checking registered folders and loading images.",
+    scanningTitle: "Scanning folders",
+    scanningDescription: "Loading images. Please wait a moment.",
     emptyTitle: "No images found",
     emptyDescription: "Try changing the search or adjusting filters.",
   },

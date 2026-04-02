@@ -173,6 +173,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
     setActiveScanFolderIds,
     setRollbackFolderIds,
     scanProgress,
+    scanPhase,
     scanCancelConfirmOpen,
     setScanCancelConfirmOpen,
     scanningFolderNames,
@@ -435,6 +436,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
         hashProgress={hashProgress}
         similarityProgress={similarityProgress}
         scanProgress={scanProgress}
+        scanPhase={scanPhase}
         searchStatsProgress={searchStatsProgress}
         scanningFolderNames={scanningFolderNames}
         onCancelScan={handleCancelScan}
@@ -513,6 +515,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
               gallery={imageGalleryState}
               actions={imageGalleryActions}
               pagination={imageGalleryPagination}
+              scanning={scanning}
             />
           </div>
         </div>

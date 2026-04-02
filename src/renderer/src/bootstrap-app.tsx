@@ -12,7 +12,6 @@ const log = createLogger("renderer/BootstrapApp");
 const APP_SPLASH_MIN_VISIBLE_MS = 1900; // 사용자가 최소 1.9초는 Splash를 보기를 원해
 const APP_SPLASH_COMPLETION_HOLD_MS = 180;
 const APP_SPLASH_FADE_OUT_MS = 240;
-const FOLDER_ORDER_STORAGE_KEY = "konomi-folder-order";
 const TOASTER_POSITION = "bottom-right";
 
 let migrationPromise: Promise<void> | null = null;
@@ -30,19 +29,6 @@ function ensureMigrationsRun(): Promise<void> {
     });
   }
   return migrationPromise;
-}
-
-function readOrderedFolderIds(): number[] | undefined {
-  try {
-    const raw = localStorage.getItem(FOLDER_ORDER_STORAGE_KEY);
-    if (!raw) return undefined;
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return undefined;
-    const ids = parsed.filter((id): id is number => Number.isInteger(id));
-    return ids.length > 0 ? ids : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function ensureInitialFolderCount(): Promise<number | null> {
@@ -63,6 +49,19 @@ function ensureInitialFolderCount(): Promise<number | null> {
   }
 
   return initialFolderCountPromise;
+}
+
+function readOrderedFolderIds(): number[] | undefined {
+  try {
+    const raw = localStorage.getItem("konomi-folder-order");
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+    const ids = parsed.filter((id): id is number => Number.isInteger(id));
+    return ids.length > 0 ? ids : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function ensureBootstrapComplete(): Promise<number | null> {
@@ -196,6 +195,7 @@ export function BootstrapApp() {
   const [scanningFolderNames, setScanningFolderNames] = useState<
     Map<number, string>
   >(new Map());
+  const [scanPhase, setScanPhase] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [mountApp, setMountApp] = useState(bootstrapCompleted);
   const [bootstrapReady, setBootstrapReady] = useState(bootstrapCompleted);
@@ -280,6 +280,9 @@ export function BootstrapApp() {
     const offDupCheckProgress = window.image.onDupCheckProgress((data) => {
       setDupCheckProgress(data.done >= data.total ? null : data);
     });
+    const offScanPhase = window.image.onScanPhase(({ phase }) => {
+      setScanPhase(phase);
+    });
 
     void ensureInitialFolderCount().then((count) => {
       if (!cancelled) {
@@ -319,6 +322,7 @@ export function BootstrapApp() {
       clearSplashTimers();
       offMigrationProgress();
       offScanProgress();
+      offScanPhase();
       offScanFolder();
       offDupCheckProgress();
     };
@@ -376,8 +380,11 @@ export function BootstrapApp() {
     if (folderCount === 0) {
       return t("app.splash.detail.preparingOnboarding");
     }
+    if (scanPhase) {
+      return t(`header.progress.phase.${scanPhase}`);
+    }
     return t("app.splash.detail.loadingLibraryState");
-  }, [dupCheckProgress, folderCount, scanProgress, scanningFolderNames, t]);
+  }, [dupCheckProgress, folderCount, scanPhase, scanProgress, scanningFolderNames, t]);
 
   return (
     <>

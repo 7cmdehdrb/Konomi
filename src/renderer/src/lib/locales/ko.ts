@@ -65,6 +65,12 @@ const ko = {
       similarity: "유사도 계산 중...",
       searchStats: "검색 통계 {{done}}/{{total}}",
       working: "작업 중...",
+      phase: {
+        loadingLibrary: "라이브러리 불러오는 중...",
+        scanningFiles: "파일 목록 확인 중...",
+        checkingDuplicates: "중복 검사 중...",
+        syncing: "이미지 동기화 중...",
+      },
     },
   },
   imageCard: {
@@ -148,6 +154,8 @@ const ko = {
     initializingTitle: "라이브러리 준비 중",
     initializingDescription:
       "등록된 폴더를 확인하고 이미지를 불러오고 있습니다.",
+    scanningTitle: "폴더를 스캔하고 있습니다",
+    scanningDescription: "이미지를 불러오는 중입니다. 잠시만 기다려 주세요.",
     emptyTitle: "이미지가 없습니다",
     emptyDescription: "검색 조건을 변경하거나 필터를 조정해 보세요.",
   },

@@ -5,7 +5,7 @@ import os from "os";
 import { Worker } from "worker_threads";
 import { getDB } from "./db";
 import { getFolders } from "./folder";
-import { scanPngFiles, walkPngFiles, withConcurrency } from "./scanner";
+import { scanPngFiles, walkPngFiles, countPngFiles, withConcurrency } from "./scanner";
 import type { CancelToken } from "./scanner";
 import { parsePromptTokens } from "./token";
 import { deleteSimilarityCacheForImageIds } from "./phash";
@@ -1909,6 +1909,12 @@ export async function setImageFavorite(
   await getDB().image.update({ where: { id }, data: { isFavorite } });
 }
 
+export type ScanPhase =
+  | "loadingLibrary"
+  | "scanningFiles"
+  | "checkingDuplicates"
+  | "syncing";
+
 export async function syncAllFolders(
   onBatch: (images: ImageRow[]) => void,
   onProgress?: (done: number, total: number) => void,
@@ -1920,6 +1926,7 @@ export async function syncAllFolders(
   orderedFolderIds?: number[],
   onSearchStatsProgress?: SearchStatsProgressCallback,
   onDupCheckProgress?: (done: number, total: number) => void,
+  onPhase?: (phase: ScanPhase) => void,
 ): Promise<void> {
   const startedAt = Date.now();
   let done = 0;
@@ -1934,6 +1941,7 @@ export async function syncAllFolders(
   );
 
   try {
+    onPhase?.("loadingLibrary");
     const rawFolders = await getFolders();
     const requestedFolderIds =
       folderIds && folderIds.length > 0 ? new Set(folderIds) : null;
@@ -1963,6 +1971,7 @@ export async function syncAllFolders(
     const duplicateIncomingPathSet = new Set<string>();
 
     if (onDuplicateGroup && !signal?.cancelled) {
+      onPhase?.("scanningFiles");
       const existingRows = await db.image.findMany({
         select: { id: true, path: true, fileSize: true },
       });
@@ -1994,6 +2003,7 @@ export async function syncAllFolders(
       onProgress?.(done, total);
 
       if (!signal?.cancelled && incomingCandidates.length > 0) {
+        onPhase?.("checkingDuplicates");
         const existingSizeBuckets = await buildExistingSizeBuckets(
           existingRows,
           signal,
@@ -2053,14 +2063,19 @@ export async function syncAllFolders(
       }
     }
 
+    onPhase?.("syncing");
+
+    // total이 미확정일 때(수동 재스캔 등) 빠른 카운트 패스로 확정
+    if (!preScannedTotals && !signal?.cancelled) {
+      for (const folder of folders) {
+        if (signal?.cancelled) break;
+        total += await countPngFiles(folder.path, signal);
+      }
+      onProgress?.(done, total);
+    }
+
     for (const folder of folders) {
       if (signal?.cancelled) break;
-
-      const filePaths = await scanPngFiles(folder.path, signal);
-      if (!preScannedTotals) {
-        total += filePaths.length;
-        onProgress?.(done, total);
-      }
 
       onFolderStart?.(folder.id, folder.name);
       try {
@@ -2075,38 +2090,11 @@ export async function syncAllFolders(
           },
         });
         const existingMap = new Map(existing.map((e) => [e.path, e] as const));
-        const currentPathSet = new Set(filePaths);
-        const staleRows = existing.filter(
-          (row) => !currentPathSet.has(row.path),
-        );
-        if (staleRows.length > 0) {
-          // SQLite bind parameter limits require chunked deletes for large sets.
-          for (let i = 0; i < staleRows.length; i += 400) {
-            const chunk = staleRows.slice(i, i + 400);
-            chunk.forEach((row) => deletedSimilarityIds.add(row.id));
-            await db.image.deleteMany({
-              where: { id: { in: chunk.map((row) => row.id) } },
-            });
-            await decrementImageSearchStatsForRows(
-              chunk,
-              onSearchStatsProgress,
-            );
-          }
-        }
+        // 스트리밍 중 발견된 경로를 기록 → 완료 후 stale row 감지에 사용
+        const discoveredPathSet = new Set<string>();
+        // 기존 파일 중 mtime 변경되어 재처리가 필요한 항목은 스트리밍 후 2차 처리
+        const deferredExisting: string[] = [];
 
-        // 신규 파일 먼저, 기존 파일은 최근 mtime 순으로 처리 → 첫 배치에 최신 이미지가 포함되도록
-        const sortedFilePaths = [
-          ...filePaths.filter((p) => !existingMap.has(p)),
-          ...filePaths
-            .filter((p) => existingMap.has(p))
-            .sort(
-              (a, b) =>
-                existingMap.get(b)!.fileModifiedAt.getTime() -
-                existingMap.get(a)!.fileModifiedAt.getTime(),
-            ),
-        ];
-
-        // I/O 결과를 모아 트랜잭션으로 묶어 쓰기 → 개별 upsert보다 10~100배 빠름
         type DataEntry = {
           path: string;
           folderId: number;
@@ -2160,72 +2148,124 @@ export async function syncAllFolders(
           onBatch(images as unknown as ImageRow[]);
         };
 
+        const processFile = async (filePath: string): Promise<void> => {
+          try {
+            if (duplicateIncomingPathSet.has(filePath)) return;
+            if (await isIgnoredDuplicatePath(filePath)) return;
+
+            const stat = await fs.promises.stat(filePath);
+            const mtime = stat.mtime;
+
+            const existingRow = existingMap.get(filePath);
+            if (
+              existingRow &&
+              existingRow.fileModifiedAt.getTime() === mtime.getTime() &&
+              existingRow.source !== "unknown"
+            ) {
+              return;
+            }
+
+            const meta = await naiPool.run(filePath);
+            pending.push({
+              path: filePath,
+              folderId: folder.id,
+              prompt: meta?.prompt ?? "",
+              negativePrompt: meta?.negativePrompt ?? "",
+              characterPrompts: JSON.stringify(meta?.characterPrompts ?? []),
+              promptTokens: JSON.stringify(
+                parsePromptTokens(meta?.prompt ?? ""),
+              ),
+              negativePromptTokens: JSON.stringify(
+                parsePromptTokens(meta?.negativePrompt ?? ""),
+              ),
+              characterPromptTokens: JSON.stringify(
+                (meta?.characterPrompts ?? []).flatMap(parsePromptTokens),
+              ),
+              source: meta?.source ?? "unknown",
+              model: meta?.model ?? "",
+              seed: meta?.seed ?? 0,
+              width: meta?.width ?? 0,
+              height: meta?.height ?? 0,
+              sampler: meta?.sampler ?? "",
+              steps: meta?.steps ?? 0,
+              cfgScale: meta?.cfgScale ?? 0,
+              cfgRescale: meta?.cfgRescale ?? 0,
+              noiseSchedule: meta?.noiseSchedule ?? "",
+              varietyPlus: meta?.varietyPlus ?? false,
+              fileSize: stat.size,
+              fileModifiedAt: mtime,
+            });
+            if (pending.length >= BATCH_SIZE) await flushBatch();
+          } catch {
+            // skip unreadable or inaccessible files
+          } finally {
+            done++;
+            const progressNow = Date.now();
+            if (progressNow - lastProgressAt >= 100) {
+              lastProgressAt = progressNow;
+              onProgress?.(done, total);
+            }
+          }
+        };
+
+        // Phase 1: 스트리밍으로 신규 파일을 발견 즉시 처리, 기존 파일은 분류만
         await withConcurrency(
-          sortedFilePaths,
+          walkPngFiles(folder.path, signal),
           SYNC_SCAN_CONCURRENCY,
           async (filePath) => {
-            try {
-              if (duplicateIncomingPathSet.has(filePath)) return;
-              if (await isIgnoredDuplicatePath(filePath)) return;
-
-              const stat = await fs.promises.stat(filePath);
-              const mtime = stat.mtime;
-
-              const existingRow = existingMap.get(filePath);
+            discoveredPathSet.add(filePath);
+            const existingRow = existingMap.get(filePath);
+            if (!existingRow) {
+              // 신규 파일 → 즉시 처리
+              await processFile(filePath);
+            } else {
+              // 기존 파일 → mtime 변경 여부 확인 후 재처리 대상만 기록
               if (
-                existingRow &&
-                existingRow.fileModifiedAt.getTime() === mtime.getTime() &&
-                existingRow.source !== "unknown"
+                existingRow.fileModifiedAt.getTime() !==
+                  (await fs.promises
+                    .stat(filePath)
+                    .then((s) => s.mtime.getTime())
+                    .catch(() => existingRow.fileModifiedAt.getTime())) ||
+                existingRow.source === "unknown"
               ) {
-                return;
-              }
-
-              const meta = await naiPool.run(filePath);
-              pending.push({
-                path: filePath,
-                folderId: folder.id,
-                prompt: meta?.prompt ?? "",
-                negativePrompt: meta?.negativePrompt ?? "",
-                characterPrompts: JSON.stringify(meta?.characterPrompts ?? []),
-                promptTokens: JSON.stringify(
-                  parsePromptTokens(meta?.prompt ?? ""),
-                ),
-                negativePromptTokens: JSON.stringify(
-                  parsePromptTokens(meta?.negativePrompt ?? ""),
-                ),
-                characterPromptTokens: JSON.stringify(
-                  (meta?.characterPrompts ?? []).flatMap(parsePromptTokens),
-                ),
-                source: meta?.source ?? "unknown",
-                model: meta?.model ?? "",
-                seed: meta?.seed ?? 0,
-                width: meta?.width ?? 0,
-                height: meta?.height ?? 0,
-                sampler: meta?.sampler ?? "",
-                steps: meta?.steps ?? 0,
-                cfgScale: meta?.cfgScale ?? 0,
-                cfgRescale: meta?.cfgRescale ?? 0,
-                noiseSchedule: meta?.noiseSchedule ?? "",
-                varietyPlus: meta?.varietyPlus ?? false,
-                fileSize: stat.size,
-                fileModifiedAt: mtime,
-              });
-              if (pending.length >= BATCH_SIZE) await flushBatch();
-            } catch {
-              // skip unreadable or inaccessible files
-            } finally {
-              done++;
-              const progressNow = Date.now();
-              if (done === total || progressNow - lastProgressAt >= 100) {
-                lastProgressAt = progressNow;
-                onProgress?.(done, total);
+                deferredExisting.push(filePath);
+              } else {
+                done++;
               }
             }
           },
           signal,
         );
 
+        // Phase 2: 기존 파일 중 재처리 필요한 항목 처리
+        if (deferredExisting.length > 0 && !signal?.cancelled) {
+          await withConcurrency(
+            deferredExisting,
+            SYNC_SCAN_CONCURRENCY,
+            processFile,
+            signal,
+          );
+        }
+
         await flushBatch();
+
+        // Phase 3: 디스크에서 사라진 stale row 정리
+        const staleRows = existing.filter(
+          (row) => !discoveredPathSet.has(row.path),
+        );
+        if (staleRows.length > 0) {
+          for (let i = 0; i < staleRows.length; i += 400) {
+            const chunk = staleRows.slice(i, i + 400);
+            chunk.forEach((row) => deletedSimilarityIds.add(row.id));
+            await db.image.deleteMany({
+              where: { id: { in: chunk.map((row) => row.id) } },
+            });
+            await decrementImageSearchStatsForRows(
+              chunk,
+              onSearchStatsProgress,
+            );
+          }
+        }
       } finally {
         onFolderEnd?.(folder.id);
       }

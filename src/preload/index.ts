@@ -187,6 +187,14 @@ contextBridge.exposeInMainWorld("image", {
     ipcRenderer.on("image:scanProgress", handler);
     return () => ipcRenderer.removeListener("image:scanProgress", handler);
   },
+  onScanPhase: (cb: (data: { phase: string }) => void) => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      data: { phase: string },
+    ) => cb(data);
+    ipcRenderer.on("image:scanPhase", handler);
+    return () => ipcRenderer.removeListener("image:scanPhase", handler);
+  },
   onDupCheckProgress: (cb: (data: { done: number; total: number }) => void) => {
     const handler = (
       _: Electron.IpcRendererEvent,

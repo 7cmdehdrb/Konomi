@@ -113,6 +113,7 @@ interface HeaderProps {
   hashProgress?: { done: number; total: number } | null;
   similarityProgress?: { done: number; total: number } | null;
   scanProgress?: { done: number; total: number } | null;
+  scanPhase?: string | null;
   searchStatsProgress?: { done: number; total: number } | null;
   scanningFolderNames?: Map<number, string>;
   onCancelScan?: () => void;
@@ -624,6 +625,7 @@ export const Header = memo(function Header({
   hashProgress,
   similarityProgress,
   scanProgress,
+  scanPhase,
   searchStatsProgress,
   scanningFolderNames,
   onCancelScan,
@@ -714,7 +716,9 @@ export const Header = memo(function Header({
                               done: searchStatsProgress.done,
                               total: searchStatsProgress.total,
                             })
-                          : t("header.progress.working")}
+                          : scanPhase
+                            ? t(`header.progress.phase.${scanPhase}`)
+                            : t("header.progress.working")}
               </span>
               {scanning && onCancelScan && (
                 <button

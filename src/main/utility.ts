@@ -252,6 +252,7 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
           emitSearchStatsProgress,
           (done, total) =>
             utilitySender.send("image:dupCheckProgress", { done, total }),
+          (phase) => utilitySender.send("image:scanPhase", { phase }),
         );
       } finally {
         scanCancelToken = null;

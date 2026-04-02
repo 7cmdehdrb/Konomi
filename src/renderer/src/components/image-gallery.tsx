@@ -163,6 +163,7 @@ interface ImageGalleryProps {
   gallery: ImageGalleryState;
   actions: ImageGalleryActions;
   pagination?: ImageGalleryPagination;
+  scanning?: boolean;
 }
 
 interface GalleryToolbarProps {
@@ -380,6 +381,7 @@ interface GalleryResultsProps {
   onBulkDelete: () => void;
   onBulkCategory: () => void;
   isInitializing: boolean;
+  scanning: boolean;
   hasFolders: boolean;
   onAddFolder?: () => void;
 }
@@ -405,6 +407,7 @@ const GalleryResults = memo(function GalleryResults({
   onBulkDelete,
   onBulkCategory,
   isInitializing,
+  scanning,
   hasFolders,
   onAddFolder,
 }: GalleryResultsProps) {
@@ -633,6 +636,22 @@ const GalleryResults = memo(function GalleryResults({
     return <OnboardingView onAddFolder={onAddFolder} />;
   }
 
+  if (scanning) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-4 select-none">
+        <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-medium text-foreground mb-2">
+          {t("gallery.scanningTitle")}
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          {t("gallery.scanningDescription")}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center p-4 select-none">
       <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
@@ -828,6 +847,7 @@ export const ImageGallery = memo(function ImageGallery({
   gallery,
   actions,
   pagination,
+  scanning = false,
 }: ImageGalleryProps) {
   const {
     images,
@@ -1076,6 +1096,7 @@ export const ImageGallery = memo(function ImageGallery({
         onBulkDelete={handleBulkDelete}
         onBulkCategory={handleBulkCategory}
         isInitializing={isInitializing}
+        scanning={scanning}
         hasFolders={hasFolders}
         onAddFolder={onAddFolder}
       />

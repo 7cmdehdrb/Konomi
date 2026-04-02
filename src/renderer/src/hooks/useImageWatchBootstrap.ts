@@ -27,19 +27,30 @@ export function useImageWatchBootstrap({
     void loadSearchPresetStats();
     scheduleAnalysis(0);
     let scanFirstBatchFired = false;
+    let lastScanRefreshAt = 0;
+    const SCAN_REFRESH_INTERVAL_MS = 3000;
 
     const offBatch = window.image.onBatch((rows: ImageRow[]) => {
       if (rows.length === 0) return;
       if (scanningRef.current) {
-        // 스캔 중 첫 배치는 즉시 갤러리에 표시하여 빈 화면 시간을 줄인다
         if (!scanFirstBatchFired) {
+          // 첫 배치는 즉시 갤러리에 표시하여 빈 화면 시간을 줄인다
           scanFirstBatchFired = true;
+          lastScanRefreshAt = Date.now();
           schedulePageRefresh(0);
         } else {
-          schedulePageRefresh(1500);
+          // 이후 배치는 쓰로틀: 마지막 갱신으로부터 일정 간격이 지났으면 즉시, 아니면 남은 시간 후 갱신
+          const elapsed = Date.now() - lastScanRefreshAt;
+          if (elapsed >= SCAN_REFRESH_INTERVAL_MS) {
+            lastScanRefreshAt = Date.now();
+            schedulePageRefresh(0);
+          } else {
+            schedulePageRefresh(SCAN_REFRESH_INTERVAL_MS - elapsed);
+          }
         }
       } else {
         scanFirstBatchFired = false;
+        lastScanRefreshAt = 0;
         schedulePageRefresh(150);
         scheduleAnalysis();
         scheduleSearchStatsRefresh(180);

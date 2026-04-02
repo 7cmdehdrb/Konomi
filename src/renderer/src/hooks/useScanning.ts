@@ -23,6 +23,7 @@ export function useScanning({
     done: number;
     total: number;
   } | null>(null);
+  const [scanPhase, setScanPhase] = useState<string | null>(null);
   const [scanCancelConfirmOpen, setScanCancelConfirmOpen] = useState(false);
   const [scanningFolderNames, setScanningFolderNames] = useState<
     Map<number, string>
@@ -40,6 +41,9 @@ export function useScanning({
     const offScanProgress = window.image.onScanProgress((data) => {
       if (scanningRef.current)
         setScanProgress(data.done >= data.total ? null : data);
+    });
+    const offScanPhase = window.image.onScanPhase(({ phase }) => {
+      if (scanningRef.current) setScanPhase(phase);
     });
     const offScanFolder = window.image.onScanFolder(
       ({ folderId, folderName, active }) => {
@@ -60,6 +64,7 @@ export function useScanning({
 
     return () => {
       offScanProgress();
+      offScanPhase();
       offScanFolder();
     };
   }, []);
@@ -126,6 +131,7 @@ export function useScanning({
           scanningRef.current = false;
           setScanning(false);
           setScanProgress(null);
+          setScanPhase(null);
           setActiveScanFolderIds(new Set());
           setScanningFolderNames(new Map());
           scanPromiseRef.current = null;
@@ -176,6 +182,7 @@ export function useScanning({
     rollbackFolderIds,
     setRollbackFolderIds,
     scanProgress,
+    scanPhase,
     scanCancelConfirmOpen,
     setScanCancelConfirmOpen,
     scanningFolderNames,

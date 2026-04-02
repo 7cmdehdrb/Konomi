@@ -303,6 +303,9 @@ declare global {
       onScanProgress: (
         cb: (data: { done: number; total: number }) => void,
       ) => () => void;
+      onScanPhase: (
+        cb: (data: { phase: string }) => void,
+      ) => () => void;
       onDupCheckProgress: (
         cb: (data: { done: number; total: number }) => void,
       ) => () => void;
