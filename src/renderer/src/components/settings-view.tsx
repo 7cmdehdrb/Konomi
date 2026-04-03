@@ -650,6 +650,20 @@ export function SettingsView({
 
         <div className="space-y-2">
           <h2 className="text-sm font-medium text-foreground select-none">
+            {t("settings.keybindings.title")}
+          </h2>
+          <KeybindingPanel
+            bindings={bindings}
+            onUpdate={onUpdateBinding}
+            onReset={onResetBinding}
+            onResetAll={onResetAllBindings}
+          />
+        </div>
+
+        <Separator className="bg-border" />
+
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-foreground select-none">
             {t("settings.ignored.title")}
           </h2>
           <p className="text-xs text-muted-foreground select-none">
@@ -784,20 +798,6 @@ export function SettingsView({
                 ? t("settings.hashReset.calculating")
                 : t("settings.hashReset.action")}
           </Button>
-        </div>
-
-        <Separator className="bg-border" />
-
-        <div className="space-y-2">
-          <h2 className="text-sm font-medium text-foreground select-none">
-            {t("settings.keybindings.title")}
-          </h2>
-          <KeybindingPanel
-            bindings={bindings}
-            onUpdate={onUpdateBinding}
-            onReset={onResetBinding}
-            onResetAll={onResetAllBindings}
-          />
         </div>
       </div>
     </div>
