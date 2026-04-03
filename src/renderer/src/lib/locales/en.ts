@@ -756,6 +756,38 @@ const en = {
       tagSchemaVersion: "Tag database version",
       unknown: "Unknown",
     },
+    keybindings: {
+      title: "Keyboard Shortcuts",
+      description:
+        "Click a key button and press the desired key to change it. Esc cancels.",
+      pressKey: "Press a key...",
+      clickToChange: "Click to change",
+      resetAll: "Reset all",
+      conflictSuffix: " conflict",
+      groups: {
+        panel: "Panel Navigation",
+        gallery: "Gallery",
+        detail: "Image Detail",
+        generator: "Generator",
+      },
+      actions: {
+        "panel.generator": "Generator panel",
+        "panel.gallery": "Gallery panel",
+        "panel.tagSearch": "Tag search panel",
+        "panel.settings": "Settings panel",
+        "gallery.focusSearch": "Focus search",
+        "gallery.prevPage": "Previous page",
+        "gallery.nextPage": "Next page",
+        "gallery.scan": "Start scan",
+        "detail.close": "Close detail",
+        "detail.prev": "Previous image",
+        "detail.next": "Next image",
+        "detail.favorite": "Toggle favorite",
+        "detail.copyPrompt": "Copy prompt",
+        "detail.delete": "Delete image",
+        "generator.generate": "Generate",
+      },
+    },
   },
   sidebar: {
     views: {

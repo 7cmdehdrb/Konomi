@@ -52,6 +52,7 @@ function renderImageActions(options?: {
       showSourceImage: vi.fn(),
       appendPromptTag: vi.fn(),
       openRightPanelTab: vi.fn(),
+      generate: vi.fn(),
     },
   };
 

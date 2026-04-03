@@ -751,6 +751,38 @@ const ko = {
       tagSchemaVersion: "태그 데이터베이스 버전",
       unknown: "알 수 없음",
     },
+    keybindings: {
+      title: "단축키",
+      description:
+        "키 버튼을 클릭한 후 원하는 키를 눌러 변경합니다. Esc는 취소입니다.",
+      pressKey: "키를 눌러주세요...",
+      clickToChange: "클릭하여 변경",
+      resetAll: "전체 초기화",
+      conflictSuffix: "와 충돌",
+      groups: {
+        panel: "패널 전환",
+        gallery: "갤러리",
+        detail: "이미지 상세",
+        generator: "생성 모드",
+      },
+      actions: {
+        "panel.generator": "생성 모드 패널",
+        "panel.gallery": "갤러리 패널",
+        "panel.tagSearch": "태그 검색 패널",
+        "panel.settings": "설정 패널",
+        "gallery.focusSearch": "검색창 포커스",
+        "gallery.prevPage": "이전 페이지",
+        "gallery.nextPage": "다음 페이지",
+        "gallery.scan": "스캔 시작",
+        "detail.close": "상세 패널 닫기",
+        "detail.prev": "이전 이미지",
+        "detail.next": "다음 이미지",
+        "detail.favorite": "즐겨찾기 토글",
+        "detail.copyPrompt": "프롬프트 복사",
+        "detail.delete": "이미지 삭제",
+        "generator.generate": "생성 실행",
+      },
+    },
   },
   sidebar: {
     views: {

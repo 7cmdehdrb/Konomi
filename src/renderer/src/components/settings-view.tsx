@@ -22,6 +22,8 @@ import { THEMES } from "@/lib/themes";
 import { SUPPORTED_APP_LANGUAGES } from "@/lib/language";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { KeybindingPanel } from "@/components/keybinding-panel";
+import type { KeyBinding, KeyBindingId, Keybindings } from "@/lib/keybindings";
 
 interface SettingsViewProps {
   settings: Settings;
@@ -31,6 +33,10 @@ interface SettingsViewProps {
   onResetHashes: () => Promise<void>;
   onRefreshPrompts: () => Promise<number>;
   isAnalyzing: boolean;
+  bindings: Keybindings;
+  onUpdateBinding: (id: KeyBindingId, binding: KeyBinding) => void;
+  onResetBinding: (id: KeyBindingId) => void;
+  onResetAllBindings: () => void;
 }
 
 function ResetButton({ onClick }: { onClick: () => void }) {
@@ -148,6 +154,10 @@ export function SettingsView({
   onResetHashes,
   onRefreshPrompts,
   isAnalyzing,
+  bindings,
+  onUpdateBinding,
+  onResetBinding,
+  onResetAllBindings,
 }: SettingsViewProps) {
   const { t } = useTranslation();
   const [resetting, setResetting] = useState(false);
@@ -774,6 +784,20 @@ export function SettingsView({
                 ? t("settings.hashReset.calculating")
                 : t("settings.hashReset.action")}
           </Button>
+        </div>
+
+        <Separator className="bg-border" />
+
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-foreground select-none">
+            {t("settings.keybindings.title")}
+          </h2>
+          <KeybindingPanel
+            bindings={bindings}
+            onUpdate={onUpdateBinding}
+            onReset={onResetBinding}
+            onResetAll={onResetAllBindings}
+          />
         </div>
       </div>
     </div>

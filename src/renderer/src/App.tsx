@@ -46,6 +46,8 @@ import { useSimilarImages } from "@/hooks/useSimilarImages";
 import { useSettingsAnalysisController } from "@/hooks/useSettingsAnalysisController";
 import { useAppShellState, type ActivePanel } from "@/hooks/useAppShellState";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useKeybindings } from "@/hooks/useKeybindings";
 import type { AdvancedFilter } from "@/lib/advanced-filter";
 import { useTranslation } from "react-i18next";
 
@@ -247,6 +249,8 @@ export default function App({ initialFolderCount = null }: AppProps) {
   });
 
   useAutoUpdate();
+  const { bindings, updateBinding, resetBinding, resetAllBindings } =
+    useKeybindings();
 
   const {
     imageActions,
@@ -291,6 +295,24 @@ export default function App({ initialFolderCount = null }: AppProps) {
     scanStartCountRef,
     scheduleAnalysis,
     schedulePageRefresh,
+  });
+
+  useKeyboardShortcuts({
+    bindings,
+    handlePanelChange,
+    activePanel,
+    onGenerate: () => generationViewRef.current?.generate(),
+    detail,
+    imageActions,
+    runScan,
+    scanning,
+    imageGalleryPagination,
+    anyDialogOpen:
+      scanCancelConfirmOpen ||
+      deleteDialog.open ||
+      bulkDeleteDialog.open ||
+      !!categoryDialog.image ||
+      (categoryDialog.bulkImageIds?.length ?? 0) > 0,
   });
 
   const handleTourAction = useCallback((action: string) => {
@@ -504,6 +526,10 @@ export default function App({ initialFolderCount = null }: AppProps) {
               onResetHashes={handleResetHashes}
               onRefreshPrompts={() => window.image.refreshPrompts()}
               isAnalyzing={isAnalyzing}
+              bindings={bindings}
+              onUpdateBinding={updateBinding}
+              onResetBinding={resetBinding}
+              onResetAllBindings={resetAllBindings}
             />
           )}
           {activePanel === "tagSearch" && (

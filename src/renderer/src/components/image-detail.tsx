@@ -754,23 +754,6 @@ export function ImageDetail({
     }
   }, [isOpen, prevImage?.src, nextImage?.src]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowLeft" && prevImage) {
-        e.stopPropagation();
-        handlePrev();
-      } else if (e.key === "ArrowRight" && nextImage) {
-        e.stopPropagation();
-        handleNext();
-      }
-    };
-    // Use capture phase so this fires before gallery's page navigation handler
-    window.addEventListener("keydown", handler, true);
-    return () => window.removeEventListener("keydown", handler, true);
-  }, [isOpen, onClose, handlePrev, handleNext, prevImage, nextImage]);
-
   // Never fully unmount — just hide with CSS so DOM isn't recreated on every open
   if (!image) return null;
 

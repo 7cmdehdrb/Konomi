@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { SettingsView } from "@/components/settings-view";
 import { DEFAULTS, type Settings } from "@/hooks/useSettings";
+import { DEFAULT_KEYBINDINGS } from "@/lib/keybindings";
 import { preloadMocks } from "../helpers/preload-mocks";
 
 function createSettings(overrides: Partial<Settings> = {}): Settings {
@@ -26,6 +27,10 @@ function renderSettingsView(
     onResetHashes: vi.fn().mockResolvedValue(undefined),
     onRefreshPrompts: vi.fn().mockResolvedValue(0),
     isAnalyzing: false,
+    bindings: DEFAULT_KEYBINDINGS,
+    onUpdateBinding: vi.fn(),
+    onResetBinding: vi.fn(),
+    onResetAllBindings: vi.fn(),
     ...overrides,
   };
 

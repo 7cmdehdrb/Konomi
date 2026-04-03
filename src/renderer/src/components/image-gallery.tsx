@@ -936,26 +936,6 @@ export const ImageGallery = memo(function ImageGallery({
     [computedTotalPages, controlledPagination, onPageChange],
   );
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      )
-        return;
-      if (e.key === "ArrowLeft" && currentPage > 1) {
-        e.preventDefault();
-        updatePage(currentPage - 1);
-      } else if (e.key === "ArrowRight" && currentPage < computedTotalPages) {
-        e.preventDefault();
-        updatePage(currentPage + 1);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentPage, computedTotalPages, updatePage]);
-
   const selectedCount = selectedIds.size;
   const allFilteredSelected = totalCount > 0 && selectedCount === totalCount;
   const allPageSelected =

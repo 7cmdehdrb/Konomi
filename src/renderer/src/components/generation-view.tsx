@@ -627,6 +627,7 @@ export interface GenerationViewHandle {
   showSourceImage: (image: ImageData) => void;
   appendPromptTag: (tag: string) => void;
   openRightPanelTab: (tab: "settings" | "prompt-group" | "reference") => void;
+  generate: () => void;
 }
 
 const LAST_GEN_PARAMS_KEY = "konomi-last-gen-params";
@@ -4174,6 +4175,8 @@ export const GenerationView = memo(
       [appendTagToPrompt],
     );
 
+    const generateRef = useRef<() => void>(() => {});
+
     useImperativeHandle(
       ref,
       () => ({
@@ -4181,6 +4184,7 @@ export const GenerationView = memo(
         showSourceImage: handleShowSourceImage,
         appendPromptTag: handleAppendPromptTag,
         openRightPanelTab,
+        generate: () => generateRef.current(),
       }),
       [
         handleAppendPromptTag,
@@ -4622,6 +4626,7 @@ export const GenerationView = memo(
         saveLastGenParams,
       ],
     );
+    generateRef.current = () => void handleGenerate();
 
     const handleAutoGenerate = useCallback(async () => {
       const current = latestViewStateRef.current;
