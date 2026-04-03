@@ -434,6 +434,9 @@ export default function App({ initialFolderCount = null }: AppProps) {
             }
           });
       },
+      onCategorySetColor: (id: number, color: string | null) => {
+        void categoryCommands.setCategoryColor(id, color);
+      },
       onRandomRefresh: categoryCommands.refreshRandomSelection,
     }),
     [categoryCommands, schedulePageRefresh],

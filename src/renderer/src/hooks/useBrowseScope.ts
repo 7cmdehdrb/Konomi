@@ -22,6 +22,7 @@ export function useBrowseScope() {
     reorderCategories,
     deleteCategory,
     addCategoryByPrompt,
+    setCategoryColor,
   } = useCategories();
 
   const handleViewChange = useCallback(
@@ -74,6 +75,7 @@ export function useBrowseScope() {
       deleteCategory,
       reorderCategories,
       addCategoryByPrompt,
+      setCategoryColor,
       refreshRandomSelection: handleRandomRefresh,
     }),
     [
@@ -84,6 +86,7 @@ export function useBrowseScope() {
       renameCategory,
       reorderCategories,
       selectCategory,
+      setCategoryColor,
     ],
   );
 

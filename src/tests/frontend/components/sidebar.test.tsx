@@ -104,6 +104,7 @@ function createCategory(
     name,
     isBuiltin: false,
     order: id,
+    color: null,
     ...overrides,
   };
 }
@@ -199,6 +200,7 @@ function renderSidebar(overrides: SidebarOverrides = {}) {
       onCategoryDelete: vi.fn(),
       onCategoryReorder: vi.fn(),
       onCategoryAddByPrompt: vi.fn(),
+      onCategorySetColor: vi.fn(),
       onRandomRefresh: vi.fn(),
     },
     isAnalyzing: false,

@@ -129,6 +129,7 @@ export type Category = {
   name: string;
   isBuiltin: boolean;
   order: number;
+  color: string | null;
 };
 
 export type PromptToken = {
@@ -400,6 +401,7 @@ declare global {
       imageIds: (categoryId: number) => Promise<number[]>;
       forImage: (imageId: number) => Promise<number[]>;
       commonForImages: (imageIds: number[]) => Promise<number[]>;
+      setColor: (id: number, color: string | null) => Promise<Category>;
     };
   }
 }

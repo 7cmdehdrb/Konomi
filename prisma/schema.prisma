@@ -48,6 +48,7 @@ model Category {
   name      String
   isBuiltin Boolean         @default(false)
   order     Int             @default(0)
+  color     String?
   images    ImageCategory[]
 }
 

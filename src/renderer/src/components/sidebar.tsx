@@ -41,7 +41,11 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuItemPrimitive,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
@@ -117,6 +121,7 @@ interface SidebarCategoryActions {
   onCategoryDelete: (id: number) => void;
   onCategoryReorder: (ids: number[]) => void;
   onCategoryAddByPrompt: (id: number, query: string) => void;
+  onCategorySetColor: (id: number, color: string | null) => void;
   onRandomRefresh: () => void;
 }
 
@@ -914,6 +919,17 @@ const SidebarSubfolderRow = memo(function SidebarSubfolderRow({
   );
 });
 
+const CATEGORY_COLORS: { value: string; label: string }[] = [
+  { value: "#ef4444", label: "Red" },
+  { value: "#f97316", label: "Orange" },
+  { value: "#eab308", label: "Yellow" },
+  { value: "#22c55e", label: "Green" },
+  { value: "#14b8a6", label: "Teal" },
+  { value: "#3b82f6", label: "Blue" },
+  { value: "#8b5cf6", label: "Purple" },
+  { value: "#ec4899", label: "Pink" },
+];
+
 interface SidebarCategoryRowProps {
   category: Category;
   isSelected: boolean;
@@ -923,6 +939,7 @@ interface SidebarCategoryRowProps {
   onRename: (id: number, name: string) => void;
   onDelete: (id: number) => void;
   onAddByPrompt: (id: number) => void;
+  onSetColor: (id: number, color: string | null) => void;
   onRandomRefresh: () => void;
   onDragStart: (id: number) => void;
   onDragOver: (id: number) => void;
@@ -939,6 +956,7 @@ const SidebarCategoryRow = memo(function SidebarCategoryRow({
   onRename,
   onDelete,
   onAddByPrompt,
+  onSetColor,
   onRandomRefresh,
   onDragStart,
   onDragOver,
@@ -989,6 +1007,7 @@ const SidebarCategoryRow = memo(function SidebarCategoryRow({
   const inputRef = useRef<HTMLInputElement>(null);
   const skipCommitRef = useRef(false);
   const [editingName, setEditingName] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const isEditing = editingName !== null;
   const currentEditingName = editingName ?? category.name;
   const isContextRenameEnabled = !category.isBuiltin;
@@ -1063,7 +1082,10 @@ const SidebarCategoryRow = memo(function SidebarCategoryRow({
               )}
             />
           ) : (
-            <Tag className="h-3.5 w-3.5 shrink-0" />
+            <Tag
+              className="h-3.5 w-3.5 shrink-0"
+              style={category.color ? { color: category.color } : undefined}
+            />
           )}
           {isEditing ? (
             <input
@@ -1144,16 +1166,86 @@ const SidebarCategoryRow = memo(function SidebarCategoryRow({
       {!category.isBuiltin && (
         <ContextMenuContent className="w-48">
           <ContextMenuItem onSelect={handleStartEditing}>
-            {t("sidebar.folders.rename")}
+            {t("sidebar.categories.rename")}
           </ContextMenuItem>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              {t("sidebar.categories.setColor")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              <div className="flex flex-wrap gap-1.5 p-2">
+                {CATEGORY_COLORS.map(({ value, label }) => (
+                  <ContextMenuItemPrimitive
+                    key={value}
+                    asChild
+                    onSelect={() =>
+                      onSetColor(
+                        category.id,
+                        category.color === value ? null : value,
+                      )
+                    }
+                  >
+                    <button
+                      type="button"
+                      title={label}
+                      className={cn(
+                        "h-5 w-5 rounded-full border-2 transition-transform hover:scale-110 focus:outline-none",
+                        category.color === value
+                          ? "border-foreground"
+                          : "border-transparent",
+                      )}
+                      style={{ backgroundColor: value }}
+                    />
+                  </ContextMenuItemPrimitive>
+                ))}
+              </div>
+              {category.color && (
+                <>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    onSelect={() => onSetColor(category.id, null)}
+                  >
+                    {t("sidebar.categories.removeColor")}
+                  </ContextMenuItem>
+                </>
+              )}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+          <ContextMenuSeparator />
           <ContextMenuItem
             className="text-destructive focus:text-destructive"
-            onSelect={() => onDelete(category.id)}
+            onSelect={() => setDeleteConfirmOpen(true)}
           >
-            {t("sidebar.folders.delete")}
+            {t("sidebar.categories.delete")}
           </ContextMenuItem>
         </ContextMenuContent>
       )}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("sidebar.dialog.deleteCategoryTitle")}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {t("sidebar.dialog.deleteCategoryDescription", {
+              name: category.name,
+            })}
+          </p>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="ghost">{t("common.cancel")}</Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                onDelete(category.id);
+              }}
+            >
+              {t("sidebar.categories.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ContextMenu>
   );
 });
@@ -1364,6 +1456,7 @@ interface SidebarCategoriesSectionProps {
   onRename: (id: number, name: string) => void;
   onDelete: (id: number) => void;
   onAddByPrompt: (id: number) => void;
+  onSetColor: (id: number, color: string | null) => void;
   onRandomRefresh: () => void;
   onDragStart: (id: number) => void;
   onDragOver: (id: number) => void;
@@ -1381,6 +1474,7 @@ const SidebarCategoriesSection = memo(function SidebarCategoriesSection({
   onRename,
   onDelete,
   onAddByPrompt,
+  onSetColor,
   onRandomRefresh,
   onDragStart,
   onDragOver,
@@ -1457,6 +1551,7 @@ const SidebarCategoriesSection = memo(function SidebarCategoriesSection({
               onRename={onRename}
               onDelete={onDelete}
               onAddByPrompt={onAddByPrompt}
+              onSetColor={onSetColor}
               onRandomRefresh={onRandomRefresh}
               onDragStart={onDragStart}
               onDragOver={onDragOver}
@@ -1528,6 +1623,7 @@ export const Sidebar = memo(
       onCategoryDelete,
       onCategoryReorder,
       onCategoryAddByPrompt,
+      onCategorySetColor,
       onRandomRefresh,
     } = categoryActions;
     const [isNewCategoryOpen, setIsNewCategoryOpen] = useState(false);
@@ -1914,6 +2010,7 @@ export const Sidebar = memo(
                 onRename={onCategoryRename}
                 onDelete={onCategoryDelete}
                 onAddByPrompt={handleOpenAddByPromptDialog}
+                onSetColor={onCategorySetColor}
                 onRandomRefresh={onRandomRefresh}
                 onDragStart={handleCategoryDragStart}
                 onDragOver={handleCategoryDragOver}

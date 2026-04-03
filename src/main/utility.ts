@@ -56,6 +56,7 @@ import {
   createCategory,
   deleteCategory,
   renameCategory,
+  updateCategoryColor,
   addImageToCategory,
   removeImageFromCategory,
   addImagesToCategory,
@@ -450,6 +451,10 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
     case "category:commonForImages": {
       const { imageIds } = payload as { imageIds: number[] };
       return getCommonCategoryIdsForImages(imageIds);
+    }
+    case "category:setColor": {
+      const { id, color } = payload as { id: number; color: string | null };
+      return updateCategoryColor(id, color);
     }
 
     case "nai:validateApiKey":

@@ -316,6 +316,8 @@ contextBridge.exposeInMainWorld("category", {
     ipcRenderer.invoke("category:forImage", imageId),
   commonForImages: (imageIds: number[]) =>
     ipcRenderer.invoke("category:commonForImages", imageIds),
+  setColor: (id: number, color: string | null) =>
+    ipcRenderer.invoke("category:setColor", id, color),
 });
 contextBridge.exposeInMainWorld("nai", {
   validateApiKey: (apiKey: string) =>

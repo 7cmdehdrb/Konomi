@@ -5,6 +5,7 @@ export type CategoryRow = {
   name: string;
   isBuiltin: boolean;
   order: number;
+  color: string | null;
 };
 
 export async function listCategories(): Promise<CategoryRow[]> {
@@ -32,6 +33,13 @@ export async function renameCategory(
   name: string,
 ): Promise<CategoryRow> {
   return getDB().category.update({ where: { id }, data: { name } });
+}
+
+export async function updateCategoryColor(
+  id: number,
+  color: string | null,
+): Promise<CategoryRow> {
+  return getDB().category.update({ where: { id }, data: { color } });
 }
 
 export async function addImageToCategory(

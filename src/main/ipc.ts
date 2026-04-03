@@ -410,6 +410,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("category:commonForImages", (_, imageIds: number[]) =>
     bridge.request("category:commonForImages", { imageIds }),
   );
+  ipcMain.handle("category:setColor", (_, id: number, color: string | null) =>
+    bridge.request("category:setColor", { id, color }),
+  );
 
   ipcMain.handle("nai:validateApiKey", (_, apiKey: string) =>
     bridge.request("nai:validateApiKey", apiKey),

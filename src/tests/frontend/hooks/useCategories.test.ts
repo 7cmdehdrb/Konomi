@@ -10,6 +10,7 @@ function createCategory(overrides: Partial<Category>): Category {
     name: overrides.name ?? "Category",
     isBuiltin: overrides.isBuiltin ?? false,
     order: overrides.order ?? 99,
+    color: overrides.color ?? null,
   };
 }
 

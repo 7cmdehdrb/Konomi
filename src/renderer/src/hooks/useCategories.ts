@@ -154,6 +154,27 @@ export function useCategories() {
     }
   }, []);
 
+  const setCategoryColor = useCallback(
+    async (id: number, color: string | null): Promise<boolean> => {
+      log.info("Setting category color", { categoryId: id, color });
+      try {
+        const updated = await window.category.setColor(id, color);
+        setCategories((prev) =>
+          prev.map((category) => (category.id === id ? updated : category)),
+        );
+        return true;
+      } catch (error: unknown) {
+        toast.error(
+          i18n.t("error.categoryUpdateFailed", {
+            message: error instanceof Error ? error.message : String(error),
+          }),
+        );
+        return false;
+      }
+    },
+    [],
+  );
+
   const addCategoryByPrompt = useCallback(
     async (id: number, query: string): Promise<boolean> => {
       log.info("Adding category images by prompt", { categoryId: id, query });
@@ -183,5 +204,6 @@ export function useCategories() {
     reorderCategories,
     deleteCategory,
     addCategoryByPrompt,
+    setCategoryColor,
   };
 }
