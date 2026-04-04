@@ -651,16 +651,14 @@ export function ImageDetail({
   // Lock the anchor image when the panel opens; clear when it closes
   useEffect(() => {
     if (isOpen && image?.id) {
-      setAnchorId((prev) => {
-        const next = prev ?? image.id;
-        if (next !== prev) onAnchorChange?.(next);
-        return next;
-      });
+      setAnchorId((prev) => prev ?? image.id);
+      // Notify parent outside updater to avoid setState-during-render warning
+      if (anchorId == null) onAnchorChange?.(image.id);
     } else if (!isOpen) {
       setAnchorId(null);
       onAnchorChange?.(null);
     }
-  }, [isOpen, image?.id, onAnchorChange]);
+  }, [isOpen, image?.id, anchorId, onAnchorChange]);
 
   const effectiveAnchorId = anchorId ?? image?.id ?? null;
   // similarImages already contains only the current page's data (fetched by useSimilarImages)
