@@ -13,15 +13,15 @@ const syncState = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../main/lib/scanner", () => ({
-  scanPngFiles: async (folderPath: string) =>
+  scanImageFiles: async (folderPath: string) =>
     syncState.scanResults.get(folderPath) ?? [],
-  walkPngFiles: async function* (folderPath: string) {
+  walkImageFiles: async function* (folderPath: string) {
     const results = syncState.scanResults.get(folderPath) ?? [];
     for (const item of results) {
       yield item;
     }
   },
-  countPngFiles: async (folderPath: string) =>
+  countImageFiles: async (folderPath: string) =>
     (syncState.scanResults.get(folderPath) ?? []).length,
   withConcurrency: async <T>(
     items: T[] | AsyncIterable<T>,

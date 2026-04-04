@@ -3,8 +3,8 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  countPngFiles,
-  scanPngFiles,
+  countImageFiles,
+  scanImageFiles,
   withConcurrency,
 } from "../../../main/lib/scanner";
 
@@ -42,7 +42,7 @@ describe("scanner", () => {
     fs.writeFileSync(files.txt, "note");
     fs.writeFileSync(files.jpg, "jpg");
 
-    const result = await scanPngFiles(root);
+    const result = await scanImageFiles(root);
 
     expect(result.sort()).toEqual([files.pngA, files.pngB].sort());
   });
@@ -54,7 +54,7 @@ describe("scanner", () => {
     fs.writeFileSync(path.join(root, "nested", "b.png"), "b");
     fs.writeFileSync(path.join(root, "nested", "c.webp"), "c");
 
-    await expect(countPngFiles(root)).resolves.toBe(3);
+    await expect(countImageFiles(root)).resolves.toBe(3);
   });
 
   it("limits concurrent work in withConcurrency", async () => {

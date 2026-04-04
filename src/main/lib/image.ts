@@ -5,7 +5,7 @@ import os from "os";
 import { Worker } from "worker_threads";
 import { getDB } from "./db";
 import { getFolders } from "./folder";
-import { scanPngFiles, walkPngFiles, countPngFiles, withConcurrency } from "./scanner";
+import { scanImageFiles, walkImageFiles, countImageFiles, withConcurrency } from "./scanner";
 import type { CancelToken } from "./scanner";
 import { parsePromptTokens } from "./token";
 import { deleteSimilarityCacheForImageIds } from "./phash";
@@ -1751,7 +1751,7 @@ export async function findFolderDuplicateImages(
   await ensureIgnoredDuplicatePathsLoaded();
   const db = getDB();
   const incomingPaths = (
-    options?.incomingPaths ?? (await scanPngFiles(folderPath, options?.signal))
+    options?.incomingPaths ?? (await scanImageFiles(folderPath, options?.signal))
   ).filter((filePath) => !ignoredDuplicatePaths.has(filePath));
   if (incomingPaths.length === 0) return [];
 
@@ -1974,7 +1974,7 @@ export async function quickVerifyFolders(
   const results = await Promise.all(
     folders.map(async (folder) => {
       try {
-        const diskCount = await countPngFiles(folder.path, signal);
+        const diskCount = await countImageFiles(folder.path, signal);
         const changed =
           folder.lastScanFileCount === null ||
           folder.lastScanFileCount !== diskCount;
@@ -2099,7 +2099,7 @@ export async function syncAllFolders(
         if (signal?.cancelled) break;
 
         await withConcurrency(
-          walkPngFiles(folder.path, signal),
+          walkImageFiles(folder.path, signal),
           SIZE_SCAN_CONCURRENCY,
           async (incomingPath) => {
             total++;
@@ -2186,7 +2186,7 @@ export async function syncAllFolders(
     if (!preScannedTotals && !signal?.cancelled) {
       for (const folder of foldersToScan) {
         if (signal?.cancelled) break;
-        total += await countPngFiles(folder.path, signal);
+        total += await countImageFiles(folder.path, signal);
       }
       onProgress?.(done, total);
     }
@@ -2327,7 +2327,7 @@ export async function syncAllFolders(
 
         // Phase 1: 스트리밍으로 신규 파일을 발견 즉시 처리, 기존 파일은 분류만
         await withConcurrency(
-          walkPngFiles(folder.path, signal),
+          walkImageFiles(folder.path, signal),
           SYNC_SCAN_CONCURRENCY,
           async (filePath) => {
             discoveredPathSet.add(filePath);

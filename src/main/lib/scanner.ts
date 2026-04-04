@@ -3,7 +3,7 @@ import path from "path";
 
 export type CancelToken = { cancelled: boolean };
 
-export async function* walkPngFiles(
+export async function* walkImageFiles(
   rootDir: string,
   signal?: CancelToken,
 ): AsyncGenerator<string> {
@@ -37,23 +37,23 @@ export async function* walkPngFiles(
   }
 }
 
-export async function scanPngFiles(
+export async function scanImageFiles(
   dir: string,
   signal?: CancelToken,
 ): Promise<string[]> {
   const results: string[] = [];
-  for await (const filePath of walkPngFiles(dir, signal)) {
+  for await (const filePath of walkImageFiles(dir, signal)) {
     results.push(filePath);
   }
   return results;
 }
 
-export async function countPngFiles(
+export async function countImageFiles(
   dir: string,
   signal?: CancelToken,
 ): Promise<number> {
   let count = 0;
-  for await (const _ of walkPngFiles(dir, signal)) {
+  for await (const _ of walkImageFiles(dir, signal)) {
     count++;
   }
   return count;
