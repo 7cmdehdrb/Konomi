@@ -193,7 +193,6 @@ export default function App({ initialFolderCount = null, initialFolders = null }
 
   const {
     isAnalyzing,
-    similarGroups,
     analyzeTimerRef,
     pendingSimilarityRecalcRef,
     visualThresholdRef,
@@ -279,15 +278,22 @@ export default function App({ initialFolderCount = null, initialFolders = null }
   );
   const detailContentReady =
     !!detail.imageId && deferredDetailContentImageId === detail.imageId;
-  const { similarImages, similarReasons, similarScores, similarImagesLoading } =
-    useSimilarImages({
-      anchorId: detailAnchorId,
-      isDetailOpen: detail.isOpen,
-      detailContentReady,
-      similarGroups,
-      visualThresholdRef,
-      promptThresholdRef,
-    });
+  const {
+    similarImages,
+    similarReasons,
+    similarScores,
+    similarImagesLoading,
+    similarPage,
+    similarTotalPages,
+    goToSimilarPage,
+  } = useSimilarImages({
+    anchorId: detailAnchorId,
+    isDetailOpen: detail.isOpen,
+    detailContentReady,
+    visualThresholdRef,
+    promptThresholdRef,
+    pageSize: settings.similarPageSize,
+  });
   const rescanningRef = useRef(false);
 
   useEffect(() => {
@@ -678,7 +684,9 @@ export default function App({ initialFolderCount = null, initialFolders = null }
         similarImagesLoading={similarImagesLoading}
         detailContentReady={detailContentReady}
         onSimilarImageClick={detail.onSelectImage}
-        similarPageSize={settings.similarPageSize}
+        similarPage={similarPage}
+        similarTotalPages={similarTotalPages}
+        onSimilarPageChange={goToSimilarPage}
         onAnchorChange={handleDetailAnchorChange}
       />
 

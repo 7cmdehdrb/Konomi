@@ -264,7 +264,10 @@ app
           fs.createReadStream(filePath),
         ) as unknown as BodyInit;
         return new Response(data, {
-          headers: { "content-type": getImageContentType(filePath) },
+          headers: {
+            "content-type": getImageContentType(filePath),
+            "cache-control": "no-store",
+          },
         });
       } catch {
         log.debug("konomi protocol file miss", { url: request.url });

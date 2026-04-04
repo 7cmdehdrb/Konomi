@@ -1,6 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { SimilarGroup } from "@preload/index.d";
 import { useSimilarImages } from "@/hooks/useSimilarImages";
 import { preloadMocks } from "../helpers/preload-mocks";
 import { createImageRow } from "../helpers/image-row";
@@ -18,12 +17,14 @@ function deferred<T>() {
 
 describe("useSimilarImages", () => {
   it("loads similar images, sorts by score, and maps reasons by image id", async () => {
-    const similarGroups: SimilarGroup[] = [
-      { id: "group-1", name: "Group", imageIds: [10, 11, 12] },
-    ];
     const visualThresholdRef = { current: 12 };
     const promptThresholdRef = { current: 0.6 };
 
+    preloadMocks.image.similarGroupForImage.mockResolvedValue({
+      id: "group-1",
+      name: "Group",
+      imageIds: [10, 11, 12],
+    });
     preloadMocks.image.listByIds.mockResolvedValue([
       createImageRow({ id: 10, path: "C:\\images\\selected.png" }),
       createImageRow({ id: 11, path: "C:\\images\\second.png" }),
@@ -42,7 +43,6 @@ describe("useSimilarImages", () => {
       }) =>
         useSimilarImages({
           ...props,
-          similarGroups,
           visualThresholdRef,
           promptThresholdRef,
         }),
@@ -55,11 +55,12 @@ describe("useSimilarImages", () => {
       },
     );
 
+    // Page 0: anchor first, then candidates sorted by score desc
     await waitFor(() =>
       expect(result.current.similarImages.map((image) => image.id)).toEqual([
+        "10",
         "12",
         "11",
-        "10",
       ]),
     );
     expect(result.current.similarReasons).toEqual({
@@ -85,10 +86,6 @@ describe("useSimilarImages", () => {
   });
 
   it("ignores stale results after the panel closes and reopens for a different image", async () => {
-    const similarGroups: SimilarGroup[] = [
-      { id: "group-1", name: "Group 1", imageIds: [10, 11] },
-      { id: "group-2", name: "Group 2", imageIds: [20, 21] },
-    ];
     const visualThresholdRef = { current: 12 };
     const promptThresholdRef = { current: 0.6 };
     const firstRows = deferred<ReturnType<typeof createImageRow>[]>();
@@ -108,6 +105,20 @@ describe("useSimilarImages", () => {
       }>
     >();
 
+    preloadMocks.image.similarGroupForImage.mockImplementation(
+      (imageId: number) =>
+        imageId === 10
+          ? Promise.resolve({
+              id: "group-1",
+              name: "Group 1",
+              imageIds: [10, 11],
+            })
+          : Promise.resolve({
+              id: "group-2",
+              name: "Group 2",
+              imageIds: [20, 21],
+            }),
+    );
     preloadMocks.image.listByIds.mockImplementation((ids: number[]) =>
       ids.includes(10) ? firstRows.promise : secondRows.promise,
     );
@@ -123,7 +134,6 @@ describe("useSimilarImages", () => {
       }) =>
         useSimilarImages({
           ...props,
-          similarGroups,
           visualThresholdRef,
           promptThresholdRef,
         }),
@@ -160,10 +170,11 @@ describe("useSimilarImages", () => {
       await Promise.resolve();
     });
 
+    // Page 0: anchor first, then candidates sorted by score desc
     await waitFor(() =>
       expect(result.current.similarImages.map((image) => image.id)).toEqual([
-        "21",
         "20",
+        "21",
       ]),
     );
     expect(result.current.similarReasons).toEqual({
@@ -181,8 +192,8 @@ describe("useSimilarImages", () => {
     });
 
     expect(result.current.similarImages.map((image) => image.id)).toEqual([
-      "21",
       "20",
+      "21",
     ]);
     expect(result.current.similarReasons).toEqual({
       "21": "both",
@@ -190,20 +201,18 @@ describe("useSimilarImages", () => {
   });
 
   it("clears state when loading similar images fails", async () => {
-    const similarGroups: SimilarGroup[] = [
-      { id: "group-1", name: "Group", imageIds: [10, 11] },
-    ];
     const visualThresholdRef = { current: 12 };
     const promptThresholdRef = { current: 0.6 };
 
-    preloadMocks.image.listByIds.mockRejectedValueOnce(new Error("db offline"));
+    preloadMocks.image.similarGroupForImage.mockRejectedValueOnce(
+      new Error("db offline"),
+    );
 
     const { result } = renderHook(() =>
       useSimilarImages({
         anchorId: "10",
         isDetailOpen: true,
         detailContentReady: true,
-        similarGroups,
         visualThresholdRef,
         promptThresholdRef,
       }),

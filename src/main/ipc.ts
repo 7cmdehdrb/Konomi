@@ -357,6 +357,11 @@ export function registerIpcHandlers(): void {
       bridge.request("image:similarGroups", { threshold, jaccardThreshold }),
   );
   ipcMain.handle(
+    "image:similarGroupForImage",
+    (_, imageId: number) =>
+      bridge.request("image:similarGroupForImage", { imageId }),
+  );
+  ipcMain.handle(
     "image:similarReasons",
     (
       _,

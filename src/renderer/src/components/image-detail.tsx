@@ -570,7 +570,9 @@ interface ImageDetailProps {
   similarImagesLoading?: boolean;
   detailContentReady?: boolean;
   onSimilarImageClick?: (image: ImageData) => void;
-  similarPageSize?: number;
+  similarPage?: number;
+  similarTotalPages?: number;
+  onSimilarPageChange?: (page: number) => void;
   onAnchorChange?: (anchorId: string | null) => void;
 }
 
@@ -592,7 +594,9 @@ export function ImageDetail({
   similarImagesLoading = false,
   detailContentReady = true,
   onSimilarImageClick,
-  similarPageSize = 10,
+  similarPage = 0,
+  similarTotalPages = 0,
+  onSimilarPageChange,
   onAnchorChange,
 }: ImageDetailProps) {
   const { t } = useTranslation();
@@ -600,7 +604,7 @@ export function ImageDetail({
   const [fitMode, setFitMode] = useState<"fit" | "actual">("fit");
   const [imgLoaded, setImgLoaded] = useState(false);
   const [displaySrc, setDisplaySrc] = useState<string | null>(null);
-  const [similarPage, setSimilarPage] = useState(0);
+  // similarPage state is now managed by useSimilarImages hook via onSimilarPageChange
   const [anchorId, setAnchorId] = useState<string | null>(null);
   const panelOpenedRef = useRef(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
@@ -640,6 +644,7 @@ export function ImageDetail({
   }, [isOpen, image?.id, onAnchorChange]);
 
   const effectiveAnchorId = anchorId ?? image?.id ?? null;
+  // similarImages already contains only the current page's data (fetched by useSimilarImages)
   const hasSimilar = deferredSimilarImages && deferredSimilarImages.length > 1;
   const currentThumb = hasSimilar
     ? (deferredSimilarImages.find((img) => img.id === effectiveAnchorId) ?? null)
@@ -647,12 +652,7 @@ export function ImageDetail({
   const otherSimilar = hasSimilar
     ? deferredSimilarImages.filter((img) => img.id !== effectiveAnchorId)
     : [];
-  // Page 0: anchor takes 1 slot, so (pageSize - 1) non-anchor items.
-  // Pages 1+: pageSize non-anchor items each (no anchor shown).
-  const totalPages =
-    otherSimilar.length > 0
-      ? Math.ceil((otherSimilar.length + 1) / similarPageSize)
-      : 0;
+  const totalPages = similarTotalPages;
 
   // On first open: defer src via double RAF so the panel shell paints first.
   // On subsequent navigation (panel already open): swap src directly to avoid flickering.
@@ -683,18 +683,7 @@ export function ImageDetail({
     }
   }, [image?.src, isOpen]);
 
-  // Reset similar images page when image changes
-  useEffect(() => {
-    setSimilarPage(0);
-  }, [image?.id]);
-
-  // Keep the current page valid when a refreshed similar list has fewer pages.
-  useEffect(() => {
-    setSimilarPage((page) => {
-      if (totalPages <= 1) return 0;
-      return Math.min(page, totalPages - 1);
-    });
-  }, [totalPages]);
+  // Page reset on image change and page clamping are handled by useSimilarImages hook
 
   const handleCopy = useCallback(
     (key: string, text: string) => {
@@ -757,13 +746,8 @@ export function ImageDetail({
   // Never fully unmount — just hide with CSS so DOM isn't recreated on every open
   if (!image) return null;
 
-  const pagedOther =
-    similarPage === 0
-      ? otherSimilar.slice(0, similarPageSize - 1)
-      : otherSimilar.slice(
-          similarPage * similarPageSize - 1,
-          (similarPage + 1) * similarPageSize - 1,
-        );
+  // otherSimilar already contains only the current page's candidates (pre-sliced by hook)
+  const pagedOther = otherSimilar;
   const isPanelLoading = !detailContentReady;
 
   return (
@@ -832,7 +816,7 @@ export function ImageDetail({
           {totalPages > 1 && (
             <div className="flex shrink-0 items-center justify-between border-t border-border/60 px-1.5 py-1.5">
               <button
-                onClick={() => setSimilarPage((p) => Math.max(0, p - 1))}
+                onClick={() => onSimilarPageChange?.(Math.max(0, similarPage - 1))}
                 disabled={similarPage === 0}
                 className="text-muted-foreground/70 hover:text-foreground disabled:opacity-20 transition-colors"
               >
@@ -843,7 +827,7 @@ export function ImageDetail({
               </span>
               <button
                 onClick={() =>
-                  setSimilarPage((p) => Math.min(totalPages - 1, p + 1))
+                  onSimilarPageChange?.(Math.min(totalPages - 1, similarPage + 1))
                 }
                 disabled={similarPage === totalPages - 1}
                 className="text-muted-foreground/70 hover:text-foreground disabled:opacity-20 transition-colors"

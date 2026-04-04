@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Heart,
   Copy,
@@ -103,6 +103,7 @@ export const ImageCard = memo(function ImageCard({
   const [hoverPreviewReady, setHoverPreviewReady] = useState(false);
   const [contextMenuReady, setContextMenuReady] = useState(false);
   const [favoritePopping, setFavoritePopping] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
   const previewTokens = useMemo(
     () => image.tokens.slice(0, TOKEN_PREVIEW_LIMIT),
     [image.tokens],
@@ -119,6 +120,14 @@ export const ImageCard = memo(function ImageCard({
     }
     setImageLoaded(false);
   }, [image.src]);
+
+  // Release decoded bitmap on unmount so Chromium doesn't retain it in memory
+  useEffect(
+    () => () => {
+      if (imgRef.current) imgRef.current.src = "";
+    },
+    [],
+  );
 
   const handleCardClick = useCallback(() => {
     if (selectionMode && onSelectChange) {
@@ -253,6 +262,7 @@ export const ImageCard = memo(function ImageCard({
             <div className="relative h-12 w-12 shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20">
               {image.src && (
                 <img
+                  ref={imgRef}
                   src={image.src}
                   alt={image.prompt || t("imageCard.previewAlt")}
                   className={cn(
@@ -305,6 +315,7 @@ export const ImageCard = memo(function ImageCard({
             <div className="w-full h-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
               {image.src && (
                 <img
+                  ref={imgRef}
                   src={image.src}
                   alt={image.prompt || t("imageCard.previewAlt")}
                   className={cn(

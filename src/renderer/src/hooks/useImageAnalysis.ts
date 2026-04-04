@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import type { SimilarGroup } from "@preload/index.d";
 import type { Settings } from "@/hooks/useSettings";
 import i18n from "@/lib/i18n";
 import { createLogger } from "@/lib/logger";
@@ -15,7 +14,7 @@ export function useImageAnalysis({
   settings: Settings;
 }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [similarGroups, setSimilarGroups] = useState<SimilarGroup[]>([]);
+  const [similarGroupCount, setSimilarGroupCount] = useState(0);
 
   const analyzingRef = useRef(false);
   const analyzeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,7 +63,7 @@ export function useImageAnalysis({
           visualThresholdRef.current,
           promptThresholdRef.current,
         );
-        setSimilarGroups(groups);
+        setSimilarGroupCount(groups.length);
         pendingSimilarityRecalcRef.current = false;
         log.info("Analysis completed", {
           elapsedMs: Date.now() - startedAt,
@@ -112,8 +111,7 @@ export function useImageAnalysis({
 
   return {
     isAnalyzing,
-    similarGroups,
-    setSimilarGroups,
+    similarGroupCount,
     analyzeTimerRef,
     pendingSimilarityRecalcRef,
     visualThresholdRef,

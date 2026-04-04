@@ -56,6 +56,8 @@ export function useGalleryImages(
         page: galleryPage,
       });
       if (requestId !== listRequestSeqRef.current) return;
+      // Release Blink's decoded image cache from the previous page before rendering new images
+      window.appInfo.clearResourceCache();
       startTransition(() => {
         setImages(result.rows.map(rowToImageData));
         setTotalImageCount(result.totalCount);

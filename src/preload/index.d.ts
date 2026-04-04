@@ -46,9 +46,9 @@ export type ImageRow = {
   prompt: string;
   negativePrompt: string;
   characterPrompts: string;
-  promptTokens: string;
-  negativePromptTokens: string;
-  characterPromptTokens: string;
+  promptTokens?: string;
+  negativePromptTokens?: string;
+  characterPromptTokens?: string;
   source: string;
   model: string;
   seed: number;
@@ -259,6 +259,7 @@ declare global {
       ) => () => void;
       onUpdateProgress: (cb: (data: { percent: number }) => void) => () => void;
       onUtilityReset: (cb: () => void) => () => void;
+      clearResourceCache: () => void;
     };
     promptBuilder: {
       listCategories: () => Promise<PromptCategory[]>;
@@ -324,6 +325,9 @@ declare global {
         threshold: number,
         jaccardThreshold?: number,
       ) => Promise<SimilarGroup[]>;
+      similarGroupForImage: (
+        imageId: number,
+      ) => Promise<SimilarGroup | null>;
       similarReasons: (
         imageId: number,
         candidateImageIds: number[],

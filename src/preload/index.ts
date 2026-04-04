@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webFrame } from "electron";
 
 contextBridge.exposeInMainWorld("appInfo", {
   isDevMode: () => ipcRenderer.invoke("app:isDevMode"),
@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld("appInfo", {
     ipcRenderer.on("utility:reset", handler);
     return () => ipcRenderer.removeListener("utility:reset", handler);
   },
+  clearResourceCache: () => webFrame.clearCache(),
 });
 
 contextBridge.exposeInMainWorld("image", {
@@ -161,6 +162,8 @@ contextBridge.exposeInMainWorld("image", {
     ipcRenderer.invoke("image:rescanImageMetadata", paths),
   similarGroups: (threshold: number, jaccardThreshold?: number) =>
     ipcRenderer.invoke("image:similarGroups", threshold, jaccardThreshold),
+  similarGroupForImage: (imageId: number) =>
+    ipcRenderer.invoke("image:similarGroupForImage", imageId),
   similarReasons: (
     imageId: number,
     candidateImageIds: number[],

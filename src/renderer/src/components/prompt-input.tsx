@@ -1106,6 +1106,9 @@ export const PromptInput = memo(function PromptInput({
     stopCrossDragTracking();
   };
 
+  // Ensure cross-drag pointermove listener is cleaned up if component unmounts mid-drag
+  useEffect(() => stopCrossDragTracking, []);
+
   const setTokenRef = (id: string, node: HTMLDivElement | null) => {
     if (!node) {
       tokenRefs.current.delete(id);

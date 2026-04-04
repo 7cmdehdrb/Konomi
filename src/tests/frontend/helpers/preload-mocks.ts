@@ -125,6 +125,7 @@ export const preloadMocks = {
     onUpdateDownloaded: appUpdateDownloaded.subscribe,
     onUpdateProgress: vi.fn().mockReturnValue(() => {}),
     onUtilityReset: vi.fn().mockReturnValue(() => {}),
+    clearResourceCache: vi.fn(),
   },
   promptBuilder: {
     listCategories: vi.fn().mockResolvedValue([]),
@@ -183,6 +184,7 @@ export const preloadMocks = {
     computeHashes: vi.fn().mockResolvedValue(0),
     resetHashes: vi.fn().mockResolvedValue(undefined),
     similarGroups: vi.fn().mockResolvedValue([]),
+    similarGroupForImage: vi.fn().mockResolvedValue(null),
     similarReasons: vi.fn().mockResolvedValue([]),
     onHashProgress: imageHashProgress.subscribe,
     onSimilarityProgress: imageSimilarityProgress.subscribe,
@@ -335,6 +337,7 @@ export function resetPreloadMocks(): void {
   preloadMocks.image.computeHashes.mockReset().mockResolvedValue(0);
   preloadMocks.image.resetHashes.mockReset().mockResolvedValue(undefined);
   preloadMocks.image.similarGroups.mockReset().mockResolvedValue([]);
+  preloadMocks.image.similarGroupForImage.mockReset().mockResolvedValue(null);
   preloadMocks.image.similarReasons.mockReset().mockResolvedValue([]);
   preloadMocks.image.cancelScan.mockReset().mockResolvedValue(undefined);
   preloadMocks.image.quickVerify

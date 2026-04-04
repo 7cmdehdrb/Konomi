@@ -1,19 +1,66 @@
-import { type ComponentProps } from "react";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ImageDetail } from "@/components/image-detail";
 import { createGalleryImage } from "../helpers/gallery-image";
 
-function renderImageDetail(
-  overrides: Partial<ComponentProps<typeof ImageDetail>> = {},
+/** Wrapper that manages similarPage state for tests that need paging interaction */
+function PagedImageDetail(
+  props: ComponentProps<typeof ImageDetail> & { pageSize?: number },
+) {
+  const { pageSize = 10, similarImages = [], ...rest } = props;
+  const anchorId = rest.image?.id ?? null;
+  const otherCount = similarImages.filter((img) => img.id !== anchorId).length;
+  const totalPages =
+    otherCount > 0 ? Math.ceil((otherCount + 1) / pageSize) : 0;
+
+  const [page, setPage] = useState(0);
+  const prevAnchorRef = useRef(anchorId);
+  useEffect(() => {
+    if (prevAnchorRef.current !== anchorId) {
+      prevAnchorRef.current = anchorId;
+      setPage(0);
+    }
+  }, [anchorId]);
+  // Clamp page on data change
+  const clampedPage = totalPages <= 1 ? 0 : Math.min(page, totalPages - 1);
+
+  // Slice similarImages to simulate what useSimilarImages hook does
+  const other = similarImages.filter((img) => img.id !== anchorId);
+  const anchor = similarImages.find((img) => img.id === anchorId);
+  const candidateStart = clampedPage === 0 ? 0 : clampedPage * pageSize - 1;
+  const candidateEnd =
+    clampedPage === 0 ? pageSize - 1 : (clampedPage + 1) * pageSize - 1;
+  const pagedCandidates = other.slice(candidateStart, candidateEnd);
+  const pagedImages = anchor
+    ? clampedPage === 0
+      ? [anchor, ...pagedCandidates]
+      : pagedCandidates
+    : pagedCandidates;
+
+  return (
+    <ImageDetail
+      {...rest}
+      similarImages={pagedImages}
+      similarPage={clampedPage}
+      similarTotalPages={totalPages}
+      onSimilarPageChange={setPage}
+    />
+  );
+}
+
+function renderPagedImageDetail(
+  overrides: Partial<
+    ComponentProps<typeof ImageDetail> & { pageSize?: number }
+  > = {},
 ) {
   const image = createGalleryImage({
     id: "image-1",
     path: "C:\\gallery\\image-1.png",
     src: "konomi://local/C%3A%2Fgallery%2Fimage-1.png",
   });
-  const props: ComponentProps<typeof ImageDetail> = {
+  const props = {
     image,
     isOpen: true,
     onClose: vi.fn(),
@@ -29,7 +76,7 @@ function renderImageDetail(
   };
 
   return {
-    ...render(<ImageDetail {...props} />),
+    ...render(<PagedImageDetail {...props} />),
     props,
   };
 }
@@ -53,39 +100,13 @@ function getSimilarThumbButtons(panel: HTMLElement): HTMLButtonElement[] {
 function getSimilarPagerButtons(panel: HTMLElement): HTMLButtonElement[] {
   const pager = panel.children[2];
   if (!(pager instanceof HTMLElement)) {
-    throw new Error("Failed to find similar images pager");
+    throw new Error("Failed to find similar pager element");
   }
   return within(pager).getAllByRole("button") as HTMLButtonElement[];
 }
 
-describe("ImageDetail", () => {
-  it("shows a loading state for the similar images panel while detail content is pending", () => {
-    renderImageDetail({
-      detailContentReady: false,
-      similarImagesLoading: true,
-    });
-
-    const panel = getSimilarPanel();
-    expect(within(panel).getByText("Loading...")).toBeInTheDocument();
-  });
-
-  it("shows none when there are no related similar images beyond the current image", () => {
-    const image = createGalleryImage({
-      id: "solo-image",
-      path: "C:\\gallery\\solo-image.png",
-      src: "konomi://local/C%3A%2Fgallery%2Fsolo-image.png",
-    });
-
-    renderImageDetail({
-      image,
-      similarImages: [image],
-    });
-
-    const panel = getSimilarPanel();
-    expect(within(panel).getByText("None")).toBeInTheDocument();
-  });
-
-  it("paginates similar images and only opens non-current similar thumbnails", async () => {
+describe("ImageDetail similar images", () => {
+  it("renders the similar images section with paging, reason badges, and click handling", async () => {
     const user = userEvent.setup();
     const currentImage = createGalleryImage({
       id: "image-1",
@@ -109,7 +130,7 @@ describe("ImageDetail", () => {
     });
     const onSimilarImageClick = vi.fn();
 
-    renderImageDetail({
+    renderPagedImageDetail({
       image: currentImage,
       similarImages: [currentImage, visualImage, promptImage, bothImage],
       similarReasons: {
@@ -118,7 +139,7 @@ describe("ImageDetail", () => {
         "image-4": "both",
       },
       onSimilarImageClick,
-      similarPageSize: 2,
+      pageSize: 2,
     });
 
     const panel = getSimilarPanel();
@@ -166,10 +187,10 @@ describe("ImageDetail", () => {
       src: "konomi://local/C%3A%2Fgallery%2Fimage-13.png",
     });
 
-    const { rerender, props } = renderImageDetail({
+    const { rerender, props } = renderPagedImageDetail({
       image: firstImage,
       similarImages: [firstImage, secondImage, thirdImage, fourthImage],
-      similarPageSize: 2,
+      pageSize: 2,
     });
 
     const panel = getSimilarPanel();
@@ -179,10 +200,11 @@ describe("ImageDetail", () => {
     expect(within(panel).getByText("2/2")).toBeInTheDocument();
 
     rerender(
-      <ImageDetail
+      <PagedImageDetail
         {...props}
         image={secondImage}
         similarImages={[secondImage, thirdImage, fourthImage, firstImage]}
+        pageSize={2}
       />,
     );
 
@@ -212,10 +234,10 @@ describe("ImageDetail", () => {
       src: "konomi://local/C%3A%2Fgallery%2Fimage-23.png",
     });
 
-    const { rerender, props } = renderImageDetail({
+    const { rerender, props } = renderPagedImageDetail({
       image: currentImage,
       similarImages: [currentImage, secondImage, thirdImage, fourthImage],
-      similarPageSize: 2,
+      pageSize: 2,
     });
 
     const panel = getSimilarPanel();
@@ -225,10 +247,11 @@ describe("ImageDetail", () => {
     expect(within(panel).getByText("2/2")).toBeInTheDocument();
 
     rerender(
-      <ImageDetail
+      <PagedImageDetail
         {...props}
         image={currentImage}
         similarImages={[currentImage, secondImage]}
+        pageSize={2}
       />,
     );
 

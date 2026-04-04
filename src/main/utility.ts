@@ -50,6 +50,7 @@ import {
 import {
   computeAllHashes,
   deleteSimilarityCacheForImageIds,
+  getGroupForImage,
   getSimilarGroups,
   getSimilarityReasons,
   resetAllHashes,
@@ -375,6 +376,10 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
       return getSimilarGroups(threshold, jaccardThreshold, (done, total) =>
         utilitySender.send("image:similarityProgress", { done, total }),
       );
+    }
+    case "image:similarGroupForImage": {
+      const { imageId } = payload as { imageId: number };
+      return getGroupForImage(imageId);
     }
     case "image:similarReasons": {
       const { imageId, candidateImageIds, threshold, jaccardThreshold } =

@@ -19,9 +19,9 @@ export type ImageRow = {
   prompt: string;
   negativePrompt: string;
   characterPrompts: string;
-  promptTokens: string;
-  negativePromptTokens: string;
-  characterPromptTokens: string;
+  promptTokens?: string;
+  negativePromptTokens?: string;
+  characterPromptTokens?: string;
   source: string;
   model: string;
   seed: number;
@@ -39,6 +39,33 @@ export type ImageRow = {
   fileModifiedAt: Date;
   createdAt: Date;
 };
+
+// Select that excludes heavy JSON token columns for gallery list queries.
+// Token data is only needed in detail view (fetched via listByIds).
+const IMAGE_LIST_PAGE_SELECT = {
+  id: true,
+  path: true,
+  folderId: true,
+  prompt: true,
+  negativePrompt: true,
+  characterPrompts: true,
+  source: true,
+  model: true,
+  seed: true,
+  width: true,
+  height: true,
+  sampler: true,
+  steps: true,
+  cfgScale: true,
+  cfgRescale: true,
+  noiseSchedule: true,
+  varietyPlus: true,
+  isFavorite: true,
+  pHash: true,
+  fileSize: true,
+  fileModifiedAt: true,
+  createdAt: true,
+} as const satisfies Prisma.ImageSelect;
 
 export type ImageSortBy = "recent" | "oldest" | "favorites" | "name";
 export type ImageBuiltinCategory = "favorites" | "random";
@@ -167,6 +194,7 @@ class WorkerPool {
         this.callbacks.get(id)?.(null);
         this.callbacks.delete(id);
       }
+      w.terminate().catch(() => {});
       this.addWorker(workerPath);
       this.flush();
     });
@@ -516,15 +544,14 @@ const TOKEN_TEXT_FIELDS = [
   "characterPromptTokens",
 ] as const;
 
-export type ImageSearchStatSource = Pick<
-  ImageRow,
-  | "width"
-  | "height"
-  | "model"
-  | "promptTokens"
-  | "negativePromptTokens"
-  | "characterPromptTokens"
->;
+export type ImageSearchStatSource = {
+  width: number;
+  height: number;
+  model: string;
+  promptTokens: string;
+  negativePromptTokens: string;
+  characterPromptTokens: string;
+};
 
 const IMAGE_SEARCH_STAT_SOURCE_SELECT = {
   width: true,
@@ -886,30 +913,6 @@ export async function listImageSearchStatSourcesForFolder(
   })) as ImageSearchStatSource[];
 }
 
-function buildTagStatRows(
-  rows: SearchStatTokenSourceRow[],
-): Array<{ key: string; tag: string; count: number }> {
-  const counts = new Map<string, { tag: string; count: number }>();
-  for (const row of rows) {
-    for (const field of TOKEN_TEXT_FIELDS) {
-      const tokenTexts = extractTokenTexts(row[field]);
-      for (const tokenText of tokenTexts) {
-        const key = tokenText.toLowerCase();
-        const existing = counts.get(key);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          counts.set(key, { tag: tokenText, count: 1 });
-        }
-      }
-    }
-  }
-  return Array.from(counts.entries()).map(([key, value]) => ({
-    key,
-    tag: value.tag,
-    count: value.count,
-  }));
-}
 
 function normalizeSuggestLimit(value: number | undefined): number {
   if (!Number.isFinite(value)) return 8;
@@ -988,10 +991,40 @@ export async function rebuildImageSearchPresetStats(
      FROM Image
      GROUP BY model`,
   )) as SearchStatModelRow[];
-  const tokenSourceRows = (await db.image.findMany({
-    select: IMAGE_SEARCH_STAT_SOURCE_SELECT,
-  })) as SearchStatTokenSourceRow[];
-  const tagRows = buildTagStatRows(tokenSourceRows);
+  // Build tag stats in batches to avoid loading all 35K+ token JSON strings at once
+  const TAG_STAT_BATCH_SIZE = 5000;
+  const tagCounts = new Map<string, { tag: string; count: number }>();
+  let tagOffset = 0;
+  for (;;) {
+    const batch = (await db.image.findMany({
+      select: {
+        promptTokens: true,
+        negativePromptTokens: true,
+        characterPromptTokens: true,
+      },
+      skip: tagOffset,
+      take: TAG_STAT_BATCH_SIZE,
+    })) as SearchStatTokenSourceRow[];
+    if (batch.length === 0) break;
+    for (const row of batch) {
+      for (const field of TOKEN_TEXT_FIELDS) {
+        const tokenTexts = extractTokenTexts(row[field]);
+        for (const tokenText of tokenTexts) {
+          const key = tokenText.toLowerCase();
+          const existing = tagCounts.get(key);
+          if (existing) existing.count += 1;
+          else tagCounts.set(key, { tag: tokenText, count: 1 });
+        }
+      }
+    }
+    tagOffset += batch.length;
+    if (batch.length < TAG_STAT_BATCH_SIZE) break;
+  }
+  const tagRows = Array.from(tagCounts.entries()).map(([key, value]) => ({
+    key,
+    tag: value.tag,
+    count: value.count,
+  }));
   imageSearchTagStatsBackfillAttempted = true;
 
   const total = 1 + resolutionRows.length + modelRows.length + tagRows.length;
@@ -1646,6 +1679,7 @@ export async function listImagesPage(
     }
     const rows = (await db.image.findMany({
       where: { id: { in: ids } },
+      select: IMAGE_LIST_PAGE_SELECT,
     })) as unknown as ImageRow[];
     const rowMap = new Map(rows.map((row) => [row.id, row]));
     const orderedRows = ids
@@ -1663,6 +1697,7 @@ export async function listImagesPage(
   const totalCount = await db.image.count({ where });
   const rows = (await db.image.findMany({
     where,
+    select: IMAGE_LIST_PAGE_SELECT,
     orderBy: buildImageOrderBy(normalized.sortBy),
     skip: offset,
     take: normalized.pageSize,

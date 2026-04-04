@@ -3912,6 +3912,7 @@ export const GenerationView = memo(
     const [generating, setGenerating] = useState(false);
     const [resultSrc, setResultSrc] = useState<string | null>(null);
     const [pendingResultSelected, setPendingResultSelected] = useState(false);
+    const MAX_RECENT = 50;
     const [recentImages, setRecentImages] = useState<string[]>([]);
     const [recentSeeds, setRecentSeeds] = useState<Map<string, number>>(
       new Map(),
@@ -4595,11 +4596,22 @@ export const GenerationView = memo(
             setResultSrc(src);
             setPendingResultSelected(false);
           }
-          setRecentImages((prev) => [src, ...prev]);
+          setRecentImages((prev) => {
+            const next = [src, ...prev];
+            return next.length > MAX_RECENT ? next.slice(0, MAX_RECENT) : next;
+          });
           saveLastGenParams(getStoredSeedInput(current.seedInput));
           void window.image.readNaiMeta(filePath).then((meta) => {
             if (meta?.seed != null) {
-              setRecentSeeds((prev) => new Map(prev).set(src, meta.seed!));
+              setRecentSeeds((prev) => {
+                const next = new Map(prev).set(src, meta.seed!);
+                if (next.size > MAX_RECENT) {
+                  const excess = next.size - MAX_RECENT;
+                  const it = next.keys();
+                  for (let i = 0; i < excess; i++) next.delete(it.next().value!);
+                }
+                return next;
+              });
               if (lastParamsKeyRef.current === paramsKey) {
                 lastParamsKeyRef.current = buildGenerateParamsKey(
                   current,
@@ -4724,11 +4736,22 @@ export const GenerationView = memo(
             setResultSrc(src);
             setPendingResultSelected(false);
           }
-          setRecentImages((prev) => [src, ...prev]);
+          setRecentImages((prev) => {
+            const next = [src, ...prev];
+            return next.length > MAX_RECENT ? next.slice(0, MAX_RECENT) : next;
+          });
           saveLastGenParams(getStoredSeedInput(current.seedInput));
           void window.image.readNaiMeta(filePath).then((meta) => {
             if (meta?.seed != null) {
-              setRecentSeeds((prev) => new Map(prev).set(src, meta.seed!));
+              setRecentSeeds((prev) => {
+                const next = new Map(prev).set(src, meta.seed!);
+                if (next.size > MAX_RECENT) {
+                  const excess = next.size - MAX_RECENT;
+                  const it = next.keys();
+                  for (let i = 0; i < excess; i++) next.delete(it.next().value!);
+                }
+                return next;
+              });
             }
           });
         } catch (e: unknown) {

@@ -374,10 +374,13 @@ vi.mock("@/components/image-detail", () => ({
         <button type="button" onClick={onClose}>
           Close Detail
         </button>
-        {similarImages.length > 0 && (
+        {similarImages.length > 1 && (
           <button
             type="button"
-            onClick={() => onSimilarImageClick(similarImages[0])}
+            onClick={() => {
+              const other = similarImages.find((img) => img.id !== image?.id);
+              if (other) onSimilarImageClick(other);
+            }}
           >
             Open First Similar
           </button>
@@ -481,7 +484,7 @@ describe("App", () => {
       isAnalyzing: false,
       hashProgress: null,
       similarityProgress: null,
-      similarGroups: [],
+      similarGroupCount: 0,
       analyzeTimerRef: { current: null },
       pendingSimilarityRecalcRef: { current: false },
       visualThresholdRef: { current: 12 },
@@ -501,7 +504,7 @@ describe("App", () => {
       isAnalyzing: false,
       hashProgress: null,
       similarityProgress: null,
-      similarGroups: [],
+      similarGroupCount: 0,
       analyzeTimerRef: { current: null },
       pendingSimilarityRecalcRef,
       visualThresholdRef: { current: 12 },
@@ -830,13 +833,7 @@ describe("App", () => {
       isAnalyzing: false,
       hashProgress: null,
       similarityProgress: null,
-      similarGroups: [
-        {
-          id: "group-1",
-          name: "Similar Group",
-          imageIds: [11, 12],
-        },
-      ],
+      similarGroupCount: 1,
       analyzeTimerRef: { current: null },
       pendingSimilarityRecalcRef: { current: false },
       visualThresholdRef: { current: 12 },
@@ -844,6 +841,11 @@ describe("App", () => {
       suspendAutoAnalysisRef: { current: false },
       runAnalysisNow: vi.fn().mockResolvedValue(undefined),
       scheduleAnalysis: vi.fn(),
+    });
+    preloadMocks.image.similarGroupForImage.mockResolvedValue({
+      id: "group-1",
+      name: "Similar Group",
+      imageIds: [11, 12],
     });
     preloadMocks.image.listByIds.mockResolvedValue([
       createImageRow({
@@ -878,13 +880,12 @@ describe("App", () => {
         "11",
       ),
     );
+    // Page 0: anchor first, then candidates sorted by score desc
     await waitFor(() =>
       expect(screen.getByTestId("image-detail-similar-ids")).toHaveTextContent(
-        "12,11",
+        "11,12",
       ),
     );
-
-    expect(preloadMocks.image.listByIds).toHaveBeenCalledWith([11, 12]);
     expect(preloadMocks.image.similarReasons).toHaveBeenCalledWith(
       11,
       [12],
@@ -975,7 +976,7 @@ describe("App", () => {
       isAnalyzing: false,
       hashProgress: null,
       similarityProgress: null,
-      similarGroups: [],
+      similarGroupCount: 0,
       analyzeTimerRef: { current: null },
       pendingSimilarityRecalcRef: { current: false },
       visualThresholdRef: { current: 12 },
@@ -1019,7 +1020,7 @@ describe("App", () => {
       isAnalyzing: false,
       hashProgress: null,
       similarityProgress: null,
-      similarGroups: [],
+      similarGroupCount: 0,
       analyzeTimerRef: { current: null },
       pendingSimilarityRecalcRef: { current: false },
       visualThresholdRef: { current: 12 },

@@ -63,6 +63,7 @@ class PHashPool {
         this.callbacks.get(id)?.(null);
         this.callbacks.delete(id);
       }
+      w.terminate().catch(() => {});
       this.addWorker(workerPath);
       this.flush();
     });
@@ -280,6 +281,28 @@ function buildIdfMap(rows: ParsedImageRow[]): Map<string, number> {
   return result;
 }
 
+// Build IDF map directly from source rows without keeping parsed rows in memory.
+// Parses tokens temporarily per row, counts doc frequency, then discards the Sets.
+function buildIdfMapFromSourceRows(rows: SimilaritySourceRow[]): Map<string, number> {
+  const docFrequency = new Map<string, number>();
+  const seen = new Set<string>();
+  for (const row of rows) {
+    seen.clear();
+    for (const t of parseTokenSet(row.promptTokens)) seen.add(t);
+    for (const t of parseTokenSet(row.characterPromptTokens)) seen.add(t);
+    for (const t of parseTokenSet(row.negativePromptTokens)) seen.add(t);
+    for (const token of seen) {
+      docFrequency.set(token, (docFrequency.get(token) ?? 0) + 1);
+    }
+  }
+  const totalDocs = Math.max(rows.length, 1);
+  const result = new Map<string, number>();
+  for (const [token, df] of docFrequency) {
+    result.set(token, Math.log((totalDocs + 1) / (df + 1)) + 1);
+  }
+  return result;
+}
+
 function sumTokenWeights(
   tokens: Set<string>,
   idfMap: Map<string, number>,
@@ -447,15 +470,16 @@ function buildSimilarityImages(rows: SimilaritySourceRow[]): {
   return { images, idfMap };
 }
 
-// Encode SimilarityImage[] into flat typed arrays for the native addon.
-function encodeImagesForNative(
-  images: SimilarityImage[],
+// Encode source rows directly into native input without intermediate SimilarityImage[].
+// Re-parses tokens from JSON (cheap) to avoid holding 35K objects with 4 Sets each in memory.
+function encodeSourceRowsForNative(
+  rows: SimilaritySourceRow[],
   idfMap: Map<string, number>,
 ): AllPairsInput {
   const vocab = new Map<string, number>();
   for (const token of idfMap.keys()) vocab.set(token, vocab.size);
   const vsz = vocab.size;
-  const N = images.length;
+  const N = rows.length;
 
   const imageIds = new Int32Array(N);
   const pHashHex: string[] = new Array(N);
@@ -466,17 +490,54 @@ function encodeImagesForNative(
   const hasPrompt = new Uint8Array(N);
   const hasChar = new Uint8Array(N);
 
-  let tp = 0,
-    tc = 0,
-    tn = 0,
-    tx = 0;
-  for (const img of images) {
-    tp += img.prompt.size;
-    tc += img.character.size;
-    tn += img.negative.size;
-    tx += img.positive.size;
+  // First pass: count total tokens per category for typed array allocation
+  const rowTokens: Array<{
+    prompt: number[];
+    char: number[];
+    neg: number[];
+    pos: number[];
+  }> = new Array(N);
+
+  let tp = 0, tc = 0, tn = 0, tx = 0;
+  for (let i = 0; i < N; i++) {
+    const row = rows[i];
+    const prompt = parseTokenSet(row.promptTokens);
+    const character = parseTokenSet(row.characterPromptTokens);
+    const negative = parseTokenSet(row.negativePromptTokens);
+
+    imageIds[i] = row.id;
+    pHashHex[i] = row.pHash?.length === 16 ? row.pHash : "";
+    hasPrompt[i] = prompt.size > 0 ? 1 : 0;
+    hasChar[i] = character.size > 0 ? 1 : 0;
+
+    // Build positive as union
+    const positive = new Set<string>(prompt);
+    for (const t of character) positive.add(t);
+
+    // Compute weight sums
+    promptWts[i] = sumTokenWeights(prompt, idfMap);
+    charWts[i] = sumTokenWeights(character, idfMap);
+    negWts[i] = sumTokenWeights(negative, idfMap);
+    posWts[i] = sumTokenWeights(positive, idfMap);
+
+    // Convert to vocab indices for typed arrays
+    const pIds: number[] = [];
+    for (const t of prompt) { const id = vocab.get(t); if (id !== undefined) pIds.push(id); }
+    const cIds: number[] = [];
+    for (const t of character) { const id = vocab.get(t); if (id !== undefined) cIds.push(id); }
+    const nIds: number[] = [];
+    for (const t of negative) { const id = vocab.get(t); if (id !== undefined) nIds.push(id); }
+    const xIds: number[] = [];
+    for (const t of positive) { const id = vocab.get(t); if (id !== undefined) xIds.push(id); }
+
+    rowTokens[i] = { prompt: pIds, char: cIds, neg: nIds, pos: xIds };
+    tp += pIds.length;
+    tc += cIds.length;
+    tn += nIds.length;
+    tx += xIds.length;
   }
 
+  // Second pass: fill typed arrays from cached vocab indices
   const promptData = new Uint32Array(tp);
   const promptOffsets = new Int32Array(N + 1);
   const charData = new Uint32Array(tc);
@@ -486,41 +547,17 @@ function encodeImagesForNative(
   const posData = new Uint32Array(tx);
   const posOffsets = new Int32Array(N + 1);
 
-  let pi = 0,
-    ci = 0,
-    ni = 0,
-    xi = 0;
+  let pi = 0, ci = 0, ni = 0, xi = 0;
   for (let i = 0; i < N; i++) {
-    const img = images[i];
-    imageIds[i] = img.id;
-    pHashHex[i] = img.pHash?.length === 16 ? img.pHash : "";
-    promptWts[i] = img.promptWeightSum;
-    charWts[i] = img.characterWeightSum;
-    negWts[i] = img.negativeWeightSum;
-    posWts[i] = img.positiveWeightSum;
-    hasPrompt[i] = img.prompt.size > 0 ? 1 : 0;
-    hasChar[i] = img.character.size > 0 ? 1 : 0;
-
+    const tok = rowTokens[i];
     promptOffsets[i] = pi;
-    for (const t of img.prompt) {
-      const id = vocab.get(t);
-      if (id !== undefined) promptData[pi++] = id;
-    }
+    for (const id of tok.prompt) promptData[pi++] = id;
     charOffsets[i] = ci;
-    for (const t of img.character) {
-      const id = vocab.get(t);
-      if (id !== undefined) charData[ci++] = id;
-    }
+    for (const id of tok.char) charData[ci++] = id;
     negOffsets[i] = ni;
-    for (const t of img.negative) {
-      const id = vocab.get(t);
-      if (id !== undefined) negData[ni++] = id;
-    }
+    for (const id of tok.neg) negData[ni++] = id;
     posOffsets[i] = xi;
-    for (const t of img.positive) {
-      const id = vocab.get(t);
-      if (id !== undefined) posData[xi++] = id;
-    }
+    for (const id of tok.pos) posData[xi++] = id;
   }
   promptOffsets[N] = pi;
   charOffsets[N] = ci;
@@ -725,6 +762,7 @@ export async function deleteSimilarityCacheForImageIds(
 ): Promise<void> {
   const ids = normalizeImageIds(imageIds);
   if (ids.length === 0) return;
+  evictGroupCacheForImages(ids);
   await ensureSimilarityCacheTables();
   const db = getDB();
 
@@ -781,29 +819,27 @@ export async function refreshSimilarityCacheForImageIds(
     await deleteSimilarityCacheForImageIds(targetIds);
   }
 
-  let sourceRows: SimilaritySourceRow[] | null =
-    await readSimilaritySourceRows();
+  const sourceRows = await readSimilaritySourceRows();
   if (sourceRows.length < 2) return;
 
-  const { images, idfMap } = buildSimilarityImages(sourceRows);
+  // Build IDF map without keeping parsed rows in memory (~90MB savings for 35K images)
+  const idfMap = buildIdfMapFromSourceRows(sourceRows);
   const sourceCount = sourceRows.length;
-  sourceRows = null; // Release raw DB rows — parsed data now lives in `images`
-
-  const imageById = new Map(images.map((img) => [img.id, img]));
-  const existingTargetIds = targetIds.filter((id) => imageById.has(id));
+  const sourceIdSet = new Set(sourceRows.map((r) => r.id));
+  const existingTargetIds = targetIds.filter((id) => sourceIdSet.has(id));
   if (existingTargetIds.length === 0) return;
   const isFullCoverage = existingTargetIds.length === sourceCount;
 
   // ── Native fast path ─────────────────────────────────────────────────────
-  // Uses C++ inverted token index + pHash pass, significantly faster than
-  // the O(N²) JS loop. Supports both full and partial (target-filtered) mode.
+  // Encodes directly from source rows → native typed arrays, skipping the
+  // intermediate SimilarityImage[] that would hold 35K objects with 4 Sets each.
   {
-    const nativeInput = encodeImagesForNative(images, idfMap);
+    const nativeInput = encodeSourceRowsForNative(sourceRows, idfMap);
     if (!isFullCoverage) {
       const targetIdSet = new Set(existingTargetIds);
       const indices: number[] = [];
-      for (let i = 0; i < images.length; i++) {
-        if (targetIdSet.has(images[i].id)) indices.push(i);
+      for (let i = 0; i < sourceRows.length; i++) {
+        if (targetIdSet.has(sourceRows[i].id)) indices.push(i);
       }
       nativeInput.targetIndices = new Uint32Array(indices);
     }
@@ -815,14 +851,18 @@ export async function refreshSimilarityCacheForImageIds(
     }
   }
 
-  // ── JS fallback ───────────────────────────────────────────────────────────
+  // ── JS fallback (lazy build — only when native addon unavailable) ────────
+
+  const { images: fallbackImages, idfMap: fallbackIdfMap } =
+    buildSimilarityImages(sourceRows);
+  const imageById = new Map(fallbackImages.map((img) => [img.id, img]));
 
   const targetIdSet = new Set(existingTargetIds);
   const pending: SimilarityCacheRow[] = [];
   const FLUSH_INTERVAL = 10000;
   const totalPairs = existingTargetIds.reduce((count, targetId) => {
     let next = count;
-    for (const candidate of images) {
+    for (const candidate of fallbackImages) {
       if (candidate.id === targetId) continue;
       if (targetIdSet.has(candidate.id) && candidate.id < targetId) continue;
       next += 1;
@@ -834,11 +874,11 @@ export async function refreshSimilarityCacheForImageIds(
   let processedPairs = 0;
   for (const targetId of existingTargetIds) {
     const target = imageById.get(targetId)!;
-    for (const candidate of images) {
+    for (const candidate of fallbackImages) {
       if (candidate.id === targetId) continue;
       if (targetIdSet.has(candidate.id) && candidate.id < targetId) continue;
 
-      const row = computePairCacheRow(target, candidate, idfMap);
+      const row = computePairCacheRow(target, candidate, fallbackIdfMap);
       if (row) pending.push(row);
 
       processedPairs++;
@@ -1044,7 +1084,7 @@ export async function getSimilarGroups(
     else groupMap.set(root, [indexToId[i]]);
   }
 
-  return [...groupMap.values()]
+  const groups = [...groupMap.values()]
     .filter((ids) => ids.length >= 2)
     .sort((a, b) => b.length - a.length)
     .map((imageIds, i) => ({
@@ -1052,6 +1092,27 @@ export async function getSimilarGroups(
       name: `유사 그룹 ${i + 1}`,
       imageIds,
     }));
+
+  // Cache for getGroupForImage lookups
+  cachedImageToGroup.clear();
+  for (const group of groups) {
+    for (const id of group.imageIds) {
+      cachedImageToGroup.set(id, group);
+    }
+  }
+
+  return groups;
+}
+
+// Cached imageId → SimilarGroup lookup (populated by getSimilarGroups)
+const cachedImageToGroup = new Map<number, SimilarGroup>();
+
+export function getGroupForImage(imageId: number): SimilarGroup | null {
+  return cachedImageToGroup.get(imageId) ?? null;
+}
+
+export function evictGroupCacheForImages(imageIds: number[]): void {
+  for (const id of imageIds) cachedImageToGroup.delete(id);
 }
 
 export async function getSimilarityReasons(
