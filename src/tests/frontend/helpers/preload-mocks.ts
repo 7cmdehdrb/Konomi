@@ -106,6 +106,7 @@ export const preloadMocks = {
     onMigrationProgress: dbMigrationProgress.subscribe,
   },
   appInfo: {
+    isDevMode: vi.fn().mockResolvedValue(false),
     get: vi.fn().mockResolvedValue({
       appName: "Konomi",
       appVersion: "0.1.0",
@@ -123,6 +124,7 @@ export const preloadMocks = {
     onUpdateAvailable: appUpdateAvailable.subscribe,
     onUpdateDownloaded: appUpdateDownloaded.subscribe,
     onUpdateProgress: vi.fn().mockReturnValue(() => {}),
+    onUtilityReset: vi.fn().mockReturnValue(() => {}),
   },
   promptBuilder: {
     listCategories: vi.fn().mockResolvedValue([]),
@@ -139,7 +141,15 @@ export const preloadMocks = {
     renameGroup: vi.fn(),
     createToken: vi.fn(),
     deleteToken: vi.fn(),
+    reorderGroups: vi.fn(),
     reorderTokens: vi.fn(),
+    searchTags: vi.fn().mockResolvedValue({
+      rows: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    }),
   },
   image: {
     readNaiMeta: vi.fn().mockResolvedValue(null),
@@ -183,6 +193,12 @@ export const preloadMocks = {
     onDupCheckProgress: imageDupCheckProgress.subscribe,
     onScanPhase: imageScanPhase.subscribe,
     onRescanMetadataProgress: imageRescanMetadataProgress.subscribe,
+    quickVerify: vi.fn().mockResolvedValue({
+      changedFolderIds: [],
+      unchangedFolderIds: [],
+    }),
+    rescanMetadata: vi.fn().mockResolvedValue(0),
+    rescanImageMetadata: vi.fn().mockResolvedValue(0),
   },
   dialog: {
     selectDirectory: vi.fn().mockResolvedValue(null),
@@ -197,6 +213,7 @@ export const preloadMocks = {
     rename: vi.fn(),
     revealInExplorer: vi.fn().mockResolvedValue(undefined),
     listSubdirectories: vi.fn().mockResolvedValue([]),
+    listSubdirectoriesByPath: vi.fn().mockResolvedValue([]),
   },
   nai: {
     validateApiKey: vi.fn().mockResolvedValue({ valid: true, tier: "Scroll" }),
@@ -221,6 +238,7 @@ export const preloadMocks = {
     imageIds: vi.fn().mockResolvedValue([]),
     forImage: vi.fn().mockResolvedValue([]),
     commonForImages: vi.fn().mockResolvedValue([]),
+    setColor: vi.fn().mockResolvedValue(undefined),
   },
 };
 
@@ -243,6 +261,7 @@ export function resetPreloadMocks(): void {
   preloadEvents.appInfo.updateAvailable.reset();
   preloadEvents.appInfo.updateDownloaded.reset();
 
+  preloadMocks.appInfo.isDevMode.mockReset().mockResolvedValue(false);
   preloadMocks.appInfo.get.mockReset().mockResolvedValue({
     appName: "Konomi",
     appVersion: "0.1.0",
@@ -260,6 +279,7 @@ export function resetPreloadMocks(): void {
   preloadMocks.appInfo.checkForUpdates.mockReset().mockResolvedValue(undefined);
   preloadMocks.appInfo.installUpdate.mockReset().mockResolvedValue(undefined);
   preloadMocks.appInfo.onUpdateProgress.mockReset().mockReturnValue(() => {});
+  preloadMocks.appInfo.onUtilityReset.mockReset().mockReturnValue(() => {});
 
   preloadMocks.promptBuilder.listCategories.mockReset().mockResolvedValue([]);
   preloadMocks.promptBuilder.suggestTags.mockReset().mockResolvedValue({
@@ -275,7 +295,15 @@ export function resetPreloadMocks(): void {
   preloadMocks.promptBuilder.renameGroup.mockReset();
   preloadMocks.promptBuilder.createToken.mockReset();
   preloadMocks.promptBuilder.deleteToken.mockReset();
+  preloadMocks.promptBuilder.reorderGroups.mockReset();
   preloadMocks.promptBuilder.reorderTokens.mockReset();
+  preloadMocks.promptBuilder.searchTags.mockReset().mockResolvedValue({
+    rows: [],
+    totalCount: 0,
+    page: 1,
+    pageSize: 20,
+    totalPages: 1,
+  });
 
   preloadMocks.image.readNaiMeta.mockReset().mockResolvedValue(null);
   preloadMocks.image.readMetaFromBuffer.mockReset().mockResolvedValue(null);
@@ -309,6 +337,11 @@ export function resetPreloadMocks(): void {
   preloadMocks.image.similarGroups.mockReset().mockResolvedValue([]);
   preloadMocks.image.similarReasons.mockReset().mockResolvedValue([]);
   preloadMocks.image.cancelScan.mockReset().mockResolvedValue(undefined);
+  preloadMocks.image.quickVerify
+    .mockReset()
+    .mockResolvedValue({ changedFolderIds: [], unchangedFolderIds: [] });
+  preloadMocks.image.rescanMetadata.mockReset().mockResolvedValue(0);
+  preloadMocks.image.rescanImageMetadata.mockReset().mockResolvedValue(0);
 
   preloadMocks.db.runMigrations.mockReset().mockResolvedValue(undefined);
 
@@ -326,6 +359,7 @@ export function resetPreloadMocks(): void {
   preloadMocks.folder.rename.mockReset();
   preloadMocks.folder.revealInExplorer.mockReset().mockResolvedValue(undefined);
   preloadMocks.folder.listSubdirectories.mockReset().mockResolvedValue([]);
+  preloadMocks.folder.listSubdirectoriesByPath.mockReset().mockResolvedValue([]);
 
   preloadMocks.nai.validateApiKey.mockReset().mockResolvedValue({
     valid: true,
@@ -356,6 +390,7 @@ export function resetPreloadMocks(): void {
   preloadMocks.category.imageIds.mockReset().mockResolvedValue([]);
   preloadMocks.category.forImage.mockReset().mockResolvedValue([]);
   preloadMocks.category.commonForImages.mockReset().mockResolvedValue([]);
+  preloadMocks.category.setColor.mockReset().mockResolvedValue(undefined);
 
   installPreloadMocks();
 }

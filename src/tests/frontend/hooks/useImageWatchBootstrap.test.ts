@@ -139,13 +139,22 @@ describe("useImageWatchBootstrap", () => {
       }),
     );
 
+    // Wait for the initial async chain (quickVerify → runScan → scheduleAnalysis)
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // scheduleAnalysis called once during initial setup (runScan().then)
+    const setupCallCount = scheduleAnalysis.mock.calls.length;
+
     // First batch during scan → immediate refresh
     act(() => {
       preloadEvents.image.batch.emit([createImageRow({ id: 1 })]);
     });
 
     expect(schedulePageRefresh).toHaveBeenCalledWith(0);
-    expect(scheduleAnalysis).toHaveBeenCalledTimes(1);
+    // Batch handler during scan does not call scheduleAnalysis
+    expect(scheduleAnalysis).toHaveBeenCalledTimes(setupCallCount);
     expect(scheduleSearchStatsRefresh).not.toHaveBeenCalled();
 
     schedulePageRefresh.mockClear();

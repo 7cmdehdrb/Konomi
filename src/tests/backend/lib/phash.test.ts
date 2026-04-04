@@ -328,7 +328,7 @@ describe("phash", () => {
       },
       ...Array.from({ length: candidateCount }, (_, index) => ({
         name: `batch-candidate-${index + 1}`,
-        hash: "0000000000000001",
+        hash: "ffffffffffffffff",
         promptTokens: ["sunset", "beach", "golden hour"],
       })),
     ]);
@@ -337,13 +337,51 @@ describe("phash", () => {
       throw new Error("Failed to seed batched similarity reason images");
     }
 
-    const { refreshSimilarityCacheForImageIds, getSimilarityReasons } =
-      await import("../../../main/lib/phash");
+    const { getSimilarityReasons } = await import("../../../main/lib/phash");
 
-    await refreshSimilarityCacheForImageIds([anchorImage.id]);
+    // Directly seed the similarity cache tables and rows so the test
+    // exercises getSimilarityReasons batching without relying on the
+    // native addon's inverted-index pass (which skips all-common tokens).
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "ImageSimilarityCache" (
+        imageAId INTEGER NOT NULL,
+        imageBId INTEGER NOT NULL,
+        phashDistance INTEGER,
+        textScore REAL NOT NULL DEFAULT 0,
+        updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (imageAId, imageBId),
+        CHECK (imageAId < imageBId)
+      )
+    `);
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "ImageSimilarityCacheMeta" (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        primedAt DATETIME
+      )
+    `);
     await db.$executeRawUnsafe(
-      "UPDATE ImageSimilarityCacheMeta SET primedAt = datetime('now') WHERE id = 1",
+      `INSERT OR IGNORE INTO "ImageSimilarityCacheMeta" (id, primedAt) VALUES (1, datetime('now'))`,
     );
+
+    // Insert cache rows: anchor (lower id) paired with each candidate (higher id)
+    const BATCH = 500;
+    for (let i = 0; i < candidateImages.length; i += BATCH) {
+      const chunk = candidateImages.slice(i, i + BATCH);
+      const placeholders = chunk
+        .map(() => `(?, ?, NULL, 0.8, datetime('now'))`)
+        .join(",");
+      const params: number[] = [];
+      for (const c of chunk) {
+        params.push(
+          Math.min(anchorImage.id, c.id),
+          Math.max(anchorImage.id, c.id),
+        );
+      }
+      await db.$executeRawUnsafe(
+        `INSERT INTO "ImageSimilarityCache" (imageAId, imageBId, phashDistance, textScore, updatedAt) VALUES ${placeholders}`,
+        ...params,
+      );
+    }
 
     const reasons = await getSimilarityReasons(
       anchorImage.id,
