@@ -771,12 +771,15 @@ function computePairCacheRow(
 export async function refreshSimilarityCacheForImageIds(
   imageIds: number[],
   onProgress?: (done: number, total: number) => void,
+  options?: { preserveExisting?: boolean },
 ): Promise<void> {
   const targetIds = normalizeImageIds(imageIds);
   if (targetIds.length === 0) return;
 
   await ensureSimilarityCacheTables();
-  await deleteSimilarityCacheForImageIds(targetIds);
+  if (!options?.preserveExisting) {
+    await deleteSimilarityCacheForImageIds(targetIds);
+  }
 
   let sourceRows: SimilaritySourceRow[] | null =
     await readSimilaritySourceRows();
@@ -871,6 +874,7 @@ async function ensureSimilarityCachePrimed(
     await refreshSimilarityCacheForImageIds(
       ids.map((row) => row.id),
       onProgress,
+      { preserveExisting: true },
     );
   }
   await markSimilarityCachePrimed();
@@ -897,14 +901,36 @@ export async function computeAllHashes(
   let done = 0;
   let lastProgressAt = 0;
   let success = false;
-  const updates: Array<{ id: number; hash: string }> = [];
+  const pending: Array<{ id: number; hash: string }> = [];
+  const allUpdatedIds: number[] = [];
+  let flushing = false;
+
+  async function flushPending(): Promise<void> {
+    if (flushing || pending.length < HASH_WRITE_BATCH_SIZE) return;
+    flushing = true;
+    try {
+      while (pending.length >= HASH_WRITE_BATCH_SIZE) {
+        const chunk = pending.splice(0, HASH_WRITE_BATCH_SIZE);
+        allUpdatedIds.push(...chunk.map((c) => c.id));
+        await db.$transaction(
+          chunk.map(({ id, hash }) =>
+            db.image.updateMany({ where: { id }, data: { pHash: hash } }),
+          ),
+        );
+      }
+    } finally {
+      flushing = false;
+    }
+  }
+
   console.info(`[phash.computeAllHashes] start targets=${total}`);
   try {
     await withConcurrency(images, POOL_SIZE * 2, async (img) => {
       try {
         const hash = await pHashPool.run(img.path);
         if (hash) {
-          updates.push({ id: img.id, hash });
+          pending.push({ id: img.id, hash });
+          await flushPending();
         }
       } catch {
         // Skip unreadable files.
@@ -920,19 +946,19 @@ export async function computeAllHashes(
       }
     });
 
-    for (let i = 0; i < updates.length; i += HASH_WRITE_BATCH_SIZE) {
-      const chunk = updates.slice(i, i + HASH_WRITE_BATCH_SIZE);
+    if (pending.length > 0) {
+      const chunk = pending.splice(0);
+      allUpdatedIds.push(...chunk.map((c) => c.id));
       await db.$transaction(
         chunk.map(({ id, hash }) =>
           db.image.updateMany({ where: { id }, data: { pHash: hash } }),
         ),
       );
-      await yieldToEventLoop();
     }
 
-    if (updates.length > 0) {
+    if (allUpdatedIds.length > 0) {
       await refreshSimilarityCacheForImageIds(
-        updates.map((update) => update.id),
+        allUpdatedIds,
         onSimilarityProgress,
       );
     }
