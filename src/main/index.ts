@@ -128,7 +128,7 @@ function pathEquals(left: string, right: string): boolean {
   return normalizedLeft === normalizedRight;
 }
 
-function shouldOpenDevTools(): boolean {
+function isDevMode(): boolean {
   if (!app.isPackaged) {
     return true;
   }
@@ -220,7 +220,7 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
 
-  if (shouldOpenDevTools()) {
+  if (isDevMode()) {
     log.info("Opening DevTools", {
       packaged: app.isPackaged,
       argv: process.argv,

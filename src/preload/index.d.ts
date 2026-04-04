@@ -244,6 +244,7 @@ export type AppInfo = {
 declare global {
   interface Window {
     appInfo: {
+      isDevMode: () => Promise<boolean>;
       get: () => Promise<AppInfo>;
       getLocale: () => Promise<string>;
       getDbFileSize: () => Promise<number | null>;

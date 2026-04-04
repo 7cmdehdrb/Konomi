@@ -16,7 +16,16 @@ async function assertManagedImagePath(filePath: string): Promise<void> {
   throw new Error("허용되지 않은 이미지 경로입니다.");
 }
 
+function isDevMode(): boolean {
+  if (!app.isPackaged) {
+    return true;
+  }
+  const launchArgs = process.argv.slice(1);
+  return launchArgs.some((arg) => arg === "-d" || arg === "--dev");
+}
+
 export function registerIpcHandlers(): void {
+  ipcMain.handle("app:isDevMode", () => isDevMode());
   ipcMain.handle("app:getInfo", () => ({
     appName: app.getName(),
     appVersion: app.getVersion(),

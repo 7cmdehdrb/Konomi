@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("appInfo", {
+  isDevMode: () => ipcRenderer.invoke("app:isDevMode"),
   get: () => ipcRenderer.invoke("app:getInfo"),
   getLocale: () => ipcRenderer.invoke("app:getLocale"),
   getDbFileSize: () => ipcRenderer.invoke("app:getDbFileSize"),

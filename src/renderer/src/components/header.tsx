@@ -9,6 +9,7 @@ import {
   Images,
   Tags,
   SlidersHorizontal,
+  Bug,
 } from "lucide-react";
 import infoImageUrl from "@/assets/images/info.webp";
 import { Button } from "@/components/ui/button";
@@ -102,7 +103,7 @@ function getActiveSearchToken(
   };
 }
 
-type ActivePanel = "gallery" | "generator" | "settings" | "tagSearch";
+type ActivePanel = "gallery" | "generator" | "settings" | "tagSearch" | "debug";
 interface HeaderProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
@@ -117,6 +118,7 @@ interface HeaderProps {
   availableResolutions: { width: number; height: number }[];
   availableModels: string[];
   onStartTour?: () => void;
+  devMode?: boolean;
 }
 
 interface HeaderSearchSectionProps {
@@ -511,12 +513,14 @@ interface HeaderPanelButtonsProps {
   activePanel: ActivePanel;
   onPanelChange: (panel: ActivePanel) => void;
   onStartTour?: () => void;
+  devMode?: boolean;
 }
 
 const HeaderPanelButtons = memo(function HeaderPanelButtons({
   activePanel,
   onPanelChange,
   onStartTour,
+  devMode,
 }: HeaderPanelButtonsProps) {
   const { t } = useTranslation();
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -604,6 +608,26 @@ const HeaderPanelButtons = memo(function HeaderPanelButtons({
             </TooltipTrigger>
             <TooltipContent>{t("header.tooltip.settings")}</TooltipContent>
           </Tooltip>
+          {devMode && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "hover:text-foreground",
+                    activePanel === "debug"
+                      ? "text-foreground"
+                      : "text-muted-foreground",
+                  )}
+                  onClick={() => handlePanelClick("debug")}
+                >
+                  <Bug className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Debug</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -762,6 +786,7 @@ export const Header = memo(function Header({
   availableResolutions,
   availableModels,
   onStartTour,
+  devMode,
 }: HeaderProps) {
   const { t } = useTranslation();
   const {
@@ -892,6 +917,7 @@ export const Header = memo(function Header({
           activePanel={activePanel}
           onPanelChange={onPanelChange}
           onStartTour={onStartTour}
+          devMode={devMode}
         />
       </div>
     </header>

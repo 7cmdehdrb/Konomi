@@ -22,6 +22,7 @@ import {
 import { FeatureTour } from "@/components/feature-tour";
 import { InitialLanguageScreen } from "@/components/initial-language-screen";
 import { AnnouncementModal } from "@/components/announcement-modal";
+import { DebugView } from "@/components/debug-view";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +63,10 @@ export default function App({ initialFolderCount = null, initialFolders = null }
   const { settings, updateSettings, resetSettings } = useSettings();
   const { t } = useTranslation();
   const { outputFolder, setOutputFolder } = useNaiGenSettings();
+  const [devMode, setDevMode] = useState(false);
+  useEffect(() => {
+    void window.appInfo.isDevMode().then(setDevMode);
+  }, []);
   const {
     folders,
     selectedFolderIds,
@@ -473,6 +478,7 @@ export default function App({ initialFolderCount = null, initialFolders = null }
         availableResolutions={availableResolutions}
         availableModels={availableModels}
         onStartTour={handleStartTour}
+        devMode={devMode}
       />
 
       <div className="relative flex flex-1 overflow-hidden">
@@ -546,10 +552,18 @@ export default function App({ initialFolderCount = null, initialFolders = null }
               onClose={() => void handlePanelChange("gallery")}
             />
           )}
-          {/* ImageGallery - 항상 마운트하고 설정/태그검색 화면에서만 숨김 */}
+          {activePanel === "debug" && devMode && (
+            <DebugView
+              onClose={() => void handlePanelChange("gallery")}
+              onRunAnalysis={runAnalysisNow}
+              scanning={scanning}
+              isAnalyzing={isAnalyzing}
+            />
+          )}
+          {/* ImageGallery - 항상 마운트하고 설정/태그검색/디버그 화면에서만 숨김 */}
           <div
             className={
-              activePanel === "settings" || activePanel === "tagSearch"
+              activePanel === "settings" || activePanel === "tagSearch" || activePanel === "debug"
                 ? "hidden"
                 : "flex flex-1 overflow-hidden"
             }
