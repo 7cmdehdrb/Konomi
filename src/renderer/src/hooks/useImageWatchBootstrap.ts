@@ -34,8 +34,9 @@ export function useImageWatchBootstrap({
   useEffect(() => {
     log.info("App mounted: loading initial data, starting watchers, and running initial scan");
     void loadSearchPresetStats();
-    void runScan({ detectDuplicates: true, refreshPage: true, refreshSearchPresetStats: true });
-    scheduleAnalysis(0);
+    void runScan({ detectDuplicates: true, refreshPage: true, refreshSearchPresetStats: true }).then(() => {
+      scheduleAnalysis(0);
+    });
     let scanFirstBatchFired = false;
     let lastScanRefreshAt = 0;
     let lastSeenScanStart = 0;
