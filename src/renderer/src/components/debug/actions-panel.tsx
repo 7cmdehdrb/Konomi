@@ -102,6 +102,30 @@ export const ActionsPanel = memo(function ActionsPanel({
     }
   }, [onRunAnalysis, pushLog]);
 
+  const handleForceFullAnalysis = useCallback(async () => {
+    setRunningAction("forceAnalysis");
+    pushLog("Resetting all hashes...");
+    const start = performance.now();
+    try {
+      await window.image.resetHashes();
+      pushLog("Hashes reset. Starting full analysis pipeline...");
+      const success = await onRunAnalysis();
+      const elapsed = Math.round(performance.now() - start);
+      if (success) {
+        pushLog(`Force analysis complete (${elapsed}ms)`, "success");
+      } else {
+        pushLog(`Force analysis aborted (scan active or failed) (${elapsed}ms)`, "error");
+      }
+    } catch (e) {
+      pushLog(
+        `Force analysis failed: ${e instanceof Error ? e.message : String(e)}`,
+        "error",
+      );
+    } finally {
+      setRunningAction(null);
+    }
+  }, [onRunAnalysis, pushLog]);
+
   const handleRescanMetadata = useCallback(async () => {
     setRunningAction("rescan");
     pushLog("Rescanning metadata...");
@@ -156,6 +180,14 @@ export const ActionsPanel = memo(function ActionsPanel({
           running={runningAction === "similarity"}
           disabled={busy}
           onClick={() => void handleSimilarGroups()}
+        />
+        <ActionButton
+          label="Force Full Analysis"
+          description="Reset all hashes, then recompute pHash + similarity from scratch"
+          running={runningAction === "forceAnalysis"}
+          disabled={busy}
+          destructive
+          onClick={() => void handleForceFullAnalysis()}
         />
         <ActionButton
           label="Rescan Metadata"
@@ -217,18 +249,21 @@ function ActionButton({
   description,
   running,
   disabled,
+  destructive,
   onClick,
 }: {
   label: string;
   description: string;
   running: boolean;
   disabled: boolean;
+  destructive?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       className={cn(
-        "flex flex-col items-start gap-1 rounded-md border border-border p-3 text-left transition-colors",
+        "flex flex-col items-start gap-1 rounded-md border p-3 text-left transition-colors",
+        destructive ? "border-destructive/40" : "border-border",
         disabled
           ? "opacity-50 cursor-not-allowed"
           : "hover:bg-accent/50 cursor-pointer",
@@ -236,7 +271,10 @@ function ActionButton({
       disabled={disabled}
       onClick={onClick}
     >
-      <div className="flex items-center gap-1.5 text-xs font-medium">
+      <div className={cn(
+        "flex items-center gap-1.5 text-xs font-medium",
+        destructive && "text-destructive",
+      )}>
         {running ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : (
