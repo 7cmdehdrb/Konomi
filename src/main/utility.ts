@@ -28,7 +28,6 @@ import {
   listIgnoredDuplicatePaths,
   clearIgnoredDuplicatePaths,
   ensureIgnoredDuplicatePathsLoaded,
-  refreshImagePrompts,
   rescanAllMetadata,
   rescanImageMetadata,
 } from "./lib/image";
@@ -385,13 +384,6 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
     }
     case "image:resetHashes":
       return resetAllHashes();
-
-    case "image:refreshPrompts":
-      return refreshImagePrompts(
-        (done, total) =>
-          utilitySender.send("image:refreshPromptsProgress", { done, total }),
-        (images) => utilitySender.send("image:batch", images),
-      );
 
     case "image:rescanMetadata":
       return rescanAllMetadata(

@@ -747,14 +747,6 @@ const en = {
       loadError: "An error occurred while loading the ignored list.",
       clearError: "An error occurred while clearing the ignored list.",
     },
-    promptRefresh: {
-      title: "Refresh Prompt Info",
-      description: "Re-analyze images whose metadata could not be read.",
-      refreshing: "Refreshing...",
-      action: "Refresh",
-      success: "Updated prompt info for {{count}} images.",
-      noTargets: "No images to refresh.",
-    },
     metadataRescan: {
       title: "Rescan Metadata",
       description: "Re-read metadata from all image files.",

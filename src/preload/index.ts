@@ -143,8 +143,6 @@ contextBridge.exposeInMainWorld("image", {
   delete: (path: string) => ipcRenderer.invoke("image:delete", path),
   computeHashes: () => ipcRenderer.invoke("image:computeHashes"),
   resetHashes: () => ipcRenderer.invoke("image:resetHashes"),
-  refreshPrompts: (): Promise<number> =>
-    ipcRenderer.invoke("image:refreshPrompts"),
   rescanMetadata: (): Promise<number> =>
     ipcRenderer.invoke("image:rescanMetadata"),
   rescanImageMetadata: (paths: string[]): Promise<number> =>
@@ -217,17 +215,6 @@ contextBridge.exposeInMainWorld("image", {
     ipcRenderer.on("image:searchStatsProgress", handler);
     return () =>
       ipcRenderer.removeListener("image:searchStatsProgress", handler);
-  },
-  onRefreshPromptsProgress: (
-    cb: (data: { done: number; total: number }) => void,
-  ) => {
-    const handler = (
-      _: Electron.IpcRendererEvent,
-      data: { done: number; total: number },
-    ) => cb(data);
-    ipcRenderer.on("image:refreshPromptsProgress", handler);
-    return () =>
-      ipcRenderer.removeListener("image:refreshPromptsProgress", handler);
   },
   onRescanMetadataProgress: (
     cb: (data: { done: number; total: number }) => void,

@@ -362,9 +362,6 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("image:resetHashes", () =>
     bridge.request("image:resetHashes", undefined),
   );
-  ipcMain.handle("image:refreshPrompts", () =>
-    bridge.request("image:refreshPrompts", undefined),
-  );
   ipcMain.handle("image:rescanMetadata", () =>
     bridge.request("image:rescanMetadata", undefined),
   );

@@ -308,7 +308,6 @@ declare global {
       delete: (path: string) => Promise<void>;
       computeHashes: () => Promise<number>;
       resetHashes: () => Promise<void>;
-      refreshPrompts: () => Promise<number>;
       rescanMetadata: () => Promise<number>;
       rescanImageMetadata: (paths: string[]) => Promise<number>;
       onRescanMetadataProgress: (
@@ -340,9 +339,6 @@ declare global {
         cb: (data: { done: number; total: number }) => void,
       ) => () => void;
       onSearchStatsProgress: (
-        cb: (data: { done: number; total: number }) => void,
-      ) => () => void;
-      onRefreshPromptsProgress: (
         cb: (data: { done: number; total: number }) => void,
       ) => () => void;
       cancelScan: () => Promise<void>;
