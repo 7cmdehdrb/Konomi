@@ -31,9 +31,9 @@ interface SettingsViewProps {
   onReset: (keys?: (keyof Settings)[]) => void;
   onClose: () => void;
   onResetHashes: () => Promise<void>;
-  onRefreshPrompts: () => Promise<number>;
   onRescanMetadata: () => Promise<number>;
   isAnalyzing: boolean;
+  scanning: boolean;
   bindings: Keybindings;
   onUpdateBinding: (id: KeyBindingId, binding: KeyBinding) => void;
   onResetBinding: (id: KeyBindingId) => void;
@@ -153,9 +153,9 @@ export function SettingsView({
   onReset,
   onClose,
   onResetHashes,
-  onRefreshPrompts,
   onRescanMetadata,
   isAnalyzing,
+  scanning,
   bindings,
   onUpdateBinding,
   onResetBinding,
@@ -163,7 +163,6 @@ export function SettingsView({
 }: SettingsViewProps) {
   const { t } = useTranslation();
   const [resetting, setResetting] = useState(false);
-  const [refreshingPrompts, setRefreshingPrompts] = useState(false);
   const [rescanning, setRescanning] = useState(false);
   const [rescanProgress, setRescanProgress] = useState<{
     done: number;
@@ -248,20 +247,6 @@ export function SettingsView({
     setResetting(true);
     await onResetHashes();
     setResetting(false);
-  };
-
-  const handleRefreshPrompts = async () => {
-    setRefreshingPrompts(true);
-    try {
-      const count = await onRefreshPrompts();
-      if (count > 0) {
-        toast.success(t("settings.promptRefresh.success", { count }));
-      } else {
-        toast.info(t("settings.promptRefresh.noTargets"));
-      }
-    } finally {
-      setRefreshingPrompts(false);
-    }
   };
 
   useEffect(() => {
@@ -783,26 +768,6 @@ export function SettingsView({
 
         <div className="space-y-2">
           <h2 className="text-sm font-medium text-foreground select-none">
-            {t("settings.promptRefresh.title")}
-          </h2>
-          <p className="text-xs text-muted-foreground select-none">
-            {t("settings.promptRefresh.description")}
-          </p>
-          <Button
-            variant="secondary"
-            onClick={handleRefreshPrompts}
-            disabled={refreshingPrompts}
-          >
-            {refreshingPrompts
-              ? t("settings.promptRefresh.refreshing")
-              : t("settings.promptRefresh.action")}
-          </Button>
-        </div>
-
-        <Separator className="bg-border" />
-
-        <div className="space-y-2">
-          <h2 className="text-sm font-medium text-foreground select-none">
             {t("settings.metadataRescan.title")}
           </h2>
           <p className="text-xs text-muted-foreground select-none">
@@ -811,7 +776,7 @@ export function SettingsView({
           <Button
             variant="secondary"
             onClick={handleRescanMetadata}
-            disabled={rescanning}
+            disabled={rescanning || scanning}
           >
             {rescanning && rescanProgress
               ? t("settings.metadataRescan.rescanning", rescanProgress)
@@ -842,7 +807,7 @@ export function SettingsView({
           <Button
             variant="secondary"
             onClick={handleReset}
-            disabled={resetting || isAnalyzing}
+            disabled={resetting || isAnalyzing || scanning}
           >
             {resetting
               ? t("settings.hashReset.resetting")

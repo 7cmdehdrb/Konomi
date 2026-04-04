@@ -530,6 +530,7 @@ export default function App({ initialFolderCount = null }: AppProps) {
               onResetHashes={handleResetHashes}
               onRescanMetadata={() => window.image.rescanMetadata()}
               isAnalyzing={isAnalyzing}
+              scanning={scanning}
               bindings={bindings}
               onUpdateBinding={updateBinding}
               onResetBinding={resetBinding}
