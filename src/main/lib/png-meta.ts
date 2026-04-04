@@ -1,5 +1,13 @@
 import { inflateSync } from "zlib";
 
+function decodeTextValue(buf: Buffer): string {
+  // PNG tEXt spec says Latin-1, but many tools (e.g. Midjourney) write UTF-8.
+  // Try UTF-8 first; fall back to Latin-1 only when replacement chars appear.
+  const utf8 = buf.toString("utf8");
+  if (!utf8.includes("\uFFFD")) return utf8;
+  return buf.toString("latin1");
+}
+
 function readPlainTextChunk(
   data: Buffer,
 ): { key: string; value: string } | null {
@@ -7,7 +15,7 @@ function readPlainTextChunk(
   if (nullIdx === -1) return null;
   return {
     key: data.subarray(0, nullIdx).toString("latin1"),
-    value: data.subarray(nullIdx + 1).toString("latin1"),
+    value: decodeTextValue(data.subarray(nullIdx + 1)),
   };
 }
 
@@ -20,7 +28,7 @@ function readCompressedTextChunk(
   try {
     return {
       key: data.subarray(0, nullIdx).toString("latin1"),
-      value: inflateSync(data.subarray(nullIdx + 2)).toString("latin1"),
+      value: decodeTextValue(inflateSync(data.subarray(nullIdx + 2))),
     };
   } catch {
     return null;
