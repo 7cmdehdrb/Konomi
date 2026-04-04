@@ -1,5 +1,7 @@
 # Konomi
 
+![Test](https://github.com/blackwaterbread/Konomi/actions/workflows/test.yml/badge.svg)
+
 [English](https://github.com/blackwaterbread/Konomi/blob/main/README.md)
 
 <img width="1798" height="1040" alt="Image" src="https://github.com/user-attachments/assets/165d6f54-aa34-4d59-baa8-5e5f52882075" />
