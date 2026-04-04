@@ -11,6 +11,8 @@ import type { ImageListQuery } from "@preload/index.d";
 import i18n from "@/lib/i18n";
 import { parseTokens, rowToImageData } from "@/lib/image-utils";
 
+const EMPTY_IMAGES: ImageData[] = [];
+
 export function useGalleryImages(
   listBaseQuery: Omit<ImageListQuery, "page">,
   options?: { enabled?: boolean },
@@ -52,7 +54,7 @@ export function useGalleryImages(
     setIsLoading(true);
     // Eagerly unmount old cards so Blink can release decoded bitmaps
     // before new images arrive (batched with isLoading → single render).
-    setImages([]);
+    setImages(EMPTY_IMAGES);
     try {
       const result = await window.image.listPage({
         ...listBaseQuery,
