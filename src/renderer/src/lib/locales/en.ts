@@ -62,6 +62,7 @@ const en = {
       checkingDuplicates: "Checking for duplicates...",
       scanFolders: "Scanning {{names}} {{done}}/{{total}}",
       scanImages: "Scanning images {{done}}/{{total}}",
+      rescan: "Rescanning metadata {{done}}/{{total}}",
       hashes: "Computing hashes {{done}}/{{total}}",
       similarity: "Computing similarity...",
       searchStats: "Search stats {{done}}/{{total}}",

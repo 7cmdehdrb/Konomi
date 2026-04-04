@@ -10,6 +10,7 @@ interface UseImageWatchBootstrapOptions {
   scheduleSearchStatsRefresh: (delay?: number) => void;
   scanningRef: MutableRefObject<boolean>;
   scanStartCountRef: MutableRefObject<number>;
+  rescanningRef: MutableRefObject<boolean>;
   scheduleAnalysis: (delay?: number) => void;
   schedulePageRefresh: (delay?: number) => void;
   runScan: (options?: {
@@ -25,6 +26,7 @@ export function useImageWatchBootstrap({
   scheduleSearchStatsRefresh,
   scanningRef,
   scanStartCountRef,
+  rescanningRef,
   scheduleAnalysis,
   schedulePageRefresh,
   runScan,
@@ -48,6 +50,8 @@ export function useImageWatchBootstrap({
 
     const offBatch = window.image.onBatch((rows: ImageRow[]) => {
       if (rows.length === 0) return;
+      // 메타데이터 재스캔: 기존 이미지의 메타데이터만 변경되므로 갤러리 갱신 불필요
+      if (rescanningRef.current) return;
       if (scanningRef.current) {
         // 새 스캔이 시작되었으면 첫 배치 플래그를 리셋하여 즉시 갱신을 보장한다
         if (scanStartCountRef.current !== lastSeenScanStart) {
@@ -120,6 +124,7 @@ export function useImageWatchBootstrap({
     runScan,
     scanningRef,
     scanStartCountRef,
+    rescanningRef,
     scheduleAnalysis,
     schedulePageRefresh,
     scheduleSearchStatsRefresh,

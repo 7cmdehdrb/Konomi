@@ -1,5 +1,6 @@
 import {
   useState,
+  useEffect,
   useMemo,
   useCallback,
   useRef,
@@ -280,11 +281,21 @@ export default function App({ initialFolderCount = null }: AppProps) {
       visualThresholdRef,
       promptThresholdRef,
     });
+  const rescanningRef = useRef(false);
+
+  useEffect(() => {
+    return window.image.onRescanMetadataProgress((data) => {
+      rescanningRef.current =
+        data.total > 0 && data.done < data.total;
+    });
+  }, []);
+
   useImageWatchBootstrap({
     loadSearchPresetStats,
     scheduleSearchStatsRefresh,
     scanningRef,
     scanStartCountRef,
+    rescanningRef,
     scheduleAnalysis,
     schedulePageRefresh,
     runScan,
@@ -514,7 +525,12 @@ export default function App({ initialFolderCount = null }: AppProps) {
               onReset={handleSettingsReset}
               onClose={() => void handlePanelChange("gallery")}
               onResetHashes={handleResetHashes}
-              onRescanMetadata={() => window.image.rescanMetadata()}
+              onRescanMetadata={async () => {
+                const count = await window.image.rescanMetadata();
+                schedulePageRefresh(0);
+                void loadSearchPresetStats();
+                return count;
+              }}
               isAnalyzing={isAnalyzing}
               scanning={scanning}
               bindings={bindings}

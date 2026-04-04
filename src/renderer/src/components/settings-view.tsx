@@ -162,12 +162,20 @@ export function SettingsView({
   onResetAllBindings,
 }: SettingsViewProps) {
   const { t } = useTranslation();
-  const [resetting, setResetting] = useState(false);
-  const [rescanning, setRescanning] = useState(false);
   const [rescanProgress, setRescanProgress] = useState<{
     done: number;
     total: number;
   } | null>(null);
+  useEffect(() => {
+    return window.image.onRescanMetadataProgress((data) => {
+      setRescanProgress(data);
+    });
+  }, []);
+  const [resetting, setResetting] = useState(false);
+  const rescanning =
+    !!rescanProgress &&
+    rescanProgress.total > 0 &&
+    rescanProgress.done < rescanProgress.total;
   const [ignoredDuplicates, setIgnoredDuplicates] = useState<string[]>([]);
   const [ignoredLoading, setIgnoredLoading] = useState(false);
   const [ignoredClearing, setIgnoredClearing] = useState(false);
@@ -249,23 +257,12 @@ export function SettingsView({
     setResetting(false);
   };
 
-  useEffect(() => {
-    return window.image.onRescanMetadataProgress(setRescanProgress);
-  }, []);
-
   const handleRescanMetadata = async () => {
-    setRescanning(true);
-    setRescanProgress(null);
-    try {
-      const count = await onRescanMetadata();
-      if (count > 0) {
-        toast.success(t("settings.metadataRescan.success", { count }));
-      } else {
-        toast.info(t("settings.metadataRescan.noChanges"));
-      }
-    } finally {
-      setRescanning(false);
-      setRescanProgress(null);
+    const count = await onRescanMetadata();
+    if (count > 0) {
+      toast.success(t("settings.metadataRescan.success", { count }));
+    } else {
+      toast.info(t("settings.metadataRescan.noChanges"));
     }
   };
 

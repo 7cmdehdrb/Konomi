@@ -647,6 +647,9 @@ function useHeaderProgress({
     useState<ProgressData | null>(null);
   const [searchStatsProgress, setSearchStatsProgress] =
     useState<ProgressData | null>(null);
+  const [rescanProgress, setRescanProgress] = useState<ProgressData | null>(
+    null,
+  );
   const searchStatsClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -700,6 +703,9 @@ function useHeaderProgress({
         }
       },
     );
+    const offRescanProgress = window.image.onRescanMetadataProgress((data) => {
+      setRescanProgress(data);
+    });
 
     return () => {
       offScanProgress();
@@ -708,6 +714,7 @@ function useHeaderProgress({
       offHashProgress();
       offSimilarityProgress();
       offSearchStatsProgress();
+      offRescanProgress();
       if (searchStatsClearTimerRef.current) {
         clearTimeout(searchStatsClearTimerRef.current);
       }
@@ -737,6 +744,7 @@ function useHeaderProgress({
     hashProgress,
     similarityProgress,
     searchStatsProgress,
+    rescanProgress,
   };
 }
 
@@ -763,6 +771,7 @@ export const Header = memo(function Header({
     hashProgress,
     similarityProgress,
     searchStatsProgress,
+    rescanProgress,
   } = useHeaderProgress({ scanning, isAnalyzing });
   const hasSearchStatsProgress =
     !!searchStatsProgress &&
@@ -772,8 +781,13 @@ export const Header = memo(function Header({
     !!similarityProgress &&
     similarityProgress.total > 0 &&
     similarityProgress.done < similarityProgress.total;
+  const hasRescanProgress =
+    !!rescanProgress &&
+    rescanProgress.total > 0 &&
+    rescanProgress.done < rescanProgress.total;
   const activeProgress =
     scanProgress ??
+    (hasRescanProgress ? rescanProgress : null) ??
     hashProgress ??
     (hasSimilarityProgress ? similarityProgress : null) ??
     (hasSearchStatsProgress ? searchStatsProgress : null);
@@ -806,6 +820,7 @@ export const Header = memo(function Header({
           {(scanning ||
             checkingDuplicates ||
             isAnalyzing ||
+            hasRescanProgress ||
             hasSimilarityProgress ||
             hasSearchStatsProgress) && (
             <div className="absolute left-full ml-3 flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
@@ -832,21 +847,26 @@ export const Header = memo(function Header({
                               total: scanProgress.total,
                             });
                       })()
-                    : hashProgress && hashProgress.total > 0
-                      ? t("header.progress.hashes", {
-                          done: hashProgress.done,
-                          total: hashProgress.total,
+                    : hasRescanProgress && rescanProgress
+                      ? t("header.progress.rescan", {
+                          done: rescanProgress.done,
+                          total: rescanProgress.total,
                         })
-                      : hasSimilarityProgress && similarityProgress
-                        ? t("header.progress.similarity")
-                        : hasSearchStatsProgress && searchStatsProgress
-                          ? t("header.progress.searchStats", {
-                              done: searchStatsProgress.done,
-                              total: searchStatsProgress.total,
-                            })
-                          : scanPhase
-                            ? t(`header.progress.phase.${scanPhase}`)
-                            : t("header.progress.working")}
+                      : hashProgress && hashProgress.total > 0
+                        ? t("header.progress.hashes", {
+                            done: hashProgress.done,
+                            total: hashProgress.total,
+                          })
+                        : hasSimilarityProgress && similarityProgress
+                          ? t("header.progress.similarity")
+                          : hasSearchStatsProgress && searchStatsProgress
+                            ? t("header.progress.searchStats", {
+                                done: searchStatsProgress.done,
+                                total: searchStatsProgress.total,
+                              })
+                            : scanPhase
+                              ? t(`header.progress.phase.${scanPhase}`)
+                              : t("header.progress.working")}
               </span>
               {scanning && onCancelScan && (
                 <button

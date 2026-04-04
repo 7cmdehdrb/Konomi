@@ -21,9 +21,10 @@ describe("useImageWatchBootstrap", () => {
       useImageWatchBootstrap({
         loadSearchPresetStats: vi.fn().mockResolvedValue(undefined),
         scheduleSearchStatsRefresh: vi.fn(),
-        handleSearchStatsProgress: vi.fn(),
+
         scanningRef: { current: false },
         scanStartCountRef: { current: 0 },
+        rescanningRef: { current: false },
         scheduleAnalysis: unmountScheduleAnalysis,
         schedulePageRefresh: vi.fn(),
         runScan: vi.fn().mockResolvedValue(true),
@@ -55,9 +56,10 @@ describe("useImageWatchBootstrap", () => {
       useImageWatchBootstrap({
         loadSearchPresetStats: vi.fn().mockResolvedValue(undefined),
         scheduleSearchStatsRefresh: vi.fn(),
-        handleSearchStatsProgress: vi.fn(),
+
         scanningRef: { current: false },
         scanStartCountRef: { current: 0 },
+        rescanningRef: { current: false },
         scheduleAnalysis: vi.fn(),
         schedulePageRefresh: vi.fn(),
         runScan: vi.fn().mockResolvedValue(true),
@@ -81,10 +83,9 @@ describe("useImageWatchBootstrap", () => {
     unmount();
   });
 
-  it("boots watchers and reacts to batch, removed, and stats progress events", async () => {
+  it("boots watchers and reacts to batch and removed events", async () => {
     const loadSearchPresetStats = vi.fn().mockResolvedValue(undefined);
     const scheduleSearchStatsRefresh = vi.fn();
-    const handleSearchStatsProgress = vi.fn();
     const scheduleAnalysis = vi.fn();
     const schedulePageRefresh = vi.fn();
     const scanningRef = { current: false };
@@ -93,9 +94,9 @@ describe("useImageWatchBootstrap", () => {
       useImageWatchBootstrap({
         loadSearchPresetStats,
         scheduleSearchStatsRefresh,
-        handleSearchStatsProgress,
         scanningRef,
         scanStartCountRef: { current: 0 },
+        rescanningRef: { current: false },
         scheduleAnalysis,
         schedulePageRefresh,
         runScan: vi.fn().mockResolvedValue(true),
@@ -110,7 +111,6 @@ describe("useImageWatchBootstrap", () => {
       preloadEvents.image.batch.emit([]);
       preloadEvents.image.batch.emit([createImageRow({ id: 1 })]);
       preloadEvents.image.removed.emit([11, 12]);
-      preloadEvents.image.searchStatsProgress.emit({ done: 2, total: 3 });
     });
 
     expect(schedulePageRefresh).toHaveBeenCalledWith(150);
@@ -118,10 +118,6 @@ describe("useImageWatchBootstrap", () => {
     expect(scheduleAnalysis).toHaveBeenCalledTimes(3);
     expect(scheduleSearchStatsRefresh).toHaveBeenCalledWith(180);
     expect(scheduleSearchStatsRefresh).toHaveBeenCalledWith(120);
-    expect(handleSearchStatsProgress).toHaveBeenCalledWith({
-      done: 2,
-      total: 3,
-    });
   });
 
   it("uses immediate refresh for the first scan batch, then slower for subsequent", async () => {
@@ -133,9 +129,10 @@ describe("useImageWatchBootstrap", () => {
       useImageWatchBootstrap({
         loadSearchPresetStats: vi.fn().mockResolvedValue(undefined),
         scheduleSearchStatsRefresh,
-        handleSearchStatsProgress: vi.fn(),
+
         scanningRef: { current: true },
         scanStartCountRef: { current: 1 },
+        rescanningRef: { current: false },
         scheduleAnalysis,
         schedulePageRefresh,
         runScan: vi.fn().mockResolvedValue(true),
