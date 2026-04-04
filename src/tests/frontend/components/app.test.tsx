@@ -227,7 +227,7 @@ vi.mock("@/components/image-gallery", () => ({
         </button>
         <button
           type="button"
-          onClick={() => actions.onBulkChangeCategory?.([image, secondImage])}
+          onClick={() => actions.onBulkChangeCategory?.([image.id, secondImage.id])}
         >
           Gallery Bulk Change Category
         </button>
@@ -315,18 +315,19 @@ vi.mock("@/components/settings-view", () => ({
 vi.mock("@/components/category-dialog", () => ({
   CategoryDialog: ({
     image,
-    images,
+    bulkImageIds,
     onClose,
   }: {
     image?: ImageData | null;
-    images?: ImageData[] | null;
+    bulkImageIds?: number[] | null;
+    categories?: unknown[];
     onClose: () => void;
   }) =>
-    image || images ? (
+    image || (bulkImageIds?.length ?? 0) > 0 ? (
       <div data-testid="category-dialog">
         <div data-testid="category-dialog-single">{image?.id ?? "none"}</div>
         <div data-testid="category-dialog-bulk">
-          {images?.map((entry) => entry.id).join(",") ?? "none"}
+          {bulkImageIds?.join(",") ?? "none"}
         </div>
         <button type="button" onClick={onClose}>
           Close Category Dialog

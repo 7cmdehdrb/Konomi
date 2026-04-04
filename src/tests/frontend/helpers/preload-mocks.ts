@@ -57,6 +57,11 @@ const imageDupCheckProgress = createEventChannel<{
   done: number;
   total: number;
 }>();
+const imageScanPhase = createEventChannel<{ phase: string }>();
+const imageRescanMetadataProgress = createEventChannel<{
+  done: number;
+  total: number;
+}>();
 const dbMigrationProgress = createEventChannel<{
   done: number;
   total: number;
@@ -83,6 +88,8 @@ export const preloadEvents = {
     searchStatsProgress: imageSearchStatsProgress,
     scanFolder: imageScanFolder,
     dupCheckProgress: imageDupCheckProgress,
+    scanPhase: imageScanPhase,
+    rescanMetadataProgress: imageRescanMetadataProgress,
   },
   nai: {
     generatePreview: naiGeneratePreview,
@@ -174,6 +181,8 @@ export const preloadMocks = {
     cancelScan: vi.fn().mockResolvedValue(undefined),
     onScanFolder: imageScanFolder.subscribe,
     onDupCheckProgress: imageDupCheckProgress.subscribe,
+    onScanPhase: imageScanPhase.subscribe,
+    onRescanMetadataProgress: imageRescanMetadataProgress.subscribe,
   },
   dialog: {
     selectDirectory: vi.fn().mockResolvedValue(null),

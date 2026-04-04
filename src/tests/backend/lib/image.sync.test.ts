@@ -21,6 +21,8 @@ vi.mock("../../../main/lib/scanner", () => ({
       yield item;
     }
   },
+  countPngFiles: async (folderPath: string) =>
+    (syncState.scanResults.get(folderPath) ?? []).length,
   withConcurrency: async <T>(
     items: T[] | AsyncIterable<T>,
     _concurrency: number,

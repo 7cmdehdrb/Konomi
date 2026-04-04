@@ -52,6 +52,30 @@ vi.mock("@/components/ui/context-menu", () => ({
     </button>
   ),
   ContextMenuSeparator: () => <hr />,
+  ContextMenuSub: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  ContextMenuSubTrigger: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  ContextMenuSubContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  ContextMenuItemPrimitive: ({
+    children,
+    asChild,
+    onSelect,
+    ...props
+  }: {
+    children: React.ReactNode;
+    asChild?: boolean;
+    onSelect?: () => void;
+    [key: string]: unknown;
+  }) => (
+    <button type="button" onClick={() => onSelect?.()} {...props}>
+      {children}
+    </button>
+  ),
 }));
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
