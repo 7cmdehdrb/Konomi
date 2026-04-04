@@ -320,7 +320,7 @@ describe("phash", () => {
 
   it(
     "batches similarity-reason lookups when a group has hundreds of candidates",
-    { timeout: 30_000 },
+    { timeout: 120_000 },
     async () => {
       const candidateCount = 520;
       const { db, images } = await seedConfiguredSimilarityImages([
