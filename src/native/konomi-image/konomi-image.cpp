@@ -787,6 +787,95 @@ Napi::Value ComputeAllPairs(const Napi::CallbackInfo& info) {
   return result;
 }
 
+// ── resizePng ────────────────────────────────────────────────────────────────
+//
+// resizePng(buf: Buffer, maxWidth: number): { data: Buffer, width: number, height: number } | null
+//
+// Decodes a PNG buffer, bilinear-resizes so that width <= maxWidth (preserving
+// aspect ratio), and returns raw BGRA pixel data suitable for Electron
+// nativeImage.createFromBitmap().  Returns null if the image is already
+// small enough or if decoding fails.
+
+static void bilinear_resize_to_bgra(
+    const uint8_t* src, int srcW, int srcH, int srcCh,
+    uint8_t* dst, int dstW, int dstH) {
+  const double xRatio = (double)srcW / dstW;
+  const double yRatio = (double)srcH / dstH;
+
+  for (int y = 0; y < dstH; y++) {
+    const double srcY  = y * yRatio;
+    const int    y0    = (int)srcY;
+    const int    y1    = (y0 + 1 < srcH) ? y0 + 1 : y0;
+    const double yFrac = srcY - y0;
+
+    for (int x = 0; x < dstW; x++) {
+      const double srcX  = x * xRatio;
+      const int    x0    = (int)srcX;
+      const int    x1    = (x0 + 1 < srcW) ? x0 + 1 : x0;
+      const double xFrac = srcX - x0;
+
+      const double w00 = (1.0 - xFrac) * (1.0 - yFrac);
+      const double w10 = xFrac * (1.0 - yFrac);
+      const double w01 = (1.0 - xFrac) * yFrac;
+      const double w11 = xFrac * yFrac;
+
+      const uint8_t* p00 = src + ((size_t)y0 * srcW + x0) * srcCh;
+      const uint8_t* p10 = src + ((size_t)y0 * srcW + x1) * srcCh;
+      const uint8_t* p01 = src + ((size_t)y1 * srcW + x0) * srcCh;
+      const uint8_t* p11 = src + ((size_t)y1 * srcW + x1) * srcCh;
+
+      double r = p00[0]*w00 + p10[0]*w10 + p01[0]*w01 + p11[0]*w11;
+      double g = p00[1]*w00 + p10[1]*w10 + p01[1]*w01 + p11[1]*w11;
+      double b = p00[2]*w00 + p10[2]*w10 + p01[2]*w01 + p11[2]*w11;
+      double a = 255.0;
+      if (srcCh == 4) {
+        a = p00[3]*w00 + p10[3]*w10 + p01[3]*w01 + p11[3]*w11;
+      }
+
+      // Output as BGRA for Electron nativeImage.createFromBitmap
+      uint8_t* out = dst + ((size_t)y * dstW + x) * 4;
+      out[0] = (uint8_t)(b + 0.5);
+      out[1] = (uint8_t)(g + 0.5);
+      out[2] = (uint8_t)(r + 0.5);
+      out[3] = (uint8_t)(a + 0.5);
+    }
+  }
+}
+
+Napi::Value ResizePng(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 2 || !info[0].IsBuffer() || !info[1].IsNumber()) {
+    Napi::TypeError::New(env, "Expected (Buffer, number)").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  auto buf = info[0].As<Napi::Buffer<uint8_t>>();
+  int maxWidth = info[1].As<Napi::Number>().Int32Value();
+  if (maxWidth <= 0) return env.Null();
+
+  DecodedPng decoded = decode_png(buf.Data(), buf.ByteLength(), true);
+  if (!decoded.ok) return env.Null();
+  if (decoded.width <= maxWidth) return env.Null(); // already small enough
+
+  int dstW = maxWidth;
+  int dstH = (int)((double)decoded.height * maxWidth / decoded.width + 0.5);
+  if (dstH < 1) dstH = 1;
+
+  size_t outSize = (size_t)dstW * dstH * 4;
+  auto outBuf = Napi::Buffer<uint8_t>::New(env, outSize);
+
+  bilinear_resize_to_bgra(
+    decoded.pixels.data(), decoded.width, decoded.height, decoded.channels,
+    outBuf.Data(), dstW, dstH);
+
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("data",   outBuf);
+  result.Set("width",  Napi::Number::New(env, dstW));
+  result.Set("height", Napi::Number::New(env, dstH));
+  return result;
+}
+
 // ── Module init ───────────────────────────────────────────────────────────────
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
@@ -794,6 +883,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("computePHash",    Napi::Function::New(env, ComputePHash));
   exports.Set("extractNaiLsb",   Napi::Function::New(env, ExtractNaiLsb));
   exports.Set("computeAllPairs", Napi::Function::New(env, ComputeAllPairs));
+  exports.Set("resizePng",       Napi::Function::New(env, ResizePng));
   return exports;
 }
 

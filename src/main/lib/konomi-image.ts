@@ -39,10 +39,17 @@ export interface AllPairsResult {
   textScores: Float64Array;
 }
 
+interface ResizePngResult {
+  data: Buffer;
+  width: number;
+  height: number;
+}
+
 interface KonomiImageNative {
   computePHash(buf: Buffer): string | null;
   extractNaiLsb(buf: Buffer): NaiLsbResult | null;
   computeAllPairs(input: AllPairsInput): AllPairsResult;
+  resizePng(buf: Buffer, maxWidth: number): ResizePngResult | null;
 }
 
 let _native: KonomiImageNative | null | undefined = undefined;
@@ -89,3 +96,17 @@ export function computeAllPairs(input: AllPairsInput): AllPairsResult | null {
 export function extractNaiLsb(buf: Buffer): NaiLsbResult | null {
   return getNative()?.extractNaiLsb(buf) ?? null;
 }
+
+/**
+ * Decode a PNG buffer, bilinear-resize to maxWidth (keeping aspect ratio),
+ * and return raw BGRA pixel data + dimensions.
+ * Returns null if native addon unavailable, decode fails, or image already <= maxWidth.
+ */
+export function resizePng(
+  buf: Buffer,
+  maxWidth: number,
+): ResizePngResult | null {
+  return getNative()?.resizePng(buf, maxWidth) ?? null;
+}
+
+export type { ResizePngResult };

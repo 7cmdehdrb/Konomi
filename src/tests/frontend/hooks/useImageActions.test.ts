@@ -12,7 +12,8 @@ function createImage(
   return {
     id,
     path: `C:\\gallery\\${id}.png`,
-    src: `konomi://local/C%3A%2Fgallery%2F${id}.png`,
+    src: `konomi://local/C%3A%2Fgallery%2F${id}.png?w=400`,
+    fullSrc: `konomi://local/C%3A%2Fgallery%2F${id}.png`,
     prompt: `prompt ${id}`,
     negativePrompt: "",
     characterPrompts: [],

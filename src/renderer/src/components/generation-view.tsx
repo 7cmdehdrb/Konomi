@@ -782,6 +782,15 @@ function RecentThumb({
   onClick: () => void;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Release decoded bitmap on unmount
+  useEffect(
+    () => () => {
+      if (imgRef.current) imgRef.current.src = "";
+    },
+    [],
+  );
 
   const handleDragStart = (e: React.DragEvent) => {
     const path = decodeURIComponent(new URL(src).pathname.slice(1));
@@ -807,6 +816,7 @@ function RecentThumb({
         </div>
       )}
       <img
+        ref={imgRef}
         src={src}
         alt=""
         className="w-full h-full object-cover"

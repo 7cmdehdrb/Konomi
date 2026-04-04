@@ -28,6 +28,8 @@ export interface ImageData {
   id: string;
   path: string;
   src: string;
+  /** Full-resolution URL (no resize). Used by detail view. */
+  fullSrc: string;
   prompt: string;
   negativePrompt?: string;
   characterPrompts: string[];

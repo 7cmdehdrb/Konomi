@@ -62,6 +62,15 @@ const SimilarThumb = memo(function SimilarThumb({
 }) {
   const { t } = useTranslation();
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Release decoded bitmap on unmount
+  useEffect(
+    () => () => {
+      if (imgRef.current) imgRef.current.src = "";
+    },
+    [],
+  );
 
   const thumb = (
     <button
@@ -79,6 +88,7 @@ const SimilarThumb = memo(function SimilarThumb({
         </div>
       )}
       <img
+        ref={imgRef}
         src={img.src}
         alt=""
         className={cn(
@@ -607,6 +617,15 @@ export function ImageDetail({
   // similarPage state is now managed by useSimilarImages hook via onSimilarPageChange
   const [anchorId, setAnchorId] = useState<string | null>(null);
   const panelOpenedRef = useRef(false);
+  const detailImgRef = useRef<HTMLImageElement>(null);
+
+  // Release decoded bitmap on unmount
+  useEffect(
+    () => () => {
+      if (detailImgRef.current) detailImgRef.current.src = "";
+    },
+    [],
+  );
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [workflowRaw, setWorkflowRaw] = useState<Record<
     string,
@@ -656,6 +675,8 @@ export function ImageDetail({
 
   // On first open: defer src via double RAF so the panel shell paints first.
   // On subsequent navigation (panel already open): swap src directly to avoid flickering.
+  // Detail view always loads full-resolution image (not gallery thumbnail).
+  const fullSrc = image?.fullSrc ?? image?.src ?? null;
   useEffect(() => {
     if (!isOpen) {
       panelOpenedRef.current = false;
@@ -670,7 +691,7 @@ export function ImageDetail({
       let cancelled = false;
       const id = requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          if (!cancelled) setDisplaySrc(image?.src ?? null);
+          if (!cancelled) setDisplaySrc(fullSrc);
         });
       });
       return () => {
@@ -678,10 +699,10 @@ export function ImageDetail({
         cancelAnimationFrame(id);
       };
     } else {
-      setDisplaySrc(image?.src ?? null);
+      setDisplaySrc(fullSrc);
       return;
     }
-  }, [image?.src, isOpen]);
+  }, [fullSrc, isOpen]);
 
   // Page reset on image change and page clamping are handled by useSimilarImages hook
 
@@ -852,6 +873,7 @@ export function ImageDetail({
             >
               {displaySrc && (
                 <img
+                  ref={detailImgRef}
                   key={image.id}
                   src={displaySrc}
                   alt=""
@@ -875,6 +897,7 @@ export function ImageDetail({
               >
                 {displaySrc && (
                   <img
+                    ref={detailImgRef}
                     key={image.id}
                     src={displaySrc}
                     alt=""

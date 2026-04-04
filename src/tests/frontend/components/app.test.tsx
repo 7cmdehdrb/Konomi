@@ -163,7 +163,8 @@ vi.mock("@/components/image-gallery", () => ({
     const image: ImageData = {
       id: "11",
       path: "C:\\gallery\\sample.png",
-      src: "konomi://local/C%3A%2Fgallery%2Fsample.png",
+      src: "konomi://local/C%3A%2Fgallery%2Fsample.png?w=400",
+      fullSrc: "konomi://local/C%3A%2Fgallery%2Fsample.png",
       prompt: "sample prompt",
       negativePrompt: "",
       characterPrompts: [],

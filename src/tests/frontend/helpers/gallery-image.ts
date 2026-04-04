@@ -9,7 +9,8 @@ export function createGalleryImage(
   return {
     id: "image-1",
     path: "C:\\gallery\\image-1.png",
-    src: "konomi://local/C%3A%2Fgallery%2Fimage-1.png",
+    src: "konomi://local/C%3A%2Fgallery%2Fimage-1.png?w=400",
+    fullSrc: "konomi://local/C%3A%2Fgallery%2Fimage-1.png",
     prompt: "sample prompt",
     negativePrompt: "",
     characterPrompts: [],

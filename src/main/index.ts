@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, protocol } from "electron";
+import { app, shell, BrowserWindow, nativeImage, protocol } from "electron";
 import { dirname, join } from "path";
 import fs from "fs";
 import { Readable } from "stream";
@@ -240,7 +240,11 @@ app
     bridge.start(join(__dirname, "utility.js"));
 
     // Serve local image files via konomi:// protocol
-    // URL format: konomi://local/<encodeURIComponent(forwardSlashPath)>
+    // URL format: konomi://local/<encodeURIComponent(forwardSlashPath)>[?w=<maxWidth>]
+    // When ?w is provided, returns a resized JPEG thumbnail to reduce decoded bitmap memory.
+    const thumbCacheDir = join(app.getPath("userData"), "thumb-cache");
+    fs.mkdirSync(thumbCacheDir, { recursive: true });
+
     protocol.handle("konomi", async (request) => {
       try {
         const parsedUrl = new URL(request.url);
@@ -260,6 +264,12 @@ app
           });
           return new Response(null, { status: 403 });
         }
+
+        const maxWidth = parseInt(parsedUrl.searchParams.get("w") ?? "", 10);
+        if (maxWidth > 0) {
+          return await serveThumb(filePath, maxWidth, thumbCacheDir);
+        }
+
         const data = Readable.toWeb(
           fs.createReadStream(filePath),
         ) as unknown as BodyInit;
@@ -302,3 +312,95 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   bridge.stop();
 });
+
+// ---------------------------------------------------------------------------
+// Thumbnail generation for gallery grid — reduces decoded bitmap memory ~12x.
+// Uses native C++ addon (libpng decode + bilinear resize) when available,
+// falls back to Electron nativeImage.  Caches to disk.
+// ---------------------------------------------------------------------------
+import crypto from "crypto";
+import { resizePng } from "./lib/konomi-image";
+import { resizeWebp } from "./lib/webp-alpha";
+
+async function serveThumb(
+  filePath: string,
+  maxWidth: number,
+  cacheDir: string,
+): Promise<Response> {
+  // Deterministic cache key from path + maxWidth + file mtime
+  const stat = await fs.promises.stat(filePath);
+  const hash = crypto
+    .createHash("md5")
+    .update(`${filePath}\0${maxWidth}\0${stat.mtimeMs}`)
+    .digest("hex");
+  const cachePath = join(cacheDir, `${hash}.jpg`);
+
+  // Serve from disk cache if available
+  try {
+    await fs.promises.access(cachePath);
+    const data = Readable.toWeb(
+      fs.createReadStream(cachePath),
+    ) as unknown as BodyInit;
+    return new Response(data, {
+      headers: { "content-type": "image/jpeg", "cache-control": "no-store" },
+    });
+  } catch {
+    // Cache miss — generate thumbnail
+  }
+
+  const jpegBuffer = await generateThumb(filePath, maxWidth);
+  if (!jpegBuffer) {
+    // Image already small enough — serve original
+    const data = Readable.toWeb(
+      fs.createReadStream(filePath),
+    ) as unknown as BodyInit;
+    return new Response(data, {
+      headers: {
+        "content-type": getImageContentType(filePath),
+        "cache-control": "no-store",
+      },
+    });
+  }
+
+  // Write cache asynchronously — don't block response
+  fs.promises.writeFile(cachePath, jpegBuffer).catch(() => {});
+
+  return new Response(new Uint8Array(jpegBuffer), {
+    headers: { "content-type": "image/jpeg", "cache-control": "no-store" },
+  });
+}
+
+/** Try native C++ resize first, fall back to Electron nativeImage. */
+function generateThumb(
+  filePath: string,
+  maxWidth: number,
+): Promise<Buffer | null> {
+  // Fast path: native addon (C++ decode + bilinear resize)
+  try {
+    const buf = fs.readFileSync(filePath);
+    const ext = filePath.toLowerCase();
+    const result = ext.endsWith(".webp")
+      ? resizeWebp(buf, maxWidth)
+      : resizePng(buf, maxWidth);
+    if (result) {
+      // result.data is raw BGRA pixels → convert to JPEG via nativeImage
+      const bmp = nativeImage.createFromBitmap(result.data, {
+        width: result.width,
+        height: result.height,
+      });
+      return Promise.resolve(bmp.toJPEG(80));
+    }
+    // null = image already small enough
+    return Promise.resolve(null);
+  } catch {
+    // Native addon unavailable or decode failed — fall back
+  }
+
+  // Slow path: Electron nativeImage (full decode + resize)
+  const img = nativeImage.createFromPath(filePath);
+  const size = img.getSize();
+  if (size.width <= maxWidth) return Promise.resolve(null);
+
+  const resized = img.resize({ width: maxWidth, quality: "good" });
+  return Promise.resolve(resized.toJPEG(80));
+}

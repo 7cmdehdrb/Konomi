@@ -12,9 +12,16 @@ interface WebpRgbResult {
   height: number;
 }
 
+interface WebpResizeResult {
+  data: Buffer;
+  width: number;
+  height: number;
+}
+
 interface WebpAlphaNative {
   decodeAlpha(buf: Buffer): WebpAlphaResult | null;
   decodeRgb(buf: Buffer): WebpRgbResult | null;
+  resizeWebp(buf: Buffer, maxWidth: number): WebpResizeResult | null;
 }
 
 let _native: WebpAlphaNative | null | undefined = undefined;
@@ -42,3 +49,17 @@ export function decodeWebpAlpha(buf: Buffer): WebpAlphaResult | null {
 export function decodeWebpRgb(buf: Buffer): WebpRgbResult | null {
   return getNative()?.decodeRgb(buf) ?? null;
 }
+
+/**
+ * Decode a WebP buffer, bilinear-resize to maxWidth (keeping aspect ratio),
+ * and return raw BGRA pixel data + dimensions.
+ * Returns null if native addon unavailable, decode fails, or image already <= maxWidth.
+ */
+export function resizeWebp(
+  buf: Buffer,
+  maxWidth: number,
+): WebpResizeResult | null {
+  return getNative()?.resizeWebp(buf, maxWidth) ?? null;
+}
+
+export type { WebpResizeResult };
