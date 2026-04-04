@@ -39,8 +39,37 @@ Napi::Value DecodeAlpha(const Napi::CallbackInfo& info) {
   return result;
 }
 
+// decodeRgb(buf: Buffer): { rgb: Buffer, width: number, height: number } | null
+Napi::Value DecodeRgb(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 1 || !info[0].IsBuffer()) {
+    Napi::TypeError::New(env, "Expected Buffer").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  auto input = info[0].As<Napi::Buffer<uint8_t>>();
+  const uint8_t* data = input.Data();
+  size_t dataSize = input.ByteLength();
+
+  int width = 0, height = 0;
+  uint8_t* rgb = WebPDecodeRGB(data, dataSize, &width, &height);
+  if (!rgb) return env.Null();
+
+  size_t total = (size_t)width * (size_t)height * 3;
+  auto rgbBuf = Napi::Buffer<uint8_t>::Copy(env, rgb, total);
+  WebPFree(rgb);
+
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("width", Napi::Number::New(env, width));
+  result.Set("height", Napi::Number::New(env, height));
+  result.Set("rgb", rgbBuf);
+  return result;
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("decodeAlpha", Napi::Function::New(env, DecodeAlpha));
+  exports.Set("decodeRgb", Napi::Function::New(env, DecodeRgb));
   return exports;
 }
 

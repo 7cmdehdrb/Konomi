@@ -2,6 +2,7 @@ import { parentPort } from "worker_threads";
 import { readFileSync } from "fs";
 import { inflateSync } from "zlib";
 import { computePHash as computePHashNative } from "./konomi-image";
+import { decodeWebpRgb } from "./webp-alpha";
 
 const HASH_SIZE = 8;
 const DCT_SIZE = 32;
@@ -115,6 +116,14 @@ function dct1d(arr: number[]): number[] {
   return out;
 }
 
+function isWebp(buf: Buffer): boolean {
+  return (
+    buf.length >= 12 &&
+    buf.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buf.subarray(8, 12).toString("ascii") === "WEBP"
+  );
+}
+
 // ── pHash (synchronous, runs in worker thread) ────────────────────────────────
 function computePHashSync(filePath: string): string {
   const buf = readFileSync(filePath);
@@ -123,8 +132,20 @@ function computePHashSync(filePath: string): string {
   const nativeHash = computePHashNative(buf);
   if (nativeHash !== null) return nativeHash;
 
-  // Fallback: pure JS implementation
-  const { px, w, h, ch } = decodePng(buf);
+  // WebP: decode via native webp-alpha addon, then JS DCT
+  let px: Buffer, w: number, h: number, ch: number;
+  if (isWebp(buf)) {
+    const webp = decodeWebpRgb(buf);
+    if (!webp) throw new Error("WebP decode failed");
+    px = webp.rgb;
+    w = webp.width;
+    h = webp.height;
+    ch = 3;
+  } else {
+    ({ px, w, h, ch } = decodePng(buf));
+  }
+
+  // JS fallback: grayscale → DCT → hash
   const pixels = toGrayscaleGrid(px, w, h, ch, DCT_SIZE, DCT_SIZE);
 
   const rowDct = pixels.map(dct1d);

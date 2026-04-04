@@ -6,8 +6,15 @@ interface WebpAlphaResult {
   height: number;
 }
 
+interface WebpRgbResult {
+  rgb: Buffer;
+  width: number;
+  height: number;
+}
+
 interface WebpAlphaNative {
   decodeAlpha(buf: Buffer): WebpAlphaResult | null;
+  decodeRgb(buf: Buffer): WebpRgbResult | null;
 }
 
 let _native: WebpAlphaNative | null | undefined = undefined;
@@ -30,4 +37,8 @@ function getNative(): WebpAlphaNative | null {
 
 export function decodeWebpAlpha(buf: Buffer): WebpAlphaResult | null {
   return getNative()?.decodeAlpha(buf) ?? null;
+}
+
+export function decodeWebpRgb(buf: Buffer): WebpRgbResult | null {
+  return getNative()?.decodeRgb(buf) ?? null;
 }
