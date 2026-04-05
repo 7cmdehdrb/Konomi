@@ -70,6 +70,9 @@ function renderImageActions(options?: {
       schedulePageRefresh,
       generationViewRef,
       handlePanelChange,
+      page: 1,
+      totalPages: 1,
+      onPageChange: vi.fn(),
     });
 
     return {

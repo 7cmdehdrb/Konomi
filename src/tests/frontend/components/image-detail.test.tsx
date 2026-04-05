@@ -70,6 +70,8 @@ function renderPagedImageDetail(
     onAddTagToGenerator: vi.fn(),
     prevImage: null,
     nextImage: null,
+    hasPrev: false,
+    hasNext: false,
     onPrev: vi.fn(),
     onNext: vi.fn(),
     ...overrides,

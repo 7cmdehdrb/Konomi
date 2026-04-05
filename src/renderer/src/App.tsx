@@ -281,6 +281,9 @@ export default function App({
     schedulePageRefresh,
     generationViewRef,
     handlePanelChange,
+    page: imageGalleryPagination.page,
+    totalPages: imageGalleryPagination.totalPages,
+    onPageChange: imageGalleryPagination.onPageChange,
   });
   const [detailAnchorId, setDetailAnchorId] = useState<string | null>(null);
   const handleDetailAnchorChange = useCallback(
@@ -757,6 +760,8 @@ export default function App({
         onAddTagToGenerator={imageActions.onAddTagToGenerator}
         prevImage={detail.prevImage}
         nextImage={detail.nextImage}
+        hasPrev={detail.hasPrev}
+        hasNext={detail.hasNext}
         onPrev={detail.onPrev}
         onNext={detail.onNext}
         similarImages={similarImages}

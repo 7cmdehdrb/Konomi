@@ -111,6 +111,12 @@ const en = {
       slideshow: "Slideshow",
       interval: "Interval",
       seconds: "{{n}}s",
+      fit: {
+        contain: "Fit",
+        width: "Fill Width",
+        actual: "1:1",
+      },
+      pinBars: "Pin",
     },
     similarImages: "Similar Images",
     similarityScore: {

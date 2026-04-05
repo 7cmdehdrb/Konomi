@@ -20,6 +20,9 @@ import {
   Pin,
   Search,
   Workflow,
+  MonitorPlay,
+  Play,
+  Pause,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -51,6 +54,7 @@ const SimilarThumb = memo(function SimilarThumb({
   isAnchor,
   reason,
   score,
+  disableTooltip,
   onSimilarImageClick,
 }: {
   img: ImageData;
@@ -58,6 +62,7 @@ const SimilarThumb = memo(function SimilarThumb({
   isAnchor?: boolean;
   reason?: SimilarityReason;
   score?: number;
+  disableTooltip?: boolean;
   onSimilarImageClick?: (img: ImageData) => void;
 }) {
   const { t } = useTranslation();
@@ -134,7 +139,7 @@ const SimilarThumb = memo(function SimilarThumb({
   const reasonLabel = t(`${ss}.${reason}`);
 
   return (
-    <Tooltip open={isCurrent || undefined}>
+    <Tooltip open={(isCurrent && !disableTooltip) || undefined}>
       <TooltipTrigger asChild>{thumb}</TooltipTrigger>
       <TooltipContent
         side="right"
@@ -157,6 +162,7 @@ const HeaderBar = memo(function HeaderBar({
   onCopy,
   onClose,
   onFitModeToggle,
+  onTheaterMode,
 }: {
   image: ImageData;
   copiedKey: string | null;
@@ -165,6 +171,7 @@ const HeaderBar = memo(function HeaderBar({
   onCopy: (key: string, text: string) => void;
   onClose: () => void;
   onFitModeToggle: () => void;
+  onTheaterMode: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -222,6 +229,15 @@ const HeaderBar = memo(function HeaderBar({
               {t("imageDetail.actions.fitToScreen")}
             </>
           )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-muted-foreground hover:text-foreground"
+          onClick={onTheaterMode}
+        >
+          <MonitorPlay className="h-4 w-4 mr-1.5" />
+          {t("imageDetail.actions.theaterMode")}
         </Button>
       </div>
 
@@ -562,6 +578,434 @@ const InfoPanel = memo(function InfoPanel({
   );
 });
 
+/* ── Theater Mode ────────────────────────────────────────────── */
+
+const SLIDESHOW_INTERVALS = [3, 5, 10] as const;
+const ZOOM_STEP = 0.2;
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 10;
+
+type TheaterFitMode = "contain" | "width" | "actual";
+
+const TheaterView = memo(function TheaterView({
+  image,
+  displaySrc,
+  imgLoaded,
+  onImgLoad,
+  hasPrev,
+  hasNext,
+  onPrev,
+  onNext,
+  onExit,
+}: {
+  image: ImageData;
+  displaySrc: string | null;
+  imgLoaded: boolean;
+  onImgLoad: () => void;
+  hasPrev: boolean;
+  hasNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  onExit: () => void;
+}) {
+  const { t } = useTranslation();
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Header / overlay visibility
+  const [headerVisible, setHeaderVisible] = useState(false);
+  const [pinBars, setPinBars] = useState(false);
+
+  // Slideshow
+  const [slideshowActive, setSlideshowActive] = useState(false);
+  const [slideshowInterval, setSlideshowInterval] = useState(5);
+  const [slideshowProgress, setSlideshowProgress] = useState(0);
+  const slideshowTimerRef = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  // Fit mode & Zoom/Pan
+  const [fitMode, setFitMode] = useState<TheaterFitMode>("contain");
+  const [manualZoom, setManualZoom] = useState<number | null>(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const panStart = useRef({ x: 0, y: 0 });
+  const containerRef2 = useRef<HTMLDivElement>(null);
+
+  // Reset on image change
+  useEffect(() => {
+    setManualZoom(null);
+    setPan({ x: 0, y: 0 });
+  }, [image.id]);
+
+  const handleHeaderEnter = useCallback(() => {
+    setHeaderVisible(true);
+  }, []);
+
+  const handleHeaderLeave = useCallback(() => {
+    setHeaderVisible(false);
+  }, []);
+
+  // Slideshow logic
+  useEffect(() => {
+    if (!slideshowActive) {
+      clearInterval(slideshowTimerRef.current);
+      setSlideshowProgress(0);
+      return;
+    }
+
+    const tickMs = 50;
+    const totalMs = slideshowInterval * 1000;
+    let elapsed = 0;
+
+    slideshowTimerRef.current = setInterval(() => {
+      elapsed += tickMs;
+      setSlideshowProgress(elapsed / totalMs);
+      if (elapsed >= totalMs) {
+        elapsed = 0;
+        setSlideshowProgress(0);
+        if (hasNext) {
+          onNext();
+        } else {
+          setSlideshowActive(false);
+        }
+      }
+    }, tickMs);
+
+    return () => clearInterval(slideshowTimerRef.current);
+  }, [slideshowActive, slideshowInterval, hasNext, onNext]);
+
+  // Reset slideshow progress on manual navigation
+  useEffect(() => {
+    setSlideshowProgress(0);
+  }, [image.id]);
+
+  // Keyboard
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onExit();
+      } else if (e.key === " ") {
+        e.preventDefault();
+        setSlideshowActive((v) => !v);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (hasPrev) onPrev();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (hasNext) onNext();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [onExit, onPrev, onNext, hasPrev, hasNext]);
+
+  const isScrollable = fitMode !== "contain" || manualZoom !== null;
+
+  // Wheel zoom
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault();
+      setManualZoom((prev) => {
+        const base = prev ?? 1;
+        const next = base + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
+        const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
+        return clamped;
+      });
+    },
+    [],
+  );
+
+  // Double-click cycles: contain → actual → width → contain
+  const handleDoubleClick = useCallback(() => {
+    setManualZoom(null);
+    setPan({ x: 0, y: 0 });
+    setFitMode((m) =>
+      m === "contain" ? "actual" : m === "actual" ? "width" : "contain",
+    );
+  }, []);
+
+  const handleFitModeChange = useCallback((mode: TheaterFitMode) => {
+    setFitMode(mode);
+    setManualZoom(null);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  // Drag to pan
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isScrollable) return;
+      isDraggingRef.current = true;
+      setIsDragging(true);
+      dragStart.current = { x: e.clientX, y: e.clientY };
+      panStart.current = { ...pan };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [isScrollable, pan],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isDraggingRef.current) return;
+      setPan({
+        x: panStart.current.x + (e.clientX - dragStart.current.x),
+        y: panStart.current.y + (e.clientY - dragStart.current.y),
+      });
+    },
+    [],
+  );
+
+  const handlePointerUp = useCallback(() => {
+    isDraggingRef.current = false;
+    setIsDragging(false);
+  }, []);
+
+  // Bottom overlay
+  const [overlayVisible, setOverlayVisible] = useState(false);
+  const overlayTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleOverlayEnter = useCallback(() => {
+    clearTimeout(overlayTimerRef.current);
+    setOverlayVisible(true);
+  }, []);
+
+  const handleOverlayLeave = useCallback(() => {
+    overlayTimerRef.current = setTimeout(() => setOverlayVisible(false), 300);
+  }, []);
+
+  useEffect(() => () => clearTimeout(overlayTimerRef.current), []);
+
+  const fileName = image.path.split(/[\\/]/).pop() ?? "";
+  const promptPreview =
+    image.prompt.length > 120
+      ? image.prompt.slice(0, 120) + "…"
+      : image.prompt;
+
+  return (
+    <div
+      className="fixed inset-0 z-60 flex flex-col bg-black select-none"
+    >
+      {/* Header hover trigger zone + header bar */}
+      <div
+        className="absolute top-0 left-0 right-0 z-10"
+        onMouseEnter={pinBars ? undefined : handleHeaderEnter}
+        onMouseLeave={pinBars ? undefined : handleHeaderLeave}
+      >
+        <div
+          className={cn(
+            "flex items-center justify-between px-5 py-2.5 bg-black/60 backdrop-blur-sm transition-all duration-300",
+            headerVisible || pinBars
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 -translate-y-full pointer-events-none",
+          )}
+        >
+        <div className="flex items-center gap-3">
+          {/* Slideshow toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-8 text-white/70 hover:text-white hover:bg-white/10",
+              slideshowActive && "text-white bg-white/15",
+            )}
+            onClick={() => setSlideshowActive((v) => !v)}
+          >
+            {slideshowActive ? (
+              <Pause className="h-4 w-4 mr-1.5" />
+            ) : (
+              <Play className="h-4 w-4 mr-1.5" />
+            )}
+            {t("imageDetail.theater.slideshow")}
+          </Button>
+
+          {/* Interval selector */}
+          <div className="flex items-center gap-1">
+            {SLIDESHOW_INTERVALS.map((n) => (
+              <button
+                key={n}
+                className={cn(
+                  "rounded px-2 py-0.5 text-xs transition-colors",
+                  slideshowInterval === n
+                    ? "bg-white/20 text-white"
+                    : "text-white/50 hover:text-white/80 hover:bg-white/10",
+                )}
+                onClick={() => setSlideshowInterval(n)}
+              >
+                {t("imageDetail.theater.seconds", { n })}
+              </button>
+            ))}
+          </div>
+
+          <div className="mx-2 h-4 w-px bg-white/20" />
+
+          {/* Fit mode selector */}
+          <div className="flex items-center gap-1">
+            {(["contain", "width", "actual"] as const).map((mode) => (
+              <button
+                key={mode}
+                className={cn(
+                  "rounded px-2 py-0.5 text-xs transition-colors",
+                  fitMode === mode && manualZoom === null
+                    ? "bg-white/20 text-white"
+                    : "text-white/50 hover:text-white/80 hover:bg-white/10",
+                )}
+                onClick={() => handleFitModeChange(mode)}
+              >
+                {t(`imageDetail.theater.fit.${mode}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center gap-2 text-xs text-white/50">
+          {image.model && <span>{image.model}</span>}
+          {image.model && <span>·</span>}
+          <span>
+            {image.width} × {image.height}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            className={cn(
+              "flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors",
+              pinBars
+                ? "bg-white/20 text-white"
+                : "text-white/50 hover:text-white/80 hover:bg-white/10",
+            )}
+            onClick={() => setPinBars((v) => !v)}
+          >
+            <Pin className="h-3 w-3" />
+            {t("imageDetail.theater.pinBars")}
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10"
+            onClick={onExit}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        </div>
+      </div>
+
+      {/* Image area */}
+      <div
+        ref={containerRef2}
+        className={cn(
+          "flex-1 min-h-0 flex items-center justify-center",
+          isScrollable ? "overflow-auto" : "overflow-hidden",
+        )}
+        onWheel={handleWheel}
+        onDoubleClick={handleDoubleClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        style={{ cursor: isScrollable ? (isDragging ? "grabbing" : "grab") : "default" }}
+      >
+        {!imgLoaded && displaySrc && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <Loader2 className="h-8 w-8 animate-spin text-white/50" />
+          </div>
+        )}
+        {displaySrc && (
+          <img
+            ref={imgRef}
+            src={displaySrc}
+            alt=""
+            className={cn(
+              "transition-opacity duration-200",
+              imgLoaded ? "opacity-100" : "opacity-0",
+              fitMode === "contain" && manualZoom === null && "max-w-full max-h-full object-contain",
+              fitMode === "width" && manualZoom === null && "w-full h-auto",
+            )}
+            style={{
+              ...(manualZoom !== null
+                ? {
+                    width: image.width * manualZoom,
+                    height: image.height * manualZoom,
+                    maxWidth: "none",
+                    maxHeight: "none",
+                    flexShrink: 0,
+                  }
+                : fitMode === "actual"
+                  ? {
+                      width: image.width,
+                      height: image.height,
+                      maxWidth: "none",
+                      maxHeight: "none",
+                      flexShrink: 0,
+                    }
+                  : {}),
+              transform: `translate(${pan.x}px, ${pan.y}px)`,
+              transition: isDragging ? "none" : "transform 150ms ease-out",
+            }}
+            draggable={false}
+            onLoad={onImgLoad}
+          />
+        )}
+      </div>
+
+      {/* Prev / Next arrows */}
+      <button
+        className={cn(
+          "absolute left-3 top-1/2 flex h-full w-8 -translate-y-1/2 items-center justify-center text-white/40 hover:text-white/80 transition-colors",
+          !hasPrev && "opacity-0 pointer-events-none",
+        )}
+        onClick={onPrev}
+      >
+        <ChevronLeft className="h-6 w-6" />
+      </button>
+      <button
+        className={cn(
+          "absolute right-3 top-1/2 flex h-full w-8 -translate-y-1/2 items-center justify-center text-white/40 hover:text-white/80 transition-colors",
+          !hasNext && "opacity-0 pointer-events-none",
+        )}
+        onClick={onNext}
+      >
+        <ChevronRight className="h-6 w-6" />
+      </button>
+
+      {/* Slideshow progress bar */}
+      {slideshowActive && (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10">
+          <div
+            className="h-full bg-white/50 transition-none"
+            style={{ width: `${slideshowProgress * 100}%` }}
+          />
+        </div>
+      )}
+
+      {/* Bottom overlay — hover trigger zone */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-16"
+        onMouseEnter={pinBars ? undefined : handleOverlayEnter}
+        onMouseLeave={pinBars ? undefined : handleOverlayLeave}
+      >
+        <div
+          className={cn(
+            "absolute bottom-0 left-0 right-0 px-6 py-3 bg-linear-to-t from-black/80 to-transparent transition-all duration-300",
+            overlayVisible || pinBars
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-2 pointer-events-none",
+          )}
+        >
+          <p className="text-sm font-medium text-white/90 truncate">
+            {fileName}
+          </p>
+          {promptPreview && (
+            <p className="mt-0.5 text-xs text-white/50 truncate">
+              {promptPreview}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
 interface ImageDetailProps {
   image: ImageData | null;
   isOpen: boolean;
@@ -572,6 +1016,8 @@ interface ImageDetailProps {
   onAddTagToGenerator: (tag: string) => void;
   prevImage: ImageData | null;
   nextImage: ImageData | null;
+  hasPrev: boolean;
+  hasNext: boolean;
   onPrev: () => void;
   onNext: () => void;
   similarImages?: ImageData[];
@@ -596,6 +1042,8 @@ export function ImageDetail({
   onAddTagToGenerator,
   prevImage,
   nextImage,
+  hasPrev,
+  hasNext,
   onPrev,
   onNext,
   similarImages,
@@ -613,6 +1061,7 @@ export function ImageDetail({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [fitMode, setFitMode] = useState<"fit" | "actual">("fit");
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [theaterMode, setTheaterMode] = useState(false);
   const [displaySrc, setDisplaySrc] = useState<string | null>(null);
   // similarPage state is now managed by useSimilarImages hook via onSimilarPageChange
   const [anchorId, setAnchorId] = useState<string | null>(null);
@@ -715,24 +1164,44 @@ export function ImageDetail({
 
   // Gallery Prev/Next: update anchorId so nav buttons stay visible
   // and similar images refetch for the new image.
+  // When crossing page boundaries, prevImage/nextImage are null but
+  // hasPrev/hasNext are true — call onPrev/onNext to trigger page change.
   const handlePrev = useCallback(() => {
+    if (!hasPrev) return;
     if (prevImage) {
       setAnchorId(prevImage.id);
       onAnchorChange?.(prevImage.id);
-      onPrev();
     }
-  }, [onPrev, prevImage, onAnchorChange]);
+    onPrev();
+  }, [onPrev, prevImage, hasPrev, onAnchorChange]);
 
   const handleNext = useCallback(() => {
+    if (!hasNext) return;
     if (nextImage) {
       setAnchorId(nextImage.id);
       onAnchorChange?.(nextImage.id);
-      onNext();
     }
-  }, [onNext, nextImage, onAnchorChange]);
+    onNext();
+  }, [onNext, nextImage, hasNext, onAnchorChange]);
 
   const handleFitModeToggle = useCallback(() => {
     setFitMode((m) => (m === "fit" ? "actual" : "fit"));
+  }, []);
+
+  const handleEnterTheater = useCallback(() => {
+    setTheaterMode(true);
+  }, []);
+
+  const handleExitTheater = useCallback(() => {
+    setTheaterMode(false);
+  }, []);
+
+  const handleImageDoubleClick = useCallback(() => {
+    setTheaterMode(true);
+  }, []);
+
+  const handleTheaterImgLoad = useCallback(() => {
+    setImgLoaded(true);
   }, []);
 
   const handleViewWorkflow = useCallback(async () => {
@@ -787,6 +1256,7 @@ export function ImageDetail({
         onCopy={handleCopy}
         onClose={onClose}
         onFitModeToggle={handleFitModeToggle}
+        onTheaterMode={handleEnterTheater}
       />
 
       {/* Body: similar | image | info */}
@@ -811,6 +1281,7 @@ export function ImageDetail({
                       img={currentThumb}
                       isCurrent={image?.id === currentThumb.id}
                       isAnchor={true}
+                      disableTooltip={theaterMode}
                       onSimilarImageClick={onSimilarImageClick}
                     />
                   )}
@@ -821,6 +1292,7 @@ export function ImageDetail({
                       isCurrent={img.id === image?.id}
                       reason={similarReasons?.[img.id]}
                       score={similarScores?.[img.id]}
+                      disableTooltip={theaterMode}
                       onSimilarImageClick={onSimilarImageClick}
                     />
                   ))}
@@ -880,6 +1352,7 @@ export function ImageDetail({
                     imgLoaded ? "opacity-100" : "opacity-0",
                   )}
                   onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={handleImageDoubleClick}
                   onLoad={() => setImgLoaded(true)}
                 />
               )}
@@ -908,6 +1381,7 @@ export function ImageDetail({
                       height: image.height,
                       maxWidth: "none",
                     }}
+                    onDoubleClick={handleImageDoubleClick}
                     onLoad={() => setImgLoaded(true)}
                   />
                 )}
@@ -919,7 +1393,7 @@ export function ImageDetail({
           <button
             className={cn(
               "absolute left-3 top-1/2 flex h-full w-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/75 text-muted-foreground/80 hover:bg-background/90 hover:text-foreground transition-colors",
-              (!prevImage || image.id !== effectiveAnchorId) &&
+              (!hasPrev || image.id !== effectiveAnchorId) &&
                 "opacity-0 pointer-events-none",
             )}
             onClick={handlePrev}
@@ -931,7 +1405,7 @@ export function ImageDetail({
           <button
             className={cn(
               "absolute right-3 top-1/2 flex h-full w-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/75 text-muted-foreground/80 hover:bg-background/90 hover:text-foreground transition-colors",
-              (!nextImage || image.id !== effectiveAnchorId) &&
+              (!hasNext || image.id !== effectiveAnchorId) &&
                 "opacity-0 pointer-events-none",
             )}
             onClick={handleNext}
@@ -991,6 +1465,20 @@ export function ImageDetail({
           </div>
         </DialogContent>
       </Dialog>
+
+      {theaterMode && image && (
+        <TheaterView
+          image={image}
+          displaySrc={displaySrc}
+          imgLoaded={imgLoaded}
+          onImgLoad={handleTheaterImgLoad}
+          hasPrev={hasPrev}
+          hasNext={hasNext}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          onExit={handleExitTheater}
+        />
+      )}
     </div>
   );
 }

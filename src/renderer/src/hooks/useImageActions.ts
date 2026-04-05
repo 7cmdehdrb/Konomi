@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
@@ -21,6 +21,9 @@ interface UseImageActionsOptions {
   schedulePageRefresh: (delay?: number) => void;
   generationViewRef: MutableRefObject<GenerationViewHandle | null>;
   handlePanelChange: (panel: ActivePanel) => void | Promise<void>;
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
 }
 
 export function useImageActions({
@@ -31,6 +34,9 @@ export function useImageActions({
   schedulePageRefresh,
   generationViewRef,
   handlePanelChange,
+  page,
+  totalPages,
+  onPageChange,
 }: UseImageActionsOptions) {
   const { t } = useTranslation();
   const [selectedImageSnapshot, setSelectedImage] = useState<ImageData | null>(
@@ -62,6 +68,23 @@ export function useImageActions({
         : -1,
     [images, selectedImageId],
   );
+
+  // Pending selection after cross-page navigation: "first" or "last"
+  const pendingSelectRef = useRef<"first" | "last" | null>(null);
+
+  useEffect(() => {
+    if (pendingSelectRef.current && images.length > 0) {
+      const target =
+        pendingSelectRef.current === "first"
+          ? images[0]
+          : images[images.length - 1];
+      pendingSelectRef.current = null;
+      setSelectedImage(target);
+    }
+  }, [images]);
+
+  const hasPrev = selectedIndex > 0 || page > 1;
+  const hasNext = selectedIndex < images.length - 1 || page < totalPages;
 
   const prevImage = selectedIndex > 0 ? images[selectedIndex - 1] : null;
   const nextImage =
@@ -307,14 +330,20 @@ export function useImageActions({
   const handlePrev = useCallback(() => {
     if (selectedIndex > 0) {
       setSelectedImage(images[selectedIndex - 1]);
+    } else if (page > 1) {
+      pendingSelectRef.current = "last";
+      onPageChange(page - 1);
     }
-  }, [images, selectedIndex]);
+  }, [images, selectedIndex, page, onPageChange]);
 
   const handleNext = useCallback(() => {
     if (selectedIndex < images.length - 1) {
       setSelectedImage(images[selectedIndex + 1]);
+    } else if (page < totalPages) {
+      pendingSelectRef.current = "first";
+      onPageChange(page + 1);
     }
-  }, [images, selectedIndex]);
+  }, [images, selectedIndex, page, totalPages, onPageChange]);
 
   const imageActions = useMemo(
     () => ({
@@ -377,6 +406,8 @@ export function useImageActions({
       onClose: () => setIsDetailOpen(false),
       prevImage,
       nextImage,
+      hasPrev,
+      hasNext,
       onPrev: handlePrev,
       onNext: handleNext,
       onSelectImage: handleSelectImage,

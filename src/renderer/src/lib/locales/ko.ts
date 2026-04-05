@@ -112,6 +112,12 @@ const ko = {
       slideshow: "슬라이드쇼",
       interval: "간격",
       seconds: "{{n}}초",
+      fit: {
+        contain: "맞춤",
+        width: "너비 맞춤",
+        actual: "1:1",
+      },
+      pinBars: "고정",
     },
     similarImages: "유사 이미지",
     similarityScore: {
