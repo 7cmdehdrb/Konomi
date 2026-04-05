@@ -2004,13 +2004,15 @@ export const Sidebar = memo(
                           )}
                         </span>
                         {!isFavorites && isSelected && (
-                          <RefreshCw
-                            className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground"
+                          <span
+                            title={t("sidebar.categories.reroll")}
                             onClick={(e) => {
                               e.stopPropagation();
                               onRandomRefresh();
                             }}
-                          />
+                          >
+                            <RefreshCw className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                          </span>
                         )}
                       </Button>
                     );
