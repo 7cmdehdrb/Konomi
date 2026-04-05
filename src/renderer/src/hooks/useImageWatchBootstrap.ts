@@ -35,12 +35,14 @@ export function runAppInitialization({
   scanningRef,
   scheduleAnalysis,
   runScan,
+  onInitialRefreshDone,
 }: {
   quickVerifyResult: QuickVerifyResult | null;
   loadSearchPresetStats: () => Promise<void>;
   scanningRef: MutableRefObject<boolean>;
   scheduleAnalysis: (delay?: number) => void;
   runScan: UseImageWatchBootstrapOptions["runScan"];
+  onInitialRefreshDone?: () => void;
 }): { cancel: () => void } {
   let cancelled = false;
   let deferredTimer: ReturnType<typeof setTimeout> | null = null;
@@ -80,6 +82,7 @@ export function runAppInitialization({
       log.info("All folders unchanged, skipping initial scan");
       void loadSearchPresetStats();
       scheduleAnalysis(0);
+      onInitialRefreshDone?.();
     } else {
       void loadSearchPresetStats();
       void runScan({
@@ -89,6 +92,7 @@ export function runAppInitialization({
         refreshPage: true,
         refreshSearchPresetStats: true,
       }).then(() => {
+        if (!cancelled) onInitialRefreshDone?.();
         scheduleAnalysis(0);
       });
     }

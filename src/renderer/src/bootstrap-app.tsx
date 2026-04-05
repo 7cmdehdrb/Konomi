@@ -23,14 +23,19 @@ export interface QuickVerifyResult {
 interface BootstrapResult {
   folderCount: number | null;
   folders: Folder[] | null;
+  quickVerifyResult: QuickVerifyResult | null;
 }
+
+const QUICK_VERIFY_TIMEOUT_MS = 1500; // quickVerify가 Splash를 지연시키지 않도록 제한
 
 let migrationPromise: Promise<void> | null = null;
 let initialFolderCountPromise: Promise<number | null> | null = null;
+let quickVerifyPromise: Promise<QuickVerifyResult | null> | null = null;
 let bootstrapPromise: Promise<BootstrapResult> | null = null;
 const bootstrapResult: BootstrapResult = {
   folderCount: null,
   folders: null,
+  quickVerifyResult: null,
 };
 let bootstrapCompleted = false;
 
@@ -66,6 +71,34 @@ function ensureInitialFolderCount(): Promise<number | null> {
   return initialFolderCountPromise;
 }
 
+function ensureQuickVerify(): Promise<QuickVerifyResult | null> {
+  if (!quickVerifyPromise) {
+    quickVerifyPromise = ensureMigrationsRun()
+      .then(() => {
+        const verify = window.image.quickVerify();
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("timeout")),
+            QUICK_VERIFY_TIMEOUT_MS,
+          ),
+        );
+        return Promise.race([verify, timeout]);
+      })
+      .then((result) => {
+        bootstrapResult.quickVerifyResult = result;
+        return result;
+      })
+      .catch((error: unknown) => {
+        log.warn("Quick verify during bootstrap skipped", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        bootstrapResult.quickVerifyResult = null;
+        return null;
+      });
+  }
+  return quickVerifyPromise;
+}
+
 function ensureBootstrapComplete(): Promise<BootstrapResult> {
   if (bootstrapCompleted) {
     return Promise.resolve(bootstrapResult);
@@ -73,7 +106,8 @@ function ensureBootstrapComplete(): Promise<BootstrapResult> {
 
   if (!bootstrapPromise) {
     bootstrapPromise = (async () => {
-      await ensureInitialFolderCount();
+      // folder list와 quickVerify를 병렬 실행 — quickVerify는 timeout으로 Splash 지연 방지
+      await Promise.all([ensureInitialFolderCount(), ensureQuickVerify()]);
       bootstrapCompleted = true;
       return bootstrapResult;
     })();
@@ -303,6 +337,7 @@ export function BootstrapApp() {
         <App
           initialFolderCount={folderCount}
           initialFolders={bootstrapResult.folders}
+          initialQuickVerifyResult={bootstrapResult.quickVerifyResult}
         />
       )}
       {renderSplash && (

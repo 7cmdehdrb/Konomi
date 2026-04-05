@@ -168,6 +168,7 @@ interface ImageGalleryProps {
   actions: ImageGalleryActions;
   pagination?: ImageGalleryPagination;
   scanning?: boolean;
+  syncing?: boolean;
   enableVirtualization?: boolean;
 }
 
@@ -882,6 +883,7 @@ export const ImageGallery = memo(function ImageGallery({
   actions,
   pagination,
   scanning = false,
+  syncing = false,
   enableVirtualization = false,
 }: ImageGalleryProps) {
   const {
@@ -895,6 +897,7 @@ export const ImageGallery = memo(function ImageGallery({
     isRefreshing = false,
     selectionScopeKey,
   } = gallery;
+  const { t } = useTranslation();
   const {
     onViewModeChange,
     onSortChange,
@@ -1098,6 +1101,13 @@ export const ImageGallery = memo(function ImageGallery({
         onBulkRescanMetadata={handleBulkRescanMetadata}
         onBulkDelete={handleBulkDelete}
       />
+
+      {syncing && (
+        <div className="flex items-center gap-2 px-4 py-1.5 text-xs text-muted-foreground bg-muted/50 border-b border-border">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          {t("gallery.syncingBanner")}
+        </div>
+      )}
 
       <GalleryResults
         paged={paged}

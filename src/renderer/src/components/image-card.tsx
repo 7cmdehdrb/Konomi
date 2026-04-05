@@ -6,6 +6,7 @@ import {
   Trash2,
   Tag,
   ImagePlus,
+  ImageOff,
   Loader2,
   RotateCw,
 } from "lucide-react";
@@ -102,6 +103,7 @@ export const ImageCard = memo(function ImageCard({
   const { formatDate, formatDateTime } = useLocaleFormatters();
   const TOKEN_PREVIEW_LIMIT = 10;
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageBroken, setImageBroken] = useState(false);
   const [hoverPreviewReady, setHoverPreviewReady] = useState(false);
   const [contextMenuReady, setContextMenuReady] = useState(false);
   const [favoritePopping, setFavoritePopping] = useState(false);
@@ -118,9 +120,11 @@ export const ImageCard = memo(function ImageCard({
   useEffect(() => {
     if (!image.src) {
       setImageLoaded(true);
+      setImageBroken(false);
       return;
     }
     setImageLoaded(false);
+    setImageBroken(false);
   }, [image.src]);
 
   // Release decoded bitmap on unmount so Chromium doesn't retain it in memory
@@ -262,7 +266,7 @@ export const ImageCard = memo(function ImageCard({
               />
             )}
             <div className="relative h-12 w-12 shrink-0 rounded-md overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20">
-              {image.src && (
+              {image.src && !imageBroken && (
                 <img
                   ref={imgRef}
                   src={image.src}
@@ -273,12 +277,20 @@ export const ImageCard = memo(function ImageCard({
                   )}
                   loading="lazy"
                   onLoad={() => setImageLoaded(true)}
-                  onError={() => setImageLoaded(true)}
+                  onError={() => {
+                    setImageLoaded(true);
+                    setImageBroken(true);
+                  }}
                 />
               )}
-              {image.src && !imageLoaded && (
+              {image.src && !imageLoaded && !imageBroken && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/40">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              {imageBroken && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <ImageOff className="h-5 w-5 text-muted-foreground/60" />
                 </div>
               )}
             </div>
@@ -315,7 +327,7 @@ export const ImageCard = memo(function ImageCard({
           {/* Image */}
           <div className="aspect-[3/4] relative overflow-hidden">
             <div className="w-full h-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-              {image.src && (
+              {image.src && !imageBroken && (
                 <img
                   ref={imgRef}
                   src={image.src}
@@ -326,15 +338,24 @@ export const ImageCard = memo(function ImageCard({
                   )}
                   loading="lazy"
                   onLoad={() => setImageLoaded(true)}
-                  onError={() => setImageLoaded(true)}
+                  onError={() => {
+                    setImageLoaded(true);
+                    setImageBroken(true);
+                  }}
                 />
               )}
-              {image.src && !imageLoaded && (
+              {image.src && !imageLoaded && !imageBroken && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/40">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               )}
-              {!image.src && (
+              {imageBroken && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground/60">
+                  <ImageOff className="h-8 w-8" />
+                  <span className="text-xs">{t("imageCard.missingImage")}</span>
+                </div>
+              )}
+              {!image.src && !imageBroken && (
                 <span className="text-muted-foreground text-sm">
                   {t("imageCard.emptyPreview")}
                 </span>

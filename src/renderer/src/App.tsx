@@ -55,14 +55,20 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import type { AdvancedFilter } from "@/lib/advanced-filter";
 import type { Folder } from "@preload/index.d";
+import type { QuickVerifyResult } from "@/bootstrap-app";
 import { useTranslation } from "react-i18next";
 
 interface AppProps {
   initialFolderCount?: number | null;
   initialFolders?: Folder[] | null;
+  initialQuickVerifyResult?: QuickVerifyResult | null;
 }
 
-export default function App({ initialFolderCount = null, initialFolders = null }: AppProps) {
+export default function App({
+  initialFolderCount = null,
+  initialFolders = null,
+  initialQuickVerifyResult = null,
+}: AppProps) {
   const { settings, updateSettings, resetSettings } = useSettings();
   const { t } = useTranslation();
   const { outputFolder, setOutputFolder } = useNaiGenSettings();
@@ -98,6 +104,7 @@ export default function App({ initialFolderCount = null, initialFolders = null }
     initialize: initializeFolders,
   } = useFolderController(initialFolderCount, initialFolders);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilter[]>([]);
+  const [initialRefreshDone, setInitialRefreshDone] = useState(false);
   const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const [announcementDeferred, setAnnouncementDeferred] = useState(false);
   const [announcementKey, setAnnouncementKey] = useState(0);
@@ -339,11 +346,12 @@ export default function App({ initialFolderCount = null, initialFolders = null }
       // Step 2: Run quickVerify → conditional scan → deferred integrity check
       // Uses bootstrap-provided quickVerify result instead of running it again
       handle = runAppInitialization({
-        quickVerifyResult: null,
+        quickVerifyResult: initialQuickVerifyResult,
         loadSearchPresetStats,
         scanningRef,
         scheduleAnalysis,
         runScan,
+        onInitialRefreshDone: () => setInitialRefreshDone(true),
       });
     })();
 
@@ -623,6 +631,7 @@ export default function App({ initialFolderCount = null, initialFolders = null }
               actions={imageGalleryActions}
               pagination={imageGalleryPagination}
               scanning={scanning}
+              syncing={!initialRefreshDone}
               enableVirtualization={settings.enableVirtualization}
             />
           </div>

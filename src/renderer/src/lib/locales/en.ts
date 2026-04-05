@@ -80,6 +80,7 @@ const en = {
   imageCard: {
     previewAlt: "Image preview",
     emptyPreview: "Image Preview",
+    missingImage: "Image not found",
     menu: {
       addFavorite: "Add to Favorites",
       removeFavorite: "Remove from Favorites",
@@ -165,6 +166,7 @@ const en = {
     initializingDescription: "Checking registered folders and loading images.",
     scanningTitle: "Scanning folders",
     scanningDescription: "Loading images. Please wait a moment.",
+    syncingBanner: "Syncing library...",
     emptyTitle: "No images found",
     emptyDescription: "Try changing the search or adjusting filters.",
   },
