@@ -3,7 +3,7 @@ import path from "path";
 import crypto from "crypto";
 import os from "os";
 import { Worker } from "worker_threads";
-import { getDB } from "./db";
+import { getDB, getRawDB } from "./db";
 import { getFolders } from "./folder";
 import { scanImageFiles, walkImageFiles, countImageFiles, withConcurrency } from "./scanner";
 import type { CancelToken } from "./scanner";
@@ -271,29 +271,33 @@ type ExistingSizeBuckets = Map<number, FolderDuplicateExistingEntry[]>;
 type IncomingSizeBuckets = Map<number, FolderDuplicateIncomingEntry[]>;
 
 async function buildExistingSizeBuckets(
-  rows: Array<{ id: number; path: string; fileSize: number }>,
+  candidateFileSizes: number[],
   signal?: CancelToken,
 ): Promise<ExistingSizeBuckets> {
+  if (candidateFileSizes.length === 0) return new Map();
+  const rawDb = getRawDB();
   const buckets: ExistingSizeBuckets = new Map();
-  await withConcurrency(
-    rows,
-    SIZE_SCAN_CONCURRENCY,
-    async (row) => {
-      const size =
-        Number.isFinite(row.fileSize) && row.fileSize > 0
-          ? row.fileSize
-          : await fileSize(row.path);
-      if (size === null) return;
-      const bucket = buckets.get(size) ?? [];
+  // Query only existing images whose fileSize matches one of the candidate sizes
+  const CHUNK = 500;
+  for (let i = 0; i < candidateFileSizes.length; i += CHUNK) {
+    if (signal?.cancelled) break;
+    const chunk = candidateFileSizes.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => "?").join(",");
+    const rows = rawDb
+      .prepare(
+        `SELECT id, path, fileSize FROM "Image" WHERE fileSize IN (${placeholders})`,
+      )
+      .all(...chunk) as Array<{ id: number; path: string; fileSize: number }>;
+    for (const row of rows) {
+      const bucket = buckets.get(row.fileSize) ?? [];
       bucket.push({
         imageId: row.id,
         path: row.path,
         fileName: path.basename(row.path),
       });
-      buckets.set(size, bucket);
-    },
-    signal,
-  );
+      buckets.set(row.fileSize, bucket);
+    }
+  }
   return buckets;
 }
 
@@ -1847,22 +1851,19 @@ export async function findFolderDuplicateImages(
   },
 ): Promise<FolderDuplicateGroup[]> {
   await ensureIgnoredDuplicatePathsLoaded();
-  const db = getDB();
   const incomingPaths = (
     options?.incomingPaths ?? (await scanImageFiles(folderPath, options?.signal))
   ).filter((filePath) => !ignoredDuplicatePaths.has(filePath));
   if (incomingPaths.length === 0) return [];
 
   const incomingPathSet = new Set(incomingPaths);
-  const existingRows = await db.image.findMany({
-    select: { id: true, path: true, fileSize: true },
-  });
-  const existingSizeBuckets = await buildExistingSizeBuckets(
-    existingRows,
-    options?.signal,
-  );
   const incomingSizeBuckets = await buildIncomingSizeBuckets(
     incomingPaths,
+    options?.signal,
+  );
+  const incomingFileSizes = [...incomingSizeBuckets.keys()];
+  const existingSizeBuckets = await buildExistingSizeBuckets(
+    incomingFileSizes,
     options?.signal,
   );
   const candidateSizes = collectCandidateSizes(
@@ -2186,11 +2187,12 @@ export async function syncAllFolders(
 
     if (onDuplicateGroup && !signal?.cancelled) {
       onPhase?.("scanningFiles");
-      // Cross-folder dup 비교를 위해 기존 이미지는 전체 로드
-      const existingRows = await db.image.findMany({
-        select: { id: true, path: true, fileSize: true },
-      });
-      const existingPathSet = new Set(existingRows.map((row) => row.path));
+      // Use a prepared statement for per-path existence checks instead of
+      // loading all existing rows into memory.
+      const rawDb = getRawDB();
+      const existsStmt = rawDb.prepare(
+        'SELECT 1 FROM "Image" WHERE path = ? LIMIT 1',
+      );
       const incomingCandidates: string[] = [];
 
       for (const folder of foldersToScan) {
@@ -2201,7 +2203,7 @@ export async function syncAllFolders(
           SIZE_SCAN_CONCURRENCY,
           async (incomingPath) => {
             total++;
-            if (existingPathSet.has(incomingPath)) return;
+            if (existsStmt.get(incomingPath)) return;
             if (await isIgnoredDuplicatePath(incomingPath)) return;
             incomingCandidates.push(incomingPath);
           },
@@ -2219,13 +2221,16 @@ export async function syncAllFolders(
 
       if (!signal?.cancelled && incomingCandidates.length > 0) {
         onPhase?.("checkingDuplicates");
-        const existingSizeBuckets = await buildExistingSizeBuckets(
-          existingRows,
+        // Build incoming size buckets first, then query only matching sizes
+        // from existing images — avoids loading all existing rows.
+        const incomingSizeBuckets = await buildIncomingSizeBuckets(
+          incomingCandidates,
           signal,
         );
         if (signal?.cancelled) return;
-        const incomingSizeBuckets = await buildIncomingSizeBuckets(
-          incomingCandidates,
+        const incomingFileSizes = [...incomingSizeBuckets.keys()];
+        const existingSizeBuckets = await buildExistingSizeBuckets(
+          incomingFileSizes,
           signal,
         );
         if (signal?.cancelled) return;
@@ -2301,7 +2306,6 @@ export async function syncAllFolders(
             path: true,
             fileModifiedAt: true,
             source: true,
-            ...IMAGE_SEARCH_STAT_SOURCE_SELECT,
           },
         });
         const existingMap = new Map(existing.map((e) => [e.path, e] as const));
@@ -2476,12 +2480,18 @@ export async function syncAllFolders(
         if (staleRows.length > 0) {
           for (let i = 0; i < staleRows.length; i += 400) {
             const chunk = staleRows.slice(i, i + 400);
+            const chunkIds = chunk.map((row) => row.id);
             chunk.forEach((row) => deletedSimilarityIds.add(row.id));
+            // Fetch search-stat fields only for the stale rows being deleted
+            const statRows = (await db.image.findMany({
+              where: { id: { in: chunkIds } },
+              select: IMAGE_SEARCH_STAT_SOURCE_SELECT,
+            })) as ImageSearchStatSource[];
             await db.image.deleteMany({
-              where: { id: { in: chunk.map((row) => row.id) } },
+              where: { id: { in: chunkIds } },
             });
             await decrementImageSearchStatsForRows(
-              chunk,
+              statRows,
               onSearchStatsProgress,
             );
           }

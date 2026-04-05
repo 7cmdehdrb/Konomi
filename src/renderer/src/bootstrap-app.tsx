@@ -23,7 +23,6 @@ export interface QuickVerifyResult {
 interface BootstrapResult {
   folderCount: number | null;
   folders: Folder[] | null;
-  quickVerify: QuickVerifyResult | null;
 }
 
 let migrationPromise: Promise<void> | null = null;
@@ -32,7 +31,6 @@ let bootstrapPromise: Promise<BootstrapResult> | null = null;
 const bootstrapResult: BootstrapResult = {
   folderCount: null,
   folders: null,
-  quickVerify: null,
 };
 let bootstrapCompleted = false;
 
@@ -76,23 +74,6 @@ function ensureBootstrapComplete(): Promise<BootstrapResult> {
   if (!bootstrapPromise) {
     bootstrapPromise = (async () => {
       await ensureInitialFolderCount();
-
-      // Run quickVerify during bootstrap so App doesn't need to
-      if (bootstrapResult.folders && bootstrapResult.folders.length > 0) {
-        try {
-          bootstrapResult.quickVerify = await window.image.quickVerify();
-          log.info("Bootstrap quickVerify completed", {
-            changed: bootstrapResult.quickVerify.changedFolderIds.length,
-            unchanged: bootstrapResult.quickVerify.unchangedFolderIds.length,
-          });
-        } catch (error: unknown) {
-          log.warn("Bootstrap quickVerify failed", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          bootstrapResult.quickVerify = null;
-        }
-      }
-
       bootstrapCompleted = true;
       return bootstrapResult;
     })();
@@ -322,7 +303,6 @@ export function BootstrapApp() {
         <App
           initialFolderCount={folderCount}
           initialFolders={bootstrapResult.folders}
-          initialQuickVerify={bootstrapResult.quickVerify}
         />
       )}
       {renderSplash && (

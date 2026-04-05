@@ -9,6 +9,7 @@ import { createLogger } from "./logger";
 const log = createLogger("main/db");
 
 let client: PrismaClient | null = null;
+let rawDb: Database.Database | null = null;
 let migrationsDone = false;
 
 export interface MigrationProgress {
@@ -132,7 +133,29 @@ export function getDB(): PrismaClient {
   return client;
 }
 
+/**
+ * Separate better-sqlite3 instance for cursor-based iteration (.iterate()).
+ * Shares the same SQLite file as Prisma; busy_timeout ensures reads don't
+ * fail while Prisma holds a write lock.
+ *
+ * NOT opened as readonly — on Windows, a readonly connection cannot recover
+ * a hot journal left by a crash, causing SQLITE_CANTOPEN / deadlocks.
+ */
+export function getRawDB(): Database.Database {
+  if (!rawDb) {
+    runMigrations();
+    const dbPath = path.join(process.env.KONOMI_USER_DATA!, "konomi.db");
+    rawDb = new Database(dbPath);
+    rawDb.pragma("busy_timeout = 5000");
+  }
+  return rawDb;
+}
+
 export async function disconnectDB(): Promise<void> {
+  if (rawDb) {
+    rawDb.close();
+    rawDb = null;
+  }
   if (!client) return;
   await client.$disconnect();
   client = null;

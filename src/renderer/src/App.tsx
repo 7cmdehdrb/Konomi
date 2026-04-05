@@ -55,16 +55,14 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeybindings } from "@/hooks/useKeybindings";
 import type { AdvancedFilter } from "@/lib/advanced-filter";
 import type { Folder } from "@preload/index.d";
-import type { QuickVerifyResult } from "./bootstrap-app";
 import { useTranslation } from "react-i18next";
 
 interface AppProps {
   initialFolderCount?: number | null;
   initialFolders?: Folder[] | null;
-  initialQuickVerify?: QuickVerifyResult | null;
 }
 
-export default function App({ initialFolderCount = null, initialFolders = null, initialQuickVerify = null }: AppProps) {
+export default function App({ initialFolderCount = null, initialFolders = null }: AppProps) {
   const { settings, updateSettings, resetSettings } = useSettings();
   const { t } = useTranslation();
   const { outputFolder, setOutputFolder } = useNaiGenSettings();
@@ -341,7 +339,7 @@ export default function App({ initialFolderCount = null, initialFolders = null, 
       // Step 2: Run quickVerify → conditional scan → deferred integrity check
       // Uses bootstrap-provided quickVerify result instead of running it again
       handle = runAppInitialization({
-        quickVerifyResult: initialQuickVerify,
+        quickVerifyResult: null,
         loadSearchPresetStats,
         scanningRef,
         scheduleAnalysis,

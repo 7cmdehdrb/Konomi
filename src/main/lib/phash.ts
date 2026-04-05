@@ -1,7 +1,7 @@
 import os from "os";
 import path from "path";
 import { Worker } from "worker_threads";
-import { getDB } from "./db";
+import { getDB, getRawDB } from "./db";
 import { withConcurrency } from "./scanner";
 import { computeAllPairs, type AllPairsInput, type AllPairsResult } from "./konomi-image";
 
@@ -241,67 +241,8 @@ function parseTokenSet(raw: string): Set<string> {
   }
 }
 
-function toParsedRows(rows: SimilaritySourceRow[]): ParsedImageRow[] {
-  return rows.map((row) => {
-    const prompt = parseTokenSet(row.promptTokens);
-    const character = parseTokenSet(row.characterPromptTokens);
-    const negative = parseTokenSet(row.negativePromptTokens);
-    // Build positive as union of prompt+character without spreading into temp arrays
-    const positive = new Set<string>(prompt);
-    for (const t of character) positive.add(t);
-    return {
-      id: row.id,
-      pHash: row.pHash,
-      prompt,
-      character,
-      negative,
-      positive,
-    };
-  });
-}
 
-function buildIdfMap(rows: ParsedImageRow[]): Map<string, number> {
-  const docFrequency = new Map<string, number>();
-  // Reuse a single Set per row instead of allocating 35K temporary union Sets
-  const seen = new Set<string>();
-  for (const row of rows) {
-    seen.clear();
-    for (const t of row.prompt) seen.add(t);
-    for (const t of row.character) seen.add(t);
-    for (const t of row.negative) seen.add(t);
-    for (const token of seen) {
-      docFrequency.set(token, (docFrequency.get(token) ?? 0) + 1);
-    }
-  }
-  const totalDocs = Math.max(rows.length, 1);
-  const result = new Map<string, number>();
-  for (const [token, df] of docFrequency) {
-    result.set(token, Math.log((totalDocs + 1) / (df + 1)) + 1);
-  }
-  return result;
-}
 
-// Build IDF map directly from source rows without keeping parsed rows in memory.
-// Parses tokens temporarily per row, counts doc frequency, then discards the Sets.
-function buildIdfMapFromSourceRows(rows: SimilaritySourceRow[]): Map<string, number> {
-  const docFrequency = new Map<string, number>();
-  const seen = new Set<string>();
-  for (const row of rows) {
-    seen.clear();
-    for (const t of parseTokenSet(row.promptTokens)) seen.add(t);
-    for (const t of parseTokenSet(row.characterPromptTokens)) seen.add(t);
-    for (const t of parseTokenSet(row.negativePromptTokens)) seen.add(t);
-    for (const token of seen) {
-      docFrequency.set(token, (docFrequency.get(token) ?? 0) + 1);
-    }
-  }
-  const totalDocs = Math.max(rows.length, 1);
-  const result = new Map<string, number>();
-  for (const [token, df] of docFrequency) {
-    result.set(token, Math.log((totalDocs + 1) / (df + 1)) + 1);
-  }
-  return result;
-}
 
 function sumTokenWeights(
   tokens: Set<string>,
@@ -444,158 +385,6 @@ function classifyReasonAtThreshold(
   return "prompt";
 }
 
-function buildSimilarityImages(rows: SimilaritySourceRow[]): {
-  images: SimilarityImage[];
-  idfMap: Map<string, number>;
-} {
-  const parsedRows = toParsedRows(rows);
-  const idfMap = buildIdfMap(parsedRows);
-  // Attach weight sums in-place to avoid a second 35K-element array via .map()
-  const images: SimilarityImage[] = new Array(parsedRows.length);
-  for (let i = 0; i < parsedRows.length; i++) {
-    const row = parsedRows[i];
-    images[i] = {
-      id: row.id,
-      pHash: row.pHash,
-      prompt: row.prompt,
-      character: row.character,
-      negative: row.negative,
-      positive: row.positive,
-      promptWeightSum: sumTokenWeights(row.prompt, idfMap),
-      characterWeightSum: sumTokenWeights(row.character, idfMap),
-      negativeWeightSum: sumTokenWeights(row.negative, idfMap),
-      positiveWeightSum: sumTokenWeights(row.positive, idfMap),
-    };
-  }
-  return { images, idfMap };
-}
-
-// Encode source rows directly into native input without intermediate SimilarityImage[].
-// Re-parses tokens from JSON (cheap) to avoid holding 35K objects with 4 Sets each in memory.
-function encodeSourceRowsForNative(
-  rows: SimilaritySourceRow[],
-  idfMap: Map<string, number>,
-): AllPairsInput {
-  const vocab = new Map<string, number>();
-  for (const token of idfMap.keys()) vocab.set(token, vocab.size);
-  const vsz = vocab.size;
-  const N = rows.length;
-
-  const imageIds = new Int32Array(N);
-  const pHashHex: string[] = new Array(N);
-  const promptWts = new Float64Array(N);
-  const charWts = new Float64Array(N);
-  const negWts = new Float64Array(N);
-  const posWts = new Float64Array(N);
-  const hasPrompt = new Uint8Array(N);
-  const hasChar = new Uint8Array(N);
-
-  // First pass: count total tokens per category for typed array allocation
-  const rowTokens: Array<{
-    prompt: number[];
-    char: number[];
-    neg: number[];
-    pos: number[];
-  }> = new Array(N);
-
-  let tp = 0, tc = 0, tn = 0, tx = 0;
-  for (let i = 0; i < N; i++) {
-    const row = rows[i];
-    const prompt = parseTokenSet(row.promptTokens);
-    const character = parseTokenSet(row.characterPromptTokens);
-    const negative = parseTokenSet(row.negativePromptTokens);
-
-    imageIds[i] = row.id;
-    pHashHex[i] = row.pHash?.length === 16 ? row.pHash : "";
-    hasPrompt[i] = prompt.size > 0 ? 1 : 0;
-    hasChar[i] = character.size > 0 ? 1 : 0;
-
-    // Build positive as union
-    const positive = new Set<string>(prompt);
-    for (const t of character) positive.add(t);
-
-    // Compute weight sums
-    promptWts[i] = sumTokenWeights(prompt, idfMap);
-    charWts[i] = sumTokenWeights(character, idfMap);
-    negWts[i] = sumTokenWeights(negative, idfMap);
-    posWts[i] = sumTokenWeights(positive, idfMap);
-
-    // Convert to vocab indices for typed arrays
-    const pIds: number[] = [];
-    for (const t of prompt) { const id = vocab.get(t); if (id !== undefined) pIds.push(id); }
-    const cIds: number[] = [];
-    for (const t of character) { const id = vocab.get(t); if (id !== undefined) cIds.push(id); }
-    const nIds: number[] = [];
-    for (const t of negative) { const id = vocab.get(t); if (id !== undefined) nIds.push(id); }
-    const xIds: number[] = [];
-    for (const t of positive) { const id = vocab.get(t); if (id !== undefined) xIds.push(id); }
-
-    rowTokens[i] = { prompt: pIds, char: cIds, neg: nIds, pos: xIds };
-    tp += pIds.length;
-    tc += cIds.length;
-    tn += nIds.length;
-    tx += xIds.length;
-  }
-
-  // Second pass: fill typed arrays from cached vocab indices
-  const promptData = new Uint32Array(tp);
-  const promptOffsets = new Int32Array(N + 1);
-  const charData = new Uint32Array(tc);
-  const charOffsets = new Int32Array(N + 1);
-  const negData = new Uint32Array(tn);
-  const negOffsets = new Int32Array(N + 1);
-  const posData = new Uint32Array(tx);
-  const posOffsets = new Int32Array(N + 1);
-
-  let pi = 0, ci = 0, ni = 0, xi = 0;
-  for (let i = 0; i < N; i++) {
-    const tok = rowTokens[i];
-    promptOffsets[i] = pi;
-    for (const id of tok.prompt) promptData[pi++] = id;
-    charOffsets[i] = ci;
-    for (const id of tok.char) charData[ci++] = id;
-    negOffsets[i] = ni;
-    for (const id of tok.neg) negData[ni++] = id;
-    posOffsets[i] = xi;
-    for (const id of tok.pos) posData[xi++] = id;
-  }
-  promptOffsets[N] = pi;
-  charOffsets[N] = ci;
-  negOffsets[N] = ni;
-  posOffsets[N] = xi;
-
-  const tokenWeights = new Float64Array(vsz);
-  for (const [token, w] of idfMap) {
-    const id = vocab.get(token);
-    if (id !== undefined) tokenWeights[id] = w;
-  }
-
-  return {
-    imageIds,
-    pHashHex,
-    promptData,
-    promptOffsets,
-    charData,
-    charOffsets,
-    negData,
-    negOffsets,
-    posData,
-    posOffsets,
-    promptWts,
-    charWts,
-    negWts,
-    posWts,
-    hasPrompt,
-    hasChar,
-    tokenWeights,
-    uiThresholdMax: UI_THRESHOLD_MAX,
-    textThreshold: LOOSE_THRESHOLD_CONFIG.textLinkThreshold,
-    hybridThreshold: LOOSE_THRESHOLD_CONFIG.hybridLinkThreshold,
-    hybridPHashWeight: HYBRID_PHASH_WEIGHT,
-    hybridTextWeight: HYBRID_TEXT_WEIGHT,
-    conflictPenaltyWeight: CONFLICT_PENALTY_WEIGHT,
-  };
-}
 
 function normalizeImageIds(imageIds: number[]): number[] {
   return [
@@ -673,17 +462,183 @@ async function clearSimilarityCache(): Promise<void> {
   await markSimilarityCacheUnprimed();
 }
 
-async function readSimilaritySourceRows(): Promise<SimilaritySourceRow[]> {
-  const db = getDB();
-  return db.image.findMany({
-    select: {
-      id: true,
-      pHash: true,
-      promptTokens: true,
-      negativePromptTokens: true,
-      characterPromptTokens: true,
-    },
-  });
+const SIMILARITY_SOURCE_SQL =
+  'SELECT id, pHash, promptTokens, negativePromptTokens, characterPromptTokens FROM "Image"';
+
+/**
+ * Cursor-based IDF map builder.  Iterates all images once via better-sqlite3
+ * cursor, parses tokens per row, accumulates document frequencies, then
+ * discards each row — no SimilaritySourceRow[] array held in memory.
+ */
+function buildIdfMapFromCursor(): {
+  idfMap: Map<string, number>;
+  imageCount: number;
+  imageIdSet: Set<number>;
+} {
+  const rawDb = getRawDB();
+  const stmt = rawDb.prepare(SIMILARITY_SOURCE_SQL);
+  const docFrequency = new Map<string, number>();
+  const seen = new Set<string>();
+  const imageIdSet = new Set<number>();
+  let imageCount = 0;
+
+  for (const row of stmt.iterate()) {
+    const { id, promptTokens, negativePromptTokens, characterPromptTokens } =
+      row as SimilaritySourceRow;
+    imageIdSet.add(id);
+    imageCount++;
+
+    seen.clear();
+    for (const t of parseTokenSet(promptTokens)) seen.add(t);
+    for (const t of parseTokenSet(characterPromptTokens)) seen.add(t);
+    for (const t of parseTokenSet(negativePromptTokens)) seen.add(t);
+    for (const token of seen) {
+      docFrequency.set(token, (docFrequency.get(token) ?? 0) + 1);
+    }
+  }
+
+  const totalDocs = Math.max(imageCount, 1);
+  const idfMap = new Map<string, number>();
+  for (const [token, df] of docFrequency) {
+    idfMap.set(token, Math.log((totalDocs + 1) / (df + 1)) + 1);
+  }
+  return { idfMap, imageCount, imageIdSet };
+}
+
+/**
+ * Cursor-based native encoder.  Reads all images via cursor, parses tokens
+ * per row, and builds the AllPairsInput typed arrays in a single pass using
+ * growable JS arrays.  Only one row's token data is alive at a time;
+ * the final typed-array copy is the only large allocation.
+ */
+function encodeSourceRowsFromCursor(
+  idfMap: Map<string, number>,
+): AllPairsInput {
+  const rawDb = getRawDB();
+  const stmt = rawDb.prepare(SIMILARITY_SOURCE_SQL);
+
+  const vocab = new Map<string, number>();
+  for (const token of idfMap.keys()) vocab.set(token, vocab.size);
+
+  const imageIdsList: number[] = [];
+  const pHashHexList: string[] = [];
+  const promptWtsList: number[] = [];
+  const charWtsList: number[] = [];
+  const negWtsList: number[] = [];
+  const posWtsList: number[] = [];
+  const hasPromptList: number[] = [];
+  const hasCharList: number[] = [];
+
+  const allPromptIds: number[] = [];
+  const allCharIds: number[] = [];
+  const allNegIds: number[] = [];
+  const allPosIds: number[] = [];
+  const promptOffsetsList: number[] = [0];
+  const charOffsetsList: number[] = [0];
+  const negOffsetsList: number[] = [0];
+  const posOffsetsList: number[] = [0];
+
+  for (const row of stmt.iterate()) {
+    const { id, pHash, promptTokens, negativePromptTokens, characterPromptTokens } =
+      row as SimilaritySourceRow;
+
+    const prompt = parseTokenSet(promptTokens);
+    const character = parseTokenSet(characterPromptTokens);
+    const negative = parseTokenSet(negativePromptTokens);
+    const positive = new Set<string>(prompt);
+    for (const t of character) positive.add(t);
+
+    imageIdsList.push(id);
+    pHashHexList.push(pHash?.length === 16 ? pHash : "");
+    hasPromptList.push(prompt.size > 0 ? 1 : 0);
+    hasCharList.push(character.size > 0 ? 1 : 0);
+
+    promptWtsList.push(sumTokenWeights(prompt, idfMap));
+    charWtsList.push(sumTokenWeights(character, idfMap));
+    negWtsList.push(sumTokenWeights(negative, idfMap));
+    posWtsList.push(sumTokenWeights(positive, idfMap));
+
+    for (const t of prompt) { const vid = vocab.get(t); if (vid !== undefined) allPromptIds.push(vid); }
+    promptOffsetsList.push(allPromptIds.length);
+    for (const t of character) { const vid = vocab.get(t); if (vid !== undefined) allCharIds.push(vid); }
+    charOffsetsList.push(allCharIds.length);
+    for (const t of negative) { const vid = vocab.get(t); if (vid !== undefined) allNegIds.push(vid); }
+    negOffsetsList.push(allNegIds.length);
+    for (const t of positive) { const vid = vocab.get(t); if (vid !== undefined) allPosIds.push(vid); }
+    posOffsetsList.push(allPosIds.length);
+  }
+
+  const vsz = vocab.size;
+  const tokenWeights = new Float64Array(vsz);
+  for (const [token, w] of idfMap) {
+    const vid = vocab.get(token);
+    if (vid !== undefined) tokenWeights[vid] = w;
+  }
+
+  return {
+    imageIds: Int32Array.from(imageIdsList),
+    pHashHex: pHashHexList,
+    promptData: Uint32Array.from(allPromptIds),
+    promptOffsets: Int32Array.from(promptOffsetsList),
+    charData: Uint32Array.from(allCharIds),
+    charOffsets: Int32Array.from(charOffsetsList),
+    negData: Uint32Array.from(allNegIds),
+    negOffsets: Int32Array.from(negOffsetsList),
+    posData: Uint32Array.from(allPosIds),
+    posOffsets: Int32Array.from(posOffsetsList),
+    promptWts: Float64Array.from(promptWtsList),
+    charWts: Float64Array.from(charWtsList),
+    negWts: Float64Array.from(negWtsList),
+    posWts: Float64Array.from(posWtsList),
+    hasPrompt: Uint8Array.from(hasPromptList),
+    hasChar: Uint8Array.from(hasCharList),
+    tokenWeights,
+    uiThresholdMax: UI_THRESHOLD_MAX,
+    textThreshold: LOOSE_THRESHOLD_CONFIG.textLinkThreshold,
+    hybridThreshold: LOOSE_THRESHOLD_CONFIG.hybridLinkThreshold,
+    hybridPHashWeight: HYBRID_PHASH_WEIGHT,
+    hybridTextWeight: HYBRID_TEXT_WEIGHT,
+    conflictPenaltyWeight: CONFLICT_PENALTY_WEIGHT,
+  };
+}
+
+/**
+ * Cursor-based JS-fallback builder.  Reads all images via cursor and
+ * constructs SimilarityImage objects using a pre-built IDF map.
+ * The resulting array stays in memory (unavoidable for pairwise comparison)
+ * but the raw token JSON strings are discarded per row.
+ */
+function buildSimilarityImagesFromCursor(
+  idfMap: Map<string, number>,
+): SimilarityImage[] {
+  const rawDb = getRawDB();
+  const stmt = rawDb.prepare(SIMILARITY_SOURCE_SQL);
+  const images: SimilarityImage[] = [];
+
+  for (const row of stmt.iterate()) {
+    const { id, pHash, promptTokens, negativePromptTokens, characterPromptTokens } =
+      row as SimilaritySourceRow;
+
+    const prompt = parseTokenSet(promptTokens);
+    const character = parseTokenSet(characterPromptTokens);
+    const negative = parseTokenSet(negativePromptTokens);
+    const positive = new Set<string>(prompt);
+    for (const t of character) positive.add(t);
+
+    images.push({
+      id,
+      pHash,
+      prompt,
+      character,
+      negative,
+      positive,
+      promptWeightSum: sumTokenWeights(prompt, idfMap),
+      characterWeightSum: sumTokenWeights(character, idfMap),
+      negativeWeightSum: sumTokenWeights(negative, idfMap),
+      positiveWeightSum: sumTokenWeights(positive, idfMap),
+    });
+  }
+  return images;
 }
 
 async function upsertSimilarityCacheRows(
@@ -819,27 +774,24 @@ export async function refreshSimilarityCacheForImageIds(
     await deleteSimilarityCacheForImageIds(targetIds);
   }
 
-  const sourceRows = await readSimilaritySourceRows();
-  if (sourceRows.length < 2) return;
+  // Pass 1 (cursor): build IDF map + collect image IDs — no source row array
+  const { idfMap, imageCount, imageIdSet } = buildIdfMapFromCursor();
+  if (imageCount < 2) return;
 
-  // Build IDF map without keeping parsed rows in memory (~90MB savings for 35K images)
-  const idfMap = buildIdfMapFromSourceRows(sourceRows);
-  const sourceCount = sourceRows.length;
-  const sourceIdSet = new Set(sourceRows.map((r) => r.id));
-  const existingTargetIds = targetIds.filter((id) => sourceIdSet.has(id));
+  const existingTargetIds = targetIds.filter((id) => imageIdSet.has(id));
   if (existingTargetIds.length === 0) return;
-  const isFullCoverage = existingTargetIds.length === sourceCount;
+  const isFullCoverage = existingTargetIds.length === imageCount;
 
   // ── Native fast path ─────────────────────────────────────────────────────
-  // Encodes directly from source rows → native typed arrays, skipping the
-  // intermediate SimilarityImage[] that would hold 35K objects with 4 Sets each.
+  // Pass 2 (cursor): encode source rows → native typed arrays in a single
+  // streaming pass.  Only one row's token data is alive at a time.
   {
-    const nativeInput = encodeSourceRowsForNative(sourceRows, idfMap);
+    const nativeInput = encodeSourceRowsFromCursor(idfMap);
     if (!isFullCoverage) {
       const targetIdSet = new Set(existingTargetIds);
       const indices: number[] = [];
-      for (let i = 0; i < sourceRows.length; i++) {
-        if (targetIdSet.has(sourceRows[i].id)) indices.push(i);
+      for (let i = 0; i < nativeInput.imageIds.length; i++) {
+        if (targetIdSet.has(nativeInput.imageIds[i])) indices.push(i);
       }
       nativeInput.targetIndices = new Uint32Array(indices);
     }
@@ -851,10 +803,9 @@ export async function refreshSimilarityCacheForImageIds(
     }
   }
 
-  // ── JS fallback (lazy build — only when native addon unavailable) ────────
+  // ── JS fallback (cursor-based — only when native addon unavailable) ─────
 
-  const { images: fallbackImages, idfMap: fallbackIdfMap } =
-    buildSimilarityImages(sourceRows);
+  const fallbackImages = buildSimilarityImagesFromCursor(idfMap);
   const imageById = new Map(fallbackImages.map((img) => [img.id, img]));
 
   const targetIdSet = new Set(existingTargetIds);
@@ -878,7 +829,7 @@ export async function refreshSimilarityCacheForImageIds(
       if (candidate.id === targetId) continue;
       if (targetIdSet.has(candidate.id) && candidate.id < targetId) continue;
 
-      const row = computePairCacheRow(target, candidate, fallbackIdfMap);
+      const row = computePairCacheRow(target, candidate, idfMap);
       if (row) pending.push(row);
 
       processedPairs++;
@@ -1020,23 +971,20 @@ export async function getSimilarGroups(
 ): Promise<SimilarGroup[]> {
   await ensureSimilarityCachePrimed(onSimilarityProgress);
 
-  const db = getDB();
-  const imageRows = await db.image.findMany({ select: { id: true } });
-  if (imageRows.length < 2) return [];
+  const rawDb = getRawDB();
+  const imageIds = rawDb
+    .prepare('SELECT id FROM "Image"')
+    .pluck()
+    .all() as number[];
+  if (imageIds.length < 2) return [];
 
   const idToIndex = new Map<number, number>();
-  const indexToId: number[] = [];
-  for (const row of imageRows) {
-    idToIndex.set(row.id, indexToId.length);
-    indexToId.push(row.id);
+  for (let i = 0; i < imageIds.length; i++) {
+    idToIndex.set(imageIds[i], i);
   }
 
-  const cacheRows = await db.$queryRawUnsafe<SimilarityCacheRow[]>(
-    `SELECT imageAId, imageBId, phashDistance, textScore FROM ${SIMILARITY_CACHE_TABLE}`,
-  );
-
-  const parent = Array.from({ length: indexToId.length }, (_, i) => i);
-  const rank = new Uint8Array(indexToId.length);
+  const parent = Array.from({ length: imageIds.length }, (_, i) => i);
+  const rank = new Uint8Array(imageIds.length);
 
   function find(x: number): number {
     while (parent[x] !== x) {
@@ -1059,29 +1007,43 @@ export async function getSimilarGroups(
   }
 
   const config = resolveThresholdConfig(threshold, jaccardThreshold);
-  for (let i = 0; i < cacheRows.length; i++) {
-    const row = cacheRows[i];
-    const aIndex = idToIndex.get(row.imageAId);
-    const bIndex = idToIndex.get(row.imageBId);
+
+  // SQL pre-filter: max phashDistance that could pass the hybrid check (textScore=1.0)
+  // hybridScore = HYBRID_PHASH_WEIGHT * (1 - d/64) + HYBRID_TEXT_WEIGHT * textScore
+  // Solving for d when textScore=1.0: d <= 64 * (1 - (hybridThreshold - HYBRID_TEXT_WEIGHT) / HYBRID_PHASH_WEIGHT)
+  const maxPhashDist = Math.floor(
+    64 *
+      (1 -
+        (config.hybridLinkThreshold - HYBRID_TEXT_WEIGHT) /
+          HYBRID_PHASH_WEIGHT),
+  );
+  const minTextScore = config.textLinkThreshold;
+
+  // Cursor-based iteration: rows are fetched one at a time from SQLite,
+  // avoiding the O(pairs) JS array allocation of the old approach.
+  const stmt = rawDb.prepare(
+    `SELECT imageAId, imageBId, phashDistance, textScore FROM ${SIMILARITY_CACHE_TABLE} WHERE phashDistance <= ? OR textScore >= ?`,
+  );
+  for (const row of stmt.iterate(maxPhashDist, minTextScore)) {
+    const { imageAId, imageBId, phashDistance, textScore } =
+      row as SimilarityCacheRow;
+    const aIndex = idToIndex.get(imageAId);
+    const bIndex = idToIndex.get(imageBId);
     if (aIndex === undefined || bIndex === undefined) continue;
 
     if (
-      shouldLinkAtThreshold(row.phashDistance, row.textScore, threshold, config)
+      shouldLinkAtThreshold(phashDistance, textScore, threshold, config)
     ) {
       union(aIndex, bIndex);
-    }
-
-    if (i % 1024 === 0) {
-      await yieldToEventLoop();
     }
   }
 
   const groupMap = new Map<number, number[]>();
-  for (let i = 0; i < indexToId.length; i++) {
+  for (let i = 0; i < imageIds.length; i++) {
     const root = find(i);
     const arr = groupMap.get(root);
-    if (arr) arr.push(indexToId[i]);
-    else groupMap.set(root, [indexToId[i]]);
+    if (arr) arr.push(imageIds[i]);
+    else groupMap.set(root, [imageIds[i]]);
   }
 
   const groups = [...groupMap.values()]
