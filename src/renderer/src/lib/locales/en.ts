@@ -674,8 +674,11 @@ const en = {
     },
     pageSize: {
       title: "Images Per Page",
-      description: "How many images to show at once in the gallery.",
+      description: "How many images to show at once in the gallery. (10–100)",
       unit: "{{count}}",
+      custom: "Custom",
+      confirm: "Apply",
+      cancel: "Cancel",
     },
     recentRange: {
       title: "Recent Range",

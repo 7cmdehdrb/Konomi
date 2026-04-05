@@ -669,8 +669,11 @@ const ko = {
     },
     pageSize: {
       title: "페이지당 이미지 수",
-      description: "갤러리에서 한 번에 표시할 이미지 수입니다.",
+      description: "갤러리에서 한 번에 표시할 이미지 수입니다. (10~100)",
       unit: "{{count}}개",
+      custom: "직접 입력",
+      confirm: "적용",
+      cancel: "취소",
     },
     recentRange: {
       title: "최근 생성 범위",

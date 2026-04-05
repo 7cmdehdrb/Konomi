@@ -5,8 +5,9 @@ import {
   RefreshCw,
   Trash2,
   Info,
+  Check,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import {
@@ -117,6 +118,125 @@ const jaccardLabel = (value: number): string => {
   if (value >= 0.54) return i18n.t("settings.similarity.jaccard.loose");
   return i18n.t("settings.similarity.jaccard.veryLoose");
 };
+
+const PAGE_SIZE_PRESETS = [10, 20, 50, 100] as const;
+const PAGE_SIZE_MIN = 10;
+const PAGE_SIZE_MAX = 100;
+
+function PageSizeSection({
+  value,
+  onUpdate,
+  onReset,
+}: {
+  value: number;
+  onUpdate: (patch: Partial<Settings>) => void;
+  onReset: () => void;
+}) {
+  const { t } = useTranslation();
+  const isPreset = (PAGE_SIZE_PRESETS as readonly number[]).includes(value);
+  const [editing, setEditing] = useState(false);
+  const [customDraft, setCustomDraft] = useState(String(value));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const openEditor = () => {
+    setCustomDraft(String(value));
+    setEditing(true);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  const commitCustomValue = () => {
+    const parsed = parseInt(customDraft, 10);
+    if (Number.isNaN(parsed)) {
+      setEditing(false);
+      return;
+    }
+    const clamped = Math.max(PAGE_SIZE_MIN, Math.min(PAGE_SIZE_MAX, parsed));
+    onUpdate({ pageSize: clamped });
+    setCustomDraft(String(clamped));
+    setEditing(false);
+  };
+
+  const cancelEditor = () => {
+    setCustomDraft(String(value));
+    setEditing(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <SectionHeader onReset={onReset}>
+        {t("settings.pageSize.title")}
+      </SectionHeader>
+      <p className="text-xs text-muted-foreground select-none">
+        {t("settings.pageSize.description")}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {PAGE_SIZE_PRESETS.map((opt) => (
+          <button
+            key={opt}
+            onClick={() => {
+              onUpdate({ pageSize: opt });
+              setEditing(false);
+            }}
+            className={cn(
+              "px-3 py-1.5 text-sm rounded-md border transition-colors",
+              value === opt && isPreset && !editing
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-secondary text-muted-foreground border-border hover:text-foreground hover:border-foreground/30",
+            )}
+          >
+            {t("settings.pageSize.unit", { count: opt })}
+          </button>
+        ))}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={openEditor}
+            className={cn(
+              "px-3 py-1.5 text-sm rounded-md border transition-colors",
+              !isPreset || editing
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-secondary text-muted-foreground border-border hover:text-foreground hover:border-foreground/30",
+            )}
+          >
+            {!isPreset && !editing
+              ? t("settings.pageSize.unit", { count: value })
+              : t("settings.pageSize.custom")}
+          </button>
+          {editing && (
+            <>
+              <input
+                ref={inputRef}
+                type="number"
+                min={PAGE_SIZE_MIN}
+                max={PAGE_SIZE_MAX}
+                value={customDraft}
+                onChange={(e) => setCustomDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitCustomValue();
+                  if (e.key === "Escape") cancelEditor();
+                }}
+                className="w-16 px-2 py-1.5 text-sm rounded-md border border-border bg-secondary text-foreground text-center tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button
+                onClick={commitCustomValue}
+                className="p-1.5 rounded-md border border-border bg-secondary text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+                title={t("settings.pageSize.confirm")}
+              >
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={cancelEditor}
+                className="p-1.5 rounded-md border border-border bg-secondary text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                title={t("settings.pageSize.cancel")}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const SIMILARITY_MIN = 8;
 const SIMILARITY_MAX = 16;
@@ -393,20 +513,11 @@ export function SettingsView({
 
         <Separator className="bg-border" />
 
-        <div className="space-y-2">
-          <SectionHeader onReset={() => onReset(["pageSize"])}>
-            {t("settings.pageSize.title")}
-          </SectionHeader>
-          <p className="text-xs text-muted-foreground select-none">
-            {t("settings.pageSize.description")}
-          </p>
-          <OptionGroup
-            value={settings.pageSize}
-            options={[10, 20, 50, 100] as number[]}
-            label={(v) => t("settings.pageSize.unit", { count: v })}
-            onChange={(v) => onUpdate({ pageSize: v })}
-          />
-        </div>
+        <PageSizeSection
+          value={settings.pageSize}
+          onUpdate={onUpdate}
+          onReset={() => onReset(["pageSize"])}
+        />
 
         <Separator className="bg-border" />
 
