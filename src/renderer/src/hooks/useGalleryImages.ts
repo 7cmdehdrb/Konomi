@@ -29,6 +29,7 @@ export function useGalleryImages(
     null,
   );
   const enabledRef = useRef(enabled);
+  const builtinCategoryRef = useRef(listBaseQuery.builtinCategory);
   const listRequestSeqRef = useRef(0);
   const loadImagesPageRef = useRef<() => Promise<void>>(async () => {});
 
@@ -42,6 +43,10 @@ export function useGalleryImages(
       setIsLoading(false);
     }
   }, [enabled]);
+
+  useEffect(() => {
+    builtinCategoryRef.current = listBaseQuery.builtinCategory;
+  }, [listBaseQuery.builtinCategory]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -90,6 +95,11 @@ export function useGalleryImages(
 
   const schedulePageRefresh = useCallback((delay = 120) => {
     if (!enabledRef.current) return;
+    // 랜덤 픽은 ORDER BY RANDOM()을 사용하므로 외부 이벤트(스캔 배치, watcher 등)에 의한
+    // 리프레시가 매번 다른 결과를 반환한다. 유저가 명시적으로 새로고침할 때만 갱신되도록
+    // schedulePageRefresh를 무시한다. (명시적 갱신은 randomSeed 변경 → listBaseQuery
+    // 변경 → useEffect 경유로 loadImagesPage가 호출됨)
+    if (builtinCategoryRef.current === "random") return;
     if (pageRefreshTimerRef.current) clearTimeout(pageRefreshTimerRef.current);
     pageRefreshTimerRef.current = setTimeout(() => {
       void loadImagesPageRef.current();
