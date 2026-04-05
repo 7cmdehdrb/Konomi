@@ -42,12 +42,21 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    labelKey: "settings.keybindings.groups.browse",
+    ids: [
+      "browse.all",
+      "browse.recent",
+      "browse.favorites",
+      "browse.randomPick",
+      "browse.randomRefresh",
+    ],
+  },
+  {
     labelKey: "settings.keybindings.groups.gallery",
     ids: [
       "gallery.focusSearch",
       "gallery.prevPage",
       "gallery.nextPage",
-      "gallery.scan",
     ],
   },
   {
@@ -283,6 +292,7 @@ export function KeybindingPanel({
           </div>
         </div>
       ))}
+
     </div>
   );
 }

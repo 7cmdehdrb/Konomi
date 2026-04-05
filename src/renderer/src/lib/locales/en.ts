@@ -605,6 +605,11 @@ const en = {
         description:
           "Change sorting, switch view modes, and use selection mode.",
       },
+      galleryKeyboard: {
+        title: "Gallery Keyboard Navigation",
+        description:
+          "Use arrow keys (←→↑↓) to select images and Enter to open detail view. Home/End jump to the first/last image, and Escape closes detail view returning focus to the image you were viewing.",
+      },
       promptInput: {
         title: "Prompt Input",
         description:
@@ -776,6 +781,7 @@ const en = {
       conflictSuffix: " conflict",
       groups: {
         panel: "Panel Navigation",
+        browse: "Browse Navigation",
         gallery: "Gallery",
         detail: "Image Detail",
         generator: "Generator",
@@ -785,10 +791,15 @@ const en = {
         "panel.gallery": "Gallery panel",
         "panel.tagSearch": "Tag search panel",
         "panel.settings": "Settings panel",
+        "browse.all": "All Images",
+        "browse.recent": "Recent",
+        "browse.favorites": "Favorites",
+        "browse.randomPick": "Random Pick",
+        "browse.randomRefresh": "Refresh Random Pick",
         "gallery.focusSearch": "Focus search",
         "gallery.prevPage": "Previous page",
         "gallery.nextPage": "Next page",
-        "gallery.scan": "Start scan",
+
         "detail.close": "Close detail",
         "detail.prev": "Previous image",
         "detail.next": "Next image",

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { matchesBinding, type Keybindings } from "@/lib/keybindings";
 import type { ActivePanel } from "./useAppShellState";
 import type { ImageData } from "@/components/image-card";
+import type { GalleryFocusActions } from "./useGalleryFocus";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!target) return false;
@@ -18,11 +19,20 @@ function focusSearchInput() {
   }
 }
 
+interface BrowseNavigation {
+  goAll: () => void;
+  goRecent: () => void;
+  goFavorites: () => void;
+  goRandomPick: () => void;
+  refreshRandom: () => void;
+}
+
 interface UseKeyboardShortcutsOptions {
   bindings: Keybindings;
   handlePanelChange: (panel: ActivePanel) => void;
   activePanel: ActivePanel;
   onGenerate: () => void;
+  browseNavigation: BrowseNavigation;
   detail: {
     isOpen: boolean;
     image: ImageData | null | undefined;
@@ -35,8 +45,10 @@ interface UseKeyboardShortcutsOptions {
     onCopyPrompt: (prompt: string) => void;
     onDelete: (id: string) => void;
   };
-  runScan: () => void;
-  scanning: boolean;
+  galleryFocus: GalleryFocusActions & {
+    imageCount: number;
+    openFocusedImage: () => void;
+  };
   imageGalleryPagination: {
     page: number;
     totalPages: number;
@@ -50,10 +62,10 @@ export function useKeyboardShortcuts({
   handlePanelChange,
   activePanel,
   onGenerate,
+  browseNavigation,
   detail,
   imageActions,
-  runScan,
-  scanning,
+  galleryFocus,
   imageGalleryPagination,
   anyDialogOpen,
 }: UseKeyboardShortcutsOptions) {
@@ -83,6 +95,27 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // 탐색 전환 — 항상 동작
+      if (matchesBinding(e, bindings["browse.all"])) {
+        e.preventDefault();
+        browseNavigation.goAll();
+        return;
+      }
+      if (matchesBinding(e, bindings["browse.recent"])) {
+        e.preventDefault();
+        browseNavigation.goRecent();
+        return;
+      }
+      if (matchesBinding(e, bindings["browse.favorites"])) {
+        e.preventDefault();
+        browseNavigation.goFavorites();
+        return;
+      }
+      if (matchesBinding(e, bindings["browse.randomPick"])) {
+        e.preventDefault();
+        browseNavigation.goRandomPick();
+        return;
+      }
       // F5 — 생성 실행 (생성 패널에서 항상 동작)
       if (
         activePanel === "generator" &&
@@ -96,6 +129,13 @@ export function useKeyboardShortcuts({
       // 이하는 editable 포커스 중이거나 다이얼로그 열림 시 무시
       if (editable || anyDialogOpen) return;
 
+      // 랜덤 픽 새로고침
+      if (matchesBinding(e, bindings["browse.randomRefresh"])) {
+        e.preventDefault();
+        browseNavigation.refreshRandom();
+        return;
+      }
+
       // 검색창 포커스
       if (
         !detail.isOpen &&
@@ -103,13 +143,6 @@ export function useKeyboardShortcuts({
       ) {
         e.preventDefault();
         focusSearchInput();
-        return;
-      }
-
-      // 스캔
-      if (!scanning && matchesBinding(e, bindings["gallery.scan"])) {
-        e.preventDefault();
-        runScan();
         return;
       }
 
@@ -145,6 +178,46 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      // 갤러리 포커스 내비게이션 (디테일 닫힌 상태)
+      if (galleryFocus.imageCount > 0) {
+        const key = e.key;
+        if (key === "ArrowLeft") {
+          e.preventDefault();
+          galleryFocus.moveLeft();
+          return;
+        }
+        if (key === "ArrowRight") {
+          e.preventDefault();
+          galleryFocus.moveRight();
+          return;
+        }
+        if (key === "ArrowUp") {
+          e.preventDefault();
+          galleryFocus.moveUp();
+          return;
+        }
+        if (key === "ArrowDown") {
+          e.preventDefault();
+          galleryFocus.moveDown();
+          return;
+        }
+        if (key === "Home") {
+          e.preventDefault();
+          galleryFocus.moveHome();
+          return;
+        }
+        if (key === "End") {
+          e.preventDefault();
+          galleryFocus.moveEnd();
+          return;
+        }
+        if (key === "Enter") {
+          e.preventDefault();
+          galleryFocus.openFocusedImage();
+          return;
+        }
+      }
+
       // 페이지 이동 (갤러리)
       if (matchesBinding(e, bindings["gallery.prevPage"])) {
         if (imageGalleryPagination.page > 1) {
@@ -167,13 +240,13 @@ export function useKeyboardShortcuts({
   }, [
     bindings,
     anyDialogOpen,
+    browseNavigation,
     detail,
+    galleryFocus,
     handlePanelChange,
     activePanel,
     onGenerate,
     imageActions,
     imageGalleryPagination,
-    runScan,
-    scanning,
   ]);
 }

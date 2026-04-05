@@ -10,10 +10,15 @@ export type KeyBindingId =
   | "panel.gallery"
   | "panel.tagSearch"
   | "panel.settings"
+  | "browse.all"
+  | "browse.recent"
+  | "browse.favorites"
+  | "browse.randomPick"
+  | "browse.randomRefresh"
   | "gallery.focusSearch"
   | "gallery.prevPage"
   | "gallery.nextPage"
-  | "gallery.scan"
+
   | "detail.close"
   | "detail.prev"
   | "detail.next"
@@ -29,10 +34,15 @@ export const DEFAULT_KEYBINDINGS: Keybindings = {
   "panel.gallery": { key: "2", ctrl: true },
   "panel.tagSearch": { key: "3", ctrl: true },
   "panel.settings": { key: "4", ctrl: true },
+  "browse.all": { key: "1", alt: true },
+  "browse.recent": { key: "2", alt: true },
+  "browse.favorites": { key: "3", alt: true },
+  "browse.randomPick": { key: "4", alt: true },
+  "browse.randomRefresh": { key: "r" },
   "gallery.focusSearch": { key: "/" },
   "gallery.prevPage": { key: "PageUp" },
   "gallery.nextPage": { key: "PageDown" },
-  "gallery.scan": { key: "r", ctrl: true },
+
   "detail.close": { key: "Escape" },
   "detail.prev": { key: "ArrowLeft" },
   "detail.next": { key: "ArrowRight" },

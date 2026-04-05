@@ -53,6 +53,7 @@ import { useAppShellState, type ActivePanel } from "@/hooks/useAppShellState";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeybindings } from "@/hooks/useKeybindings";
+import { useGalleryFocus } from "@/hooks/useGalleryFocus";
 import type { AdvancedFilter } from "@/lib/advanced-filter";
 import type { Folder } from "@preload/index.d";
 import type { QuickVerifyResult } from "@/bootstrap-app";
@@ -126,6 +127,7 @@ export default function App({
     sidebarView,
     sidebarCategoryState,
     categoryCommands,
+    browseNavigation,
   } = useBrowseScope();
   const resolutionFilters = useMemo(
     () =>
@@ -359,15 +361,44 @@ export default function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-once orchestrator
   }, []);
 
+  const { galleryFocusState, galleryFocusActions } = useGalleryFocus(
+    images.length,
+  );
+
+  const openFocusedImage = useCallback(() => {
+    if (galleryFocusState.focusIndex === null) return;
+    const image = images[galleryFocusState.focusIndex];
+    if (image) detail.onSelectImage(image);
+  }, [galleryFocusState.focusIndex, images, detail]);
+
+  const galleryFocusForShortcuts = useMemo(
+    () => ({
+      ...galleryFocusActions,
+      imageCount: images.length,
+      openFocusedImage,
+    }),
+    [galleryFocusActions, images.length, openFocusedImage],
+  );
+
+  // 디테일 닫힐 때 포커스 복원
+  const prevDetailOpenRef = useRef(detail.isOpen);
+  useEffect(() => {
+    if (prevDetailOpenRef.current && !detail.isOpen && detail.image) {
+      const idx = images.findIndex((img) => img.id === detail.image!.id);
+      if (idx >= 0) galleryFocusActions.setFocusIndex(idx);
+    }
+    prevDetailOpenRef.current = detail.isOpen;
+  }, [detail.isOpen, detail.image, images, galleryFocusActions]);
+
   useKeyboardShortcuts({
     bindings,
     handlePanelChange,
     activePanel,
     onGenerate: () => generationViewRef.current?.generate(),
+    browseNavigation,
     detail,
     imageActions,
-    runScan,
-    scanning,
+    galleryFocus: galleryFocusForShortcuts,
     imageGalleryPagination,
     anyDialogOpen:
       scanCancelConfirmOpen ||
@@ -633,6 +664,8 @@ export default function App({
               scanning={scanning}
               syncing={!initialRefreshDone}
               enableVirtualization={settings.enableVirtualization}
+              focusIndex={galleryFocusState.focusIndex}
+              onColumnCountChange={galleryFocusActions.setColumnCount}
             />
           </div>
         </div>

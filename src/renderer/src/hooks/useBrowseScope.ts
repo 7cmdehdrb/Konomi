@@ -38,6 +38,22 @@ export function useBrowseScope() {
     setRandomSeed((seed) => seed + 1);
   }, []);
 
+  const navigateToFavorites = useCallback(() => {
+    const fav = categories.find((c) => c.isBuiltin && c.order === 0);
+    if (fav) {
+      setActiveView("all");
+      selectCategory(fav.id);
+    }
+  }, [categories, selectCategory]);
+
+  const navigateToRandomPick = useCallback(() => {
+    const rp = categories.find((c) => c.isBuiltin && c.order === 1);
+    if (rp) {
+      setActiveView("all");
+      selectCategory(rp.id);
+    }
+  }, [categories, selectCategory]);
+
   const queryFragment = useMemo(
     () => ({
       onlyRecent: activeView === "recent",
@@ -90,11 +106,23 @@ export function useBrowseScope() {
     ],
   );
 
+  const browseNavigation = useMemo(
+    () => ({
+      goAll: () => handleViewChange("all"),
+      goRecent: () => handleViewChange("recent"),
+      goFavorites: navigateToFavorites,
+      goRandomPick: navigateToRandomPick,
+      refreshRandom: handleRandomRefresh,
+    }),
+    [handleViewChange, navigateToFavorites, navigateToRandomPick, handleRandomRefresh],
+  );
+
   return {
     categories,
     queryFragment,
     sidebarView,
     sidebarCategoryState,
     categoryCommands,
+    browseNavigation,
   };
 }

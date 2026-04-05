@@ -21,6 +21,7 @@ type TourStepKey =
   | "folders"
   | "categories"
   | "galleryToolbar"
+  | "galleryKeyboard"
   | "promptInput"
   | "promptCursor"
   | "tokenChipPopover"
@@ -67,6 +68,12 @@ const TOUR_STEP_TEMPLATES: TourStepTemplate[] = [
   },
   {
     key: "galleryToolbar",
+    targetSelector: '[data-tour="gallery-toolbar"]',
+    placement: "bottom",
+    panel: "gallery",
+  },
+  {
+    key: "galleryKeyboard",
     targetSelector: '[data-tour="gallery-toolbar"]',
     placement: "bottom",
     panel: "gallery",

@@ -600,6 +600,11 @@ const ko = {
         description:
           "정렬 방식 변경, 뷰 모드 전환, 선택 모드를 사용할 수 있습니다.",
       },
+      galleryKeyboard: {
+        title: "갤러리 키보드 탐색",
+        description:
+          "방향키(←→↑↓)로 이미지를 선택하고, Enter로 상세 보기를 열 수 있습니다. Home/End는 첫/마지막 이미지로 이동하며, Escape로 상세 보기를 닫으면 보던 이미지로 돌아갑니다.",
+      },
       promptInput: {
         title: "프롬프트 입력",
         description:
@@ -771,6 +776,7 @@ const ko = {
       conflictSuffix: "와 충돌",
       groups: {
         panel: "패널 전환",
+        browse: "탐색 전환",
         gallery: "갤러리",
         detail: "이미지 상세",
         generator: "생성 모드",
@@ -780,10 +786,15 @@ const ko = {
         "panel.gallery": "갤러리 패널",
         "panel.tagSearch": "태그 검색 패널",
         "panel.settings": "설정 패널",
+        "browse.all": "모든 이미지",
+        "browse.recent": "최근",
+        "browse.favorites": "즐겨찾기",
+        "browse.randomPick": "랜덤 픽",
+        "browse.randomRefresh": "랜덤 픽 새로고침",
         "gallery.focusSearch": "검색창 포커스",
         "gallery.prevPage": "이전 페이지",
         "gallery.nextPage": "다음 페이지",
-        "gallery.scan": "스캔 시작",
+
         "detail.close": "상세 패널 닫기",
         "detail.prev": "이전 이미지",
         "detail.next": "다음 이미지",

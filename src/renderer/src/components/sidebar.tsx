@@ -1491,18 +1491,16 @@ const SidebarCategoriesSection = memo(function SidebarCategoriesSection({
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
 
+  const customCategories = useMemo(
+    () => categories.filter((c) => !c.isBuiltin),
+    [categories],
+  );
+
   const filteredCategories = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return categories;
-    return categories.filter((c) => {
-      const displayName = c.isBuiltin
-        ? c.order === 0
-          ? t("sidebar.categories.favorites")
-          : t("sidebar.categories.randomPick")
-        : c.name;
-      return displayName.toLowerCase().includes(q);
-    });
-  }, [categories, searchQuery, t]);
+    if (!q) return customCategories;
+    return customCategories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [customCategories, searchQuery]);
 
   return (
     <div className="border-t border-border pt-4" data-tour="sidebar-categories">
@@ -1970,6 +1968,53 @@ export const Sidebar = memo(
                     </Button>
                   );
                 })}
+                {categories
+                  .filter((c) => c.isBuiltin)
+                  .sort((a, b) => a.order - b.order)
+                  .map((cat) => {
+                    const isFavorites = cat.order === 0;
+                    const isSelected = selectedCategoryId === cat.id;
+                    return (
+                      <Button
+                        key={cat.id}
+                        variant="ghost"
+                        className={cn(
+                          "w-full justify-start gap-3 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent",
+                          isSelected && "bg-sidebar-accent text-foreground",
+                        )}
+                        onClick={() =>
+                          onCategorySelect(isSelected ? null : cat.id)
+                        }
+                      >
+                        {isFavorites ? (
+                          <Star
+                            className={cn(
+                              "h-4 w-4",
+                              isSelected && "fill-current",
+                            )}
+                          />
+                        ) : (
+                          <Shuffle className="h-4 w-4" />
+                        )}
+                        <span className="flex-1 text-left">
+                          {t(
+                            isFavorites
+                              ? "sidebar.categories.favorites"
+                              : "sidebar.categories.randomPick",
+                          )}
+                        </span>
+                        {!isFavorites && isSelected && (
+                          <RefreshCw
+                            className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRandomRefresh();
+                            }}
+                          />
+                        )}
+                      </Button>
+                    );
+                  })}
               </div>
 
               <SidebarFoldersSection

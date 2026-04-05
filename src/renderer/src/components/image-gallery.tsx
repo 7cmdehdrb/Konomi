@@ -170,6 +170,8 @@ interface ImageGalleryProps {
   scanning?: boolean;
   syncing?: boolean;
   enableVirtualization?: boolean;
+  focusIndex?: number | null;
+  onColumnCountChange?: (count: number) => void;
 }
 
 interface GalleryToolbarProps {
@@ -377,6 +379,37 @@ const GalleryToolbar = memo(function GalleryToolbar({
   );
 });
 
+const GalleryFocusWrapper = memo(function GalleryFocusWrapper({
+  isFocused,
+  isMeasure,
+  children,
+}: {
+  isFocused: boolean;
+  isMeasure: boolean;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isFocused && ref.current) {
+      ref.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [isFocused]);
+
+  return (
+    <div
+      ref={ref}
+      data-gallery-card-measure={isMeasure ? "true" : undefined}
+      className={cn(
+        "rounded-lg transition-shadow",
+        isFocused && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+      )}
+    >
+      {children}
+    </div>
+  );
+});
+
 interface GalleryResultsProps {
   paged: ImageData[];
   viewMode: ViewMode;
@@ -406,6 +439,8 @@ interface GalleryResultsProps {
   hasFolders: boolean;
   onAddFolder?: () => void;
   enableVirtualization: boolean;
+  focusIndex?: number | null;
+  onColumnCountChange?: (count: number) => void;
 }
 
 const GalleryResults = memo(function GalleryResults({
@@ -436,6 +471,8 @@ const GalleryResults = memo(function GalleryResults({
   hasFolders,
   onAddFolder,
   enableVirtualization,
+  focusIndex,
+  onColumnCountChange,
 }: GalleryResultsProps) {
   const { t } = useTranslation();
   const [viewportSize, setViewportSize] = useState({
@@ -454,6 +491,11 @@ const GalleryResults = memo(function GalleryResults({
     () => getGalleryColumnCount(viewMode, viewportSize.width),
     [viewMode, viewportSize.width],
   );
+
+  useEffect(() => {
+    if (columnCount > 0) onColumnCountChange?.(columnCount);
+  }, [columnCount, onColumnCountChange]);
+
   const estimatedRowHeight = useMemo(
     () => estimateGalleryRowHeight(viewMode, viewportSize.width, columnCount),
     [columnCount, viewMode, viewportSize.width],
@@ -595,6 +637,8 @@ const GalleryResults = memo(function GalleryResults({
             )}
           >
             {visibleImages.map((image, index) => {
+              const pagedIndex = visibleStartIndex + index;
+              const isFocused = focusIndex === pagedIndex;
               const card = (
                 <ImageCard
                   key={image.id}
@@ -618,18 +662,17 @@ const GalleryResults = memo(function GalleryResults({
                   onBulkCategory={onBulkCategory}
                   onRescanMetadata={onRescanMetadata}
                   onBulkRescanMetadata={onBulkRescanMetadata}
-
                 />
               );
 
-              if (index !== 0) {
-                return card;
-              }
-
               return (
-                <div key={image.id} data-gallery-card-measure="true">
+                <GalleryFocusWrapper
+                  key={image.id}
+                  isFocused={isFocused}
+                  isMeasure={index === 0}
+                >
                   {card}
-                </div>
+                </GalleryFocusWrapper>
               );
             })}
           </div>
@@ -885,6 +928,8 @@ export const ImageGallery = memo(function ImageGallery({
   scanning = false,
   syncing = false,
   enableVirtualization = false,
+  focusIndex,
+  onColumnCountChange,
 }: ImageGalleryProps) {
   const {
     images,
@@ -1137,6 +1182,8 @@ export const ImageGallery = memo(function ImageGallery({
         hasFolders={hasFolders}
         onAddFolder={onAddFolder}
         enableVirtualization={enableVirtualization}
+        focusIndex={focusIndex}
+        onColumnCountChange={onColumnCountChange}
       />
 
       <GalleryPagination
