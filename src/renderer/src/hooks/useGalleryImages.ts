@@ -10,6 +10,13 @@ import type { ImageData } from "@/components/image-card";
 import type { ImageListQuery } from "@preload/index.d";
 import i18n from "@/lib/i18n";
 import { parseTokens, rowToImageData } from "@/lib/image-utils";
+import type { PromptToken } from "@/lib/token";
+
+type TokenCache = {
+  tokens: PromptToken[];
+  negativeTokens: PromptToken[];
+  characterTokens: PromptToken[];
+};
 
 const EMPTY_IMAGES: ImageData[] = [];
 
@@ -31,6 +38,7 @@ export function useGalleryImages(
   const enabledRef = useRef(enabled);
   const listRequestSeqRef = useRef(0);
   const loadImagesPageRef = useRef<() => Promise<void>>(async () => {});
+  const tokenCacheRef = useRef(new Map<string, TokenCache>());
 
   useEffect(() => {
     enabledRef.current = enabled;
@@ -62,7 +70,17 @@ export function useGalleryImages(
       });
       if (requestId !== listRequestSeqRef.current) return;
       startTransition(() => {
-        setImages(result.rows.map(rowToImageData));
+        const cache = tokenCacheRef.current;
+        setImages(
+          result.rows.map((row) => {
+            const img = rowToImageData(row);
+            const cached = cache.get(img.id);
+            if (cached && img.tokens.length === 0) {
+              return { ...img, ...cached };
+            }
+            return img;
+          }),
+        );
         setTotalImageCount(result.totalCount);
         setGalleryTotalPages(result.totalPages);
       });
@@ -136,6 +154,11 @@ export function useGalleryImages(
       const tokens = parseTokens(row.promptTokens);
       const negativeTokens = parseTokens(row.negativePromptTokens);
       const characterTokens = parseTokens(row.characterPromptTokens);
+      tokenCacheRef.current.set(imageId, {
+        tokens,
+        negativeTokens,
+        characterTokens,
+      });
       setImages((prev) =>
         prev.map((img) =>
           img.id === imageId
