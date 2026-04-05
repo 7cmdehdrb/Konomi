@@ -168,6 +168,7 @@ interface ImageGalleryProps {
   actions: ImageGalleryActions;
   pagination?: ImageGalleryPagination;
   scanning?: boolean;
+  enableVirtualization?: boolean;
 }
 
 interface GalleryToolbarProps {
@@ -403,6 +404,7 @@ interface GalleryResultsProps {
   scanning: boolean;
   hasFolders: boolean;
   onAddFolder?: () => void;
+  enableVirtualization: boolean;
 }
 
 const GalleryResults = memo(function GalleryResults({
@@ -433,6 +435,7 @@ const GalleryResults = memo(function GalleryResults({
   scanning,
   hasFolders,
   onAddFolder,
+  enableVirtualization,
 }: GalleryResultsProps) {
   const { t } = useTranslation();
   const [viewportSize, setViewportSize] = useState({
@@ -461,7 +464,10 @@ const GalleryResults = memo(function GalleryResults({
     viewMode === "list"
       ? LIST_VIRTUAL_OVERSCAN_ROWS
       : GRID_VIRTUAL_OVERSCAN_ROWS;
+  // Virtualization is opt-in (Debug Panel > Actions) because at typical page sizes
+  // the mount/unmount cost during scroll outweighs the DOM-count savings.
   const shouldVirtualize =
+    enableVirtualization &&
     viewportSize.height > 0 &&
     paged.length > columnCount * MIN_VIRTUALIZED_ROWS;
   const visibleStartRow = visibleRowRange.startRow;
@@ -871,6 +877,7 @@ export const ImageGallery = memo(function ImageGallery({
   actions,
   pagination,
   scanning = false,
+  enableVirtualization = false,
 }: ImageGalleryProps) {
   const {
     images,
@@ -1116,6 +1123,7 @@ export const ImageGallery = memo(function ImageGallery({
         scanning={scanning}
         hasFolders={hasFolders}
         onAddFolder={onAddFolder}
+        enableVirtualization={enableVirtualization}
       />
 
       <GalleryPagination

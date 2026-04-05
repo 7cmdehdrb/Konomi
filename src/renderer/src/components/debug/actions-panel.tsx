@@ -16,6 +16,8 @@ interface ActionsPanelProps {
   onRunAnalysis: () => Promise<boolean>;
   scanning: boolean;
   isAnalyzing: boolean;
+  settings: import("@/hooks/useSettings").Settings;
+  onUpdateSettings: (patch: Partial<import("@/hooks/useSettings").Settings>) => void;
 }
 
 function formatTime(ts: number): string {
@@ -27,6 +29,8 @@ export const ActionsPanel = memo(function ActionsPanel({
   onRunAnalysis,
   scanning,
   isAnalyzing,
+  settings,
+  onUpdateSettings,
 }: ActionsPanelProps) {
   const [log, setLog] = useState<LogLine[]>([]);
   const [runningAction, setRunningAction] = useState<string | null>(null);
@@ -197,6 +201,21 @@ export const ActionsPanel = memo(function ActionsPanel({
           disabled={busy}
           onClick={() => void handleRescanMetadata()}
         />
+      </div>
+
+      {/* Feature flags */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-muted-foreground">Feature Flags</label>
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
+          <input
+            type="checkbox"
+            checked={settings.enableVirtualization}
+            onChange={(e) =>
+              onUpdateSettings({ enableVirtualization: e.target.checked })
+            }
+          />
+          Gallery Virtualization
+        </label>
       </div>
 
       {/* Announcement triggers */}

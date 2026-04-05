@@ -577,6 +577,8 @@ export default function App({ initialFolderCount = null, initialFolders = null }
               onRunAnalysis={runAnalysisNow}
               scanning={scanning}
               isAnalyzing={isAnalyzing}
+              settings={settings}
+              onUpdateSettings={updateSettings}
             />
           )}
           {/* ImageGallery - 항상 마운트하고 설정/태그검색/디버그 화면에서만 숨김 */}
@@ -592,6 +594,7 @@ export default function App({ initialFolderCount = null, initialFolders = null }
               actions={imageGalleryActions}
               pagination={imageGalleryPagination}
               scanning={scanning}
+              enableVirtualization={settings.enableVirtualization}
             />
           </div>
         </div>

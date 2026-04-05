@@ -12,6 +12,8 @@ export interface Settings {
   similarPageSize: number;
   theme: ThemeId;
   language: AppLanguage;
+  /** Gallery virtualization — disabled by default (causes scroll jank from mount/unmount overhead at typical page sizes). Toggle in Debug Panel > Actions. */
+  enableVirtualization: boolean;
 }
 
 export const DEFAULTS: Settings = {
@@ -24,6 +26,7 @@ export const DEFAULTS: Settings = {
   similarPageSize: 10,
   theme: "dark",
   language: "system",
+  enableVirtualization: false,
 };
 
 const KEY = "konomi-settings";

@@ -23,6 +23,8 @@ interface DebugViewProps {
   onRunAnalysis: () => Promise<boolean>;
   scanning: boolean;
   isAnalyzing: boolean;
+  settings: import("@/hooks/useSettings").Settings;
+  onUpdateSettings: (patch: Partial<import("@/hooks/useSettings").Settings>) => void;
 }
 
 export const DebugView = memo(function DebugView({
@@ -30,6 +32,8 @@ export const DebugView = memo(function DebugView({
   onRunAnalysis,
   scanning,
   isAnalyzing,
+  settings,
+  onUpdateSettings,
 }: DebugViewProps) {
   const [activeTab, setActiveTab] = useState<DebugTab>("actions");
 
@@ -71,6 +75,8 @@ export const DebugView = memo(function DebugView({
             onRunAnalysis={onRunAnalysis}
             scanning={scanning}
             isAnalyzing={isAnalyzing}
+            settings={settings}
+            onUpdateSettings={onUpdateSettings}
           />
         )}
         {activeTab === "api" && <ApiExecutor />}
