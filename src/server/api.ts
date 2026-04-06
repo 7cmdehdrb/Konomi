@@ -71,27 +71,32 @@ export function registerApiRoutes(app: express.Express) {
   app.get("/api/images/serve", async (req, res) => {
     const filePath = req.query.path as string;
 
+    console.log("[image serve] Request:", { filePath, url: req.url });
+
     if (!filePath || !isPathAllowed(filePath)) {
-      console.warn("[image serve] Blocked:", filePath);
+      console.warn("[image serve] BLOCKED:", filePath, "| allowed roots:", parseAllowedRoots());
       return res.status(403).send("Forbidden or invalid path");
     }
 
     const absPath = path.resolve(filePath);
+    console.log("[image serve] absPath:", absPath);
 
     try {
       // 파일 존재 여부 선확인
       await fs.promises.access(absPath, fs.constants.R_OK);
-    } catch {
-      console.warn("[image serve] Not found:", absPath);
+    } catch (e) {
+      console.warn("[image serve] NOT FOUND:", absPath, e);
       return res.status(404).send("File not found");
     }
 
     const ext = path.extname(absPath).toLowerCase();
     const supportedExts = [".png", ".webp", ".jpg", ".jpeg", ".gif"];
     if (!supportedExts.includes(ext)) {
+      console.warn("[image serve] Unsupported ext:", ext);
       return res.status(415).send("Unsupported media type");
     }
 
+    console.log("[image serve] Streaming:", absPath);
     res.set("Content-Type", getImageContentType(absPath));
     res.set("Cache-Control", "public, max-age=3600");
 
