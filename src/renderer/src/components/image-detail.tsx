@@ -786,6 +786,16 @@ const TheaterView = memo(function TheaterView({
     <div
       className="fixed inset-0 z-60 flex flex-col bg-black select-none"
     >
+      <Button
+        variant="secondary"
+        size="sm"
+        className="absolute right-3 top-3 z-40 h-8 rounded-full bg-white/85 px-3 text-black hover:bg-white md:hidden"
+        onClick={onExit}
+      >
+        <X className="mr-1.5 h-4 w-4" />
+        {t("common.close")}
+      </Button>
+
       {/* Header hover trigger zone + header bar */}
       <div
         className="absolute top-0 left-0 right-0 z-10"
@@ -1353,6 +1363,18 @@ export function ImageDetail({
 
         {/* Image Area */}
         <div className="relative flex-1 min-w-0 min-h-0 overflow-hidden">
+          {mobilePanelsEnabled && fitMode === "actual" && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute right-3 top-3 z-20 h-8 rounded-full px-3 md:hidden"
+              onClick={onClose}
+            >
+              <X className="mr-1.5 h-4 w-4" />
+              {t("common.close")}
+            </Button>
+          )}
+
           {!imgLoaded && (
             <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/70" />
