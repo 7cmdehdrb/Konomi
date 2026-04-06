@@ -42,8 +42,29 @@ export function registerApiRoutes(app: express.Express) {
   app.post("/api/rpc", async (req, res) => {
     try {
       const { type, payload } = req.body;
+
+      // Handle requests that were originally native to ipcMain in Electron
+      if (type === "folder:listSubdirectoriesByPath") {
+        const folderPath = payload;
+        try {
+          const entries = await fs.promises.readdir(folderPath, { withFileTypes: true });
+          const result = entries
+            .filter((e) => e.isDirectory())
+            .map((e) => ({
+              name: e.name,
+              path: path.join(folderPath, e.name),
+            }));
+          return res.json({ result });
+        } catch {
+          return res.json({ result: [] });
+        }
+      } else if (type === "folder:revealInExplorer" || type === "image:revealInExplorer") {
+        console.log(`[mock] Reveal in explorer requested for: ${payload}`);
+        return res.json({ result: true });
+      }
+
       const result = await workerRequest(type, payload);
-      res.json({ result });
+      return res.json({ result });
     } catch (error: any) {
       console.error("[API RPC Error]", error.message);
       res.status(500).json({ error: error.message });
