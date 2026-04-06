@@ -1,3 +1,4 @@
+import fs from "fs";
 import os from "os";
 import path from "path";
 import { Worker } from "worker_threads";
@@ -49,7 +50,17 @@ class PHashPool {
   }
 
   private addWorker(workerPath: string): void {
-    const w = new Worker(workerPath);
+    let w: Worker;
+    if (workerPath.endsWith(".js") && !fs.existsSync(workerPath)) {
+      const tsPath = workerPath.replace(/\.js$/, ".ts");
+      const wrapperScript = `
+        require('tsx/cjs');
+        require('${tsPath.replace(/\\/g, '\\\\')}');
+      `;
+      w = new Worker(wrapperScript, { eval: true });
+    } else {
+      w = new Worker(workerPath);
+    }
     w.on("message", ({ id, hash }: { id: number; hash: string | null }) => {
       this.workerTask.delete(w);
       this.callbacks.get(id)?.(hash);

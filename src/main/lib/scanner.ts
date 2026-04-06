@@ -25,8 +25,8 @@ export async function* walkImageFiles(
           continue;
         yield fullPath;
       }
-    } catch {
-      // folder not accessible
+    } catch (e) {
+      console.error(`[scanner.walkImageFiles] Failed to read directory: ${currentDir}`, e);
     } finally {
       if (handle) {
         await handle.close().catch(() => {
