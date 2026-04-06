@@ -17,30 +17,15 @@ export function parseTokens(json: string | undefined): PromptToken[] {
 /** Max width for gallery thumbnails (px). Covers 2x DPI on typical grid columns. */
 export const GALLERY_THUMB_WIDTH = 600;
 
-/**
- * Web 서버 모드 여부를 판단합니다.
- * - Electron 앱: window.location.protocol === "file:"
- * - 브라우저 (Web): window.location.protocol === "http:" 또는 "https:"
- * 
- * 이것이 가장 단순하고 확실한 방법입니다.
- * window.appInfo나 모듈 로딩 순서에 전혀 의존하지 않습니다.
- */
-function isWebMode(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.location.protocol === "http:" || window.location.protocol === "https:";
-}
-
 export function rowToImageData(row: ImageRow): ImageData {
-  const isWeb = isWebMode();
-  const base = isWeb
-    ? `/api/images/serve?path=${encodeURIComponent(row.path)}`
-    : `konomi://local/${encodeURIComponent(row.path.replace(/\\/g, "/"))}`;
+  // 항상 HTTP API 엔드포인트 사용 (Electron prebuild는 별도 처리)
+  const base = `/api/images/serve?path=${encodeURIComponent(row.path)}`;
   return {
     id: String(row.id),
     path: row.path,
-    src: isWeb ? `${base}&w=${GALLERY_THUMB_WIDTH}` : `${base}?w=${GALLERY_THUMB_WIDTH}`,
-
+    src: `${base}&w=${GALLERY_THUMB_WIDTH}`,
     fullSrc: base,
+
     prompt: row.prompt,
     negativePrompt: row.negativePrompt,
     characterPrompts: (() => {
