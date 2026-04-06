@@ -176,8 +176,8 @@ const HeaderBar = memo(function HeaderBar({
   const { t } = useTranslation();
 
   return (
-    <div className="relative flex items-center justify-between border-b border-border/60 bg-background/80 px-5 py-2.5 backdrop-blur-sm shrink-0">
-      <div className="flex items-center gap-2">
+    <div className="relative flex items-center justify-between border-b border-border/60 bg-background/80 px-2 py-2 backdrop-blur-sm shrink-0 md:px-5 md:py-2.5">
+      <div className="flex min-w-0 items-center gap-1 overflow-x-auto md:gap-2">
         <Button
           variant="ghost"
           size="sm"
@@ -241,7 +241,7 @@ const HeaderBar = memo(function HeaderBar({
         </Button>
       </div>
 
-      <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center gap-2 text-xs text-muted-foreground/70">
+      <div className="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 text-xs text-muted-foreground/70 md:flex">
         {image.model && <span>{image.model}</span>}
         {image.model && <span>·</span>}
         <span>
@@ -273,7 +273,7 @@ const InfoPanel = memo(function InfoPanel({
   copiedKey: string | null;
   onCopy: (key: string, text: string) => void;
   onAddTagToSearch: (tag: string) => void;
-  onAddTagToGenerator: (tag: string) => void;
+  onAddTagToGenerator?: (tag: string) => void;
   onViewWorkflow?: () => void;
 }) {
   const { t } = useTranslation();
@@ -1013,7 +1013,7 @@ interface ImageDetailProps {
   onToggleFavorite: (id: string) => void;
   onCopyPrompt: (prompt: string) => void;
   onAddTagToSearch: (tag: string) => void;
-  onAddTagToGenerator: (tag: string) => void;
+  onAddTagToGenerator?: (tag: string) => void;
   prevImage: ImageData | null;
   nextImage: ImageData | null;
   hasPrev: boolean;
@@ -1076,6 +1076,13 @@ export function ImageDetail({
     [],
   );
   const [workflowOpen, setWorkflowOpen] = useState(false);
+  const [mobilePanelsEnabled, setMobilePanelsEnabled] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia("(max-width: 1279px)").matches
+      : false,
+  );
+  const [mobileSimilarOpen, setMobileSimilarOpen] = useState(false);
+  const [mobileInfoOpen, setMobileInfoOpen] = useState(false);
   const [workflowRaw, setWorkflowRaw] = useState<Record<
     string,
     unknown
@@ -1087,6 +1094,21 @@ export function ImageDetail({
     setWorkflowOpen(false);
     setWorkflowRaw(null);
   }, [image?.id]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1279px)");
+    const sync = () => setMobilePanelsEnabled(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!mobilePanelsEnabled || !isOpen) {
+      setMobileSimilarOpen(false);
+      setMobileInfoOpen(false);
+    }
+  }, [mobilePanelsEnabled, isOpen]);
 
   // Defer image for InfoPanel so heavy token rendering doesn't block panel open.
   // Show a spinner while deferred value catches up (never stale data).
@@ -1262,7 +1284,7 @@ export function ImageDetail({
       {/* Body: similar | image | info */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Similar Images Panel */}
-        <div className="flex w-24 shrink-0 flex-col border-r border-border/60 bg-card/70">
+        <div className="hidden w-24 shrink-0 flex-col border-r border-border/60 bg-card/70 lg:flex">
           <p className="shrink-0 pt-3 pb-1 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
             {t("imageDetail.similarImages")}
           </p>
@@ -1412,10 +1434,37 @@ export function ImageDetail({
           >
             <ChevronRight className="h-5 w-5" />
           </button>
+
+          {mobilePanelsEnabled && (
+            <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border/70 bg-background/85 p-1 backdrop-blur-sm">
+              <Button
+                variant={mobileSimilarOpen ? "secondary" : "ghost"}
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => {
+                  setMobileInfoOpen(false);
+                  setMobileSimilarOpen((prev) => !prev);
+                }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={mobileInfoOpen ? "secondary" : "ghost"}
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => {
+                  setMobileSimilarOpen(false);
+                  setMobileInfoOpen((prev) => !prev);
+                }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Info Panel */}
-        <div className="w-80 shrink-0 border-l border-border/60 bg-card/70">
+        <div className="hidden w-80 shrink-0 border-l border-border/60 bg-card/70 xl:block">
           {infoPanelPending ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/70" />
@@ -1433,6 +1482,91 @@ export function ImageDetail({
             />
           )}
         </div>
+
+        {mobilePanelsEnabled && mobileSimilarOpen && (
+          <>
+            <div
+              className="absolute inset-0 z-20 bg-background/40"
+              onClick={() => setMobileSimilarOpen(false)}
+            />
+            <div className="absolute left-0 top-0 bottom-0 z-30 flex w-24 shrink-0 flex-col border-r border-border/60 bg-card/95">
+              <p className="shrink-0 pt-3 pb-1 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                {t("imageDetail.similarImages")}
+              </p>
+              <div className="relative flex-1 min-h-0 overflow-y-auto">
+                {isPanelLoading || similarImagesLoading ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/70">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <p className="text-[10px]">{t("common.loading")}</p>
+                  </div>
+                ) : hasSimilar ? (
+                  <TooltipProvider delayDuration={300}>
+                    <div className="p-2 space-y-1.5">
+                      {currentThumb && similarPage === 0 && (
+                        <SimilarThumb
+                          key={`${currentThumb.id}-mobile-anchor`}
+                          img={currentThumb}
+                          isCurrent={image?.id === currentThumb.id}
+                          isAnchor={true}
+                          disableTooltip={theaterMode}
+                          onSimilarImageClick={(img) => {
+                            onSimilarImageClick?.(img);
+                            setMobileSimilarOpen(false);
+                          }}
+                        />
+                      )}
+                      {pagedOther.map((img) => (
+                        <SimilarThumb
+                          key={`${img.id}-mobile`}
+                          img={img}
+                          isCurrent={img.id === image?.id}
+                          reason={similarReasons?.[img.id]}
+                          score={similarScores?.[img.id]}
+                          disableTooltip={theaterMode}
+                          onSimilarImageClick={(clicked) => {
+                            onSimilarImageClick?.(clicked);
+                            setMobileSimilarOpen(false);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </TooltipProvider>
+                ) : (
+                  <p className="px-2 pt-4 text-center text-[10px] text-muted-foreground/70">
+                    {t("common.none")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {mobilePanelsEnabled && mobileInfoOpen && (
+          <>
+            <div
+              className="absolute inset-0 z-20 bg-background/40"
+              onClick={() => setMobileInfoOpen(false)}
+            />
+            <div className="absolute right-0 top-0 bottom-0 z-30 w-[min(88vw,22rem)] border-l border-border/60 bg-card/95">
+              {infoPanelPending ? (
+                <div className="flex h-full items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/70" />
+                </div>
+              ) : (
+                <InfoPanel
+                  image={image}
+                  copiedKey={copiedKey}
+                  onCopy={handleCopy}
+                  onAddTagToSearch={onAddTagToSearch}
+                  onAddTagToGenerator={onAddTagToGenerator}
+                  onViewWorkflow={
+                    image.source === "comfyui" ? handleViewWorkflow : undefined
+                  }
+                />
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ComfyUI Workflow Dialog */}

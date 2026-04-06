@@ -6,7 +6,7 @@ import {
   useRef,
   useDeferredValue,
 } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Menu, Images, Settings, Tags } from "lucide-react";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
 import type { SidebarHandle } from "@/components/sidebar";
@@ -31,6 +31,12 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/hooks/useSettings";
 import { useNaiGenSettings } from "@/hooks/useNaiGenSettings";
@@ -57,6 +63,48 @@ import { useGalleryFocus } from "@/hooks/useGalleryFocus";
 import type { AdvancedFilter } from "@/lib/advanced-filter";
 import type { Folder } from "@preload/index.d";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+
+/** 모바일 브레이크포인트 (Tailwind의 md: 768px과 동일) */
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    setIsMobile(mq.matches);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isMobile;
+}
+
+function MobileNavButton({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-2 py-2 text-[11px] font-medium transition-colors",
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
+      )}
+    >
+      {icon}
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
 
 interface AppProps {
   initialFolderCount?: number | null;
@@ -67,6 +115,8 @@ export default function App({
   initialFolderCount = null,
   initialFolders = null,
 }: AppProps) {
+  const isMobile = useIsMobile();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { settings, updateSettings, resetSettings } = useSettings();
   const { t } = useTranslation();
   const { outputFolder, setOutputFolder } = useNaiGenSettings();
@@ -265,6 +315,12 @@ export default function App({
   useAutoUpdate();
   const { bindings, updateBinding, resetBinding, resetAllBindings } =
     useKeybindings();
+
+  useEffect(() => {
+    if (!isMobile && mobileSidebarOpen) {
+      setMobileSidebarOpen(false);
+    }
+  }, [isMobile, mobileSidebarOpen]);
 
   const {
     imageActions,
@@ -535,16 +591,25 @@ export default function App({
   );
 
   const imageGalleryActions = useMemo(
-    () => ({
-      ...galleryCommands,
-      ...imageActions,
-      onAddFolder: () => sidebarRef.current?.openFolderDialog(),
-    }),
+    () => {
+      const {
+        onSendToGenerator: _onSendToGenerator,
+        onSendToSource: _onSendToSource,
+        onAddTagToGenerator: _onAddTagToGenerator,
+        ...nonGeneratorActions
+      } = imageActions;
+
+      return {
+        ...galleryCommands,
+        ...nonGeneratorActions,
+        onAddFolder: () => sidebarRef.current?.openFolderDialog(),
+      };
+    },
     [galleryCommands, imageActions],
   );
 
   return (
-    <div className="h-screen bg-background flex flex-col">
+    <div className="h-[100dvh] bg-background flex flex-col">
       <Header
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
@@ -565,6 +630,8 @@ export default function App({
           setAnnouncementDeferred(false);
           setAnnouncementKey((k) => k + 1);
         }}
+        isMobile={isMobile}
+        onMobileSidebarOpen={() => setMobileSidebarOpen(true)}
       />
 
       <div className="relative flex flex-1 overflow-hidden">
@@ -593,25 +660,52 @@ export default function App({
           className={`absolute inset-0 flex overflow-hidden${activePanel === "generator" ? " opacity-0 pointer-events-none" : ""}`}
           inert={activePanel === "generator" ? true : undefined}
         >
-          <div
-            className="relative flex-none h-full"
-            style={{ width: sidebarWidth }}
-          >
-            <Sidebar
-              ref={sidebarRef}
-              view={sidebarView}
-              folderState={sidebarFolderState}
-              folderActions={sidebarFolderActions}
-              categoryState={sidebarCategoryState}
-              categoryActions={sidebarCategoryActions}
-              isAnalyzing={isAnalyzing}
-              onCheckingDuplicatesChange={setCheckingDuplicates}
-            />
+          {/* 데스크탑 사이드바 */}
+          {!isMobile && (
             <div
-              className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 transition-colors z-10"
-              onMouseDown={handleResizeStart}
-            />
-          </div>
+              className="relative flex-none h-full"
+              style={{ width: sidebarWidth }}
+            >
+              <Sidebar
+                ref={sidebarRef}
+                view={sidebarView}
+                folderState={sidebarFolderState}
+                folderActions={sidebarFolderActions}
+                categoryState={sidebarCategoryState}
+                categoryActions={sidebarCategoryActions}
+                isAnalyzing={isAnalyzing}
+                onCheckingDuplicatesChange={setCheckingDuplicates}
+              />
+              <div
+                className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 transition-colors z-10"
+                onMouseDown={handleResizeStart}
+              />
+            </div>
+          )}
+
+          {/* 모바일 사이드바 드로어 */}
+          {isMobile && (
+            <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+              <SheetContent side="left" className="flex h-[100dvh] w-[min(92vw,24rem)] max-w-none flex-col overflow-hidden p-0">
+                <SheetHeader className="shrink-0 border-b border-border px-4 pt-5 pb-3">
+                  <SheetTitle>폴더 & 카테고리</SheetTitle>
+                </SheetHeader>
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <Sidebar
+                    ref={sidebarRef}
+                    view={sidebarView}
+                    folderState={sidebarFolderState}
+                    folderActions={sidebarFolderActions}
+                    categoryState={sidebarCategoryState}
+                    categoryActions={sidebarCategoryActions}
+                    isAnalyzing={isAnalyzing}
+                    onCheckingDuplicatesChange={setCheckingDuplicates}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
+          )}
+
           {activePanel === "settings" && (
             <SettingsView
               settings={settings}
@@ -653,7 +747,7 @@ export default function App({
             className={
               activePanel === "settings" || activePanel === "tagSearch" || activePanel === "debug"
                 ? "hidden"
-                : "flex flex-1 overflow-hidden"
+                : "flex min-w-0 flex-1 overflow-hidden"
             }
           >
             <ImageGallery
@@ -673,6 +767,36 @@ export default function App({
           </div>
         </div>
       </div>
+
+      {/* 모바일 하단 네비게이션 바 */}
+      {isMobile && (
+        <nav className="flex-none flex items-stretch border-t border-border bg-background/95 backdrop-blur safe-area-pb">
+          <MobileNavButton
+            icon={<Menu className="h-5 w-5" />}
+            label="폴더"
+            active={false}
+            onClick={() => setMobileSidebarOpen(true)}
+          />
+          <MobileNavButton
+            icon={<Images className="h-5 w-5" />}
+            label="갤러리"
+            active={activePanel === "gallery"}
+            onClick={() => void handlePanelChange("gallery")}
+          />
+          <MobileNavButton
+            icon={<Tags className="h-5 w-5" />}
+            label="태그"
+            active={activePanel === "tagSearch"}
+            onClick={() => void handlePanelChange("tagSearch")}
+          />
+          <MobileNavButton
+            icon={<Settings className="h-5 w-5" />}
+            label="설정"
+            active={activePanel === "settings"}
+            onClick={() => void handlePanelChange("settings")}
+          />
+        </nav>
+      )}
 
       <CategoryDialog
         image={categoryDialog.image}
@@ -757,7 +881,6 @@ export default function App({
         onToggleFavorite={imageActions.onToggleFavorite}
         onCopyPrompt={imageActions.onCopyPrompt}
         onAddTagToSearch={imageActions.onAddTagToSearch}
-        onAddTagToGenerator={imageActions.onAddTagToGenerator}
         prevImage={detail.prevImage}
         nextImage={detail.nextImage}
         hasPrev={detail.hasPrev}
@@ -779,7 +902,6 @@ export default function App({
       <FeatureTour
         open={showFeatureTour}
         onClose={handleTourClose}
-        onPanelChange={setActivePanel}
         onAction={handleTourAction}
       />
 

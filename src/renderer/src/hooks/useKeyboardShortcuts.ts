@@ -73,12 +73,6 @@ export function useKeyboardShortcuts({
     const handler = (e: KeyboardEvent) => {
       const editable = isEditableTarget(e.target);
 
-      // 패널 전환 — 항상 동작
-      if (matchesBinding(e, bindings["panel.generator"])) {
-        e.preventDefault();
-        handlePanelChange("generator");
-        return;
-      }
       if (matchesBinding(e, bindings["panel.gallery"])) {
         e.preventDefault();
         handlePanelChange("gallery");
@@ -116,16 +110,6 @@ export function useKeyboardShortcuts({
         browseNavigation.goRandomPick();
         return;
       }
-      // F5 — 생성 실행 (생성 패널에서 항상 동작)
-      if (
-        activePanel === "generator" &&
-        matchesBinding(e, bindings["generator.generate"])
-      ) {
-        e.preventDefault();
-        onGenerate();
-        return;
-      }
-
       // 이하는 editable 포커스 중이거나 다이얼로그 열림 시 무시
       if (editable || anyDialogOpen) return;
 

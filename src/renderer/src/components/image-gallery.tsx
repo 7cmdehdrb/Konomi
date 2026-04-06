@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   SquareCheckBig,
   Tags,
   Trash2,
@@ -214,15 +215,31 @@ const GalleryToolbar = memo(function GalleryToolbar({
 }: GalleryToolbarProps) {
   const { t } = useTranslation();
   const isCustomColumns = typeof galleryColumns === "number";
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia("(max-width: 767px)").matches
+      : false,
+  );
+  const [mobileSizeControlsOpen, setMobileSizeControlsOpen] = useState(false);
+  const [mobileSelectionActionsOpen, setMobileSelectionActionsOpen] =
+    useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobile(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   return (
     <div
-      className="flex flex-col gap-3 p-4 border-b border-border bg-background"
+      className="flex flex-col gap-2 border-b border-border bg-background p-2.5 sm:p-4"
       data-tour="gallery-toolbar"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground select-none">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          <span className="text-muted-foreground select-none">
             {t("gallery.totalImages", { count: totalCount })}
           </span>
           {searchQuery && (
@@ -234,15 +251,15 @@ const GalleryToolbar = memo(function GalleryToolbar({
             </button>
           )}
           {selectionMode && (
-            <span className="text-sm text-muted-foreground select-none">
+            <span className="text-muted-foreground select-none">
               {t("gallery.selectedCount", { count: selectedCount })}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <Select value={sortBy} onValueChange={onSortChange}>
-            <SelectTrigger className="w-36 bg-secondary border-border">
+            <SelectTrigger className="w-32 bg-secondary border-border sm:w-36">
               <SlidersHorizontal className="h-4 w-4 mr-2 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>
@@ -256,8 +273,20 @@ const GalleryToolbar = memo(function GalleryToolbar({
             </SelectContent>
           </Select>
 
-          {onGalleryColumnsChange && (
-            <div className="flex items-center gap-1.5">
+          {isMobile && onGalleryColumnsChange && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => setMobileSizeControlsOpen((prev) => !prev)}
+              title={t("gallery.columnSize.reset")}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </Button>
+          )}
+
+          {onGalleryColumnsChange && (!isMobile || mobileSizeControlsOpen) && (
+            <div className="flex items-center justify-between gap-1.5 sm:justify-start">
               <Button
                 variant="ghost"
                 size="icon"
@@ -306,6 +335,7 @@ const GalleryToolbar = memo(function GalleryToolbar({
         <Button
           variant={selectionMode ? "secondary" : "outline"}
           size="sm"
+          className="min-w-0"
           onClick={onToggleSelectionMode}
         >
           <SquareCheckBig className="h-4 w-4" />
@@ -314,9 +344,26 @@ const GalleryToolbar = memo(function GalleryToolbar({
             : t("gallery.selectionMode")}
         </Button>
 
-        {selectionMode && (
+        {selectionMode && isMobile && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-w-0"
+            onClick={() => setMobileSelectionActionsOpen((prev) => !prev)}
+          >
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform",
+                mobileSelectionActionsOpen && "rotate-180",
+              )}
+            />
+            {t("gallery.selectedCount", { count: selectedCount })}
+          </Button>
+        )}
+
+        {selectionMode && (!isMobile || mobileSelectionActionsOpen) && (
           <>
-            <Button variant="outline" size="sm" onClick={onSelectCurrentPage}>
+            <Button variant="outline" size="sm" className="min-w-0" onClick={onSelectCurrentPage}>
               {allPageSelected
                 ? t("gallery.deselectCurrentPage")
                 : t("gallery.selectCurrentPage")}
@@ -324,6 +371,7 @@ const GalleryToolbar = memo(function GalleryToolbar({
             <Button
               variant="outline"
               size="sm"
+              className="min-w-0"
               onClick={onSelectAllFiltered}
               disabled={!canSelectAllResults}
             >
@@ -337,6 +385,7 @@ const GalleryToolbar = memo(function GalleryToolbar({
             <Button
               variant="ghost"
               size="sm"
+              className="min-w-0"
               onClick={onClearSelection}
               disabled={selectedCount === 0}
             >
@@ -344,6 +393,7 @@ const GalleryToolbar = memo(function GalleryToolbar({
             </Button>
             <Button
               size="sm"
+              className="min-w-0"
               onClick={onBulkCategory}
               disabled={selectedCount === 0}
             >
@@ -353,6 +403,7 @@ const GalleryToolbar = memo(function GalleryToolbar({
             <Button
               variant="secondary"
               size="sm"
+              className="min-w-0"
               onClick={onBulkRescanMetadata}
               disabled={selectedCount === 0}
             >
@@ -362,6 +413,7 @@ const GalleryToolbar = memo(function GalleryToolbar({
             <Button
               variant="destructive"
               size="sm"
+              className="min-w-0"
               onClick={onBulkDelete}
               disabled={selectedCount === 0}
             >

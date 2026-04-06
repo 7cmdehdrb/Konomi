@@ -1,11 +1,12 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
+  Menu,
   Settings,
   Info,
+  ChevronDown,
   X,
   Loader2,
-  ImagePlus,
   Images,
   Tags,
   SlidersHorizontal,
@@ -110,6 +111,8 @@ interface HeaderProps {
   onSearchChange: (query: string) => void;
   activePanel: ActivePanel;
   onPanelChange: (panel: ActivePanel) => void;
+  isMobile?: boolean;
+  onMobileSidebarOpen?: () => void;
   scanning?: boolean;
   checkingDuplicates?: boolean;
   isAnalyzing?: boolean;
@@ -127,6 +130,7 @@ interface HeaderProps {
 interface HeaderSearchSectionProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  isMobile?: boolean;
   advancedFilters: AdvancedFilter[];
   onAdvancedFiltersChange: (filters: AdvancedFilter[]) => void;
   availableResolutions: { width: number; height: number }[];
@@ -136,6 +140,7 @@ interface HeaderSearchSectionProps {
 const HeaderSearchSection = memo(function HeaderSearchSection({
   searchQuery,
   onSearchChange,
+  isMobile = false,
   advancedFilters,
   onAdvancedFiltersChange,
   availableResolutions,
@@ -150,6 +155,7 @@ const HeaderSearchSection = memo(function HeaderSearchSection({
   const [tagSuggestions, setTagSuggestions] = useState<TagSuggestion[]>([]);
   const [tagSuggestionOpen, setTagSuggestionOpen] = useState(false);
   const [tagSuggestionIndex, setTagSuggestionIndex] = useState(-1);
+  const [mobileFiltersExpanded, setMobileFiltersExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const suppressAutocompleteOnceRef = useRef(false);
   const suggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -335,10 +341,10 @@ const HeaderSearchSection = memo(function HeaderSearchSection({
   return (
     <>
       <div
-        className="flex flex-1 max-w-2xl flex-col gap-1.5"
+        className="flex w-full max-w-none flex-col gap-1.5 md:max-w-2xl"
         data-tour="search"
       >
-        <div className="flex gap-1.5">
+        <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -447,7 +453,7 @@ const HeaderSearchSection = memo(function HeaderSearchSection({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="shrink-0 h-9 w-9 text-muted-foreground hover:text-foreground"
+                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
                   onClick={() => commitSearch()}
                 >
                   <Search className="h-4 w-4" />
@@ -461,7 +467,7 @@ const HeaderSearchSection = memo(function HeaderSearchSection({
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    "shrink-0 h-9 w-9",
+                    "h-9 w-9 shrink-0",
                     advancedFilters.length > 0
                       ? "text-primary"
                       : "text-muted-foreground hover:text-foreground",
@@ -482,9 +488,33 @@ const HeaderSearchSection = memo(function HeaderSearchSection({
                 {t("header.tooltip.advancedSearch")}
               </TooltipContent>
             </Tooltip>
+            {isMobile && advancedFilters.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={() =>
+                      setMobileFiltersExpanded((prev) => !prev)
+                    }
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 transition-transform",
+                        mobileFiltersExpanded && "rotate-180",
+                      )}
+                    />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {mobileFiltersExpanded ? "Hide filters" : "Show filters"}
+                </TooltipContent>
+              </Tooltip>
+            )}
           </TooltipProvider>
         </div>
-        {advancedFilters.length > 0 && (
+        {advancedFilters.length > 0 && (!isMobile || mobileFiltersExpanded) && (
           <div className="flex flex-wrap gap-1.5">
             {advancedFilters.map((f) => (
               <span
@@ -546,24 +576,6 @@ const HeaderPanelButtons = memo(function HeaderPanelButtons({
           className="flex items-center gap-1 shrink-0"
           data-tour="panel-buttons"
         >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "hover:text-foreground",
-                  activePanel === "generator"
-                    ? "text-foreground"
-                    : "text-muted-foreground",
-                )}
-                onClick={() => handlePanelClick("generator")}
-              >
-                <ImagePlus className="h-5 w-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("header.tooltip.generator")}</TooltipContent>
-          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -896,6 +908,8 @@ export const Header = memo(function Header({
   onSearchChange,
   activePanel,
   onPanelChange,
+  isMobile = false,
+  onMobileSidebarOpen,
   scanning,
   checkingDuplicates,
   isAnalyzing,
@@ -955,100 +969,119 @@ export const Header = memo(function Header({
           />
         </div>
       )}
-      <div className="flex min-h-16 items-center justify-between px-6 py-3 gap-4">
-        <div className="relative flex items-center gap-3 shrink-0">
-          <span className="text-xl font-extrabold text-foreground select-none">
-            Konomi
-          </span>
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
-            <img
-              src={infoImageUrl}
-              alt="Konomi"
-              className="h-full w-full object-cover"
-              draggable={false}
-            />
-          </div>
-          {(scanning ||
-            checkingDuplicates ||
-            isAnalyzing ||
-            hasRescanProgress ||
-            hasSimilarityProgress ||
-            hasSearchStatsProgress) && (
-            <div className="absolute left-full ml-3 flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-              <span className="tabular-nums select-none">
-                {checkingDuplicates
-                  ? t("header.progress.checkingDuplicates")
-                  : scanProgress && scanProgress.total > 0
-                    ? (() => {
-                        const names =
-                          scanningFolderNames && scanningFolderNames.size > 0
-                            ? Array.from(scanningFolderNames.values()).join(
-                                ", ",
-                              )
-                            : null;
-                        const eta = etaSuffix("scan");
-                        return names
-                          ? t("header.progress.scanFolders", {
-                              names,
-                              done: scanProgress.done,
-                              total: scanProgress.total,
-                            }) + eta
-                          : t("header.progress.scanImages", {
-                              done: scanProgress.done,
-                              total: scanProgress.total,
-                            }) + eta;
-                      })()
-                    : hasRescanProgress && rescanProgress
-                      ? t("header.progress.rescan", {
-                          done: rescanProgress.done,
-                          total: rescanProgress.total,
-                        }) + etaSuffix("rescan")
-                      : hashProgress && hashProgress.total > 0
-                        ? t("header.progress.hashes", {
-                            done: hashProgress.done,
-                            total: hashProgress.total,
-                          }) + etaSuffix("hash")
-                        : hasSimilarityProgress && similarityProgress
-                          ? t("header.progress.similarity") +
-                            etaSuffix("similarity")
-                          : hasSearchStatsProgress && searchStatsProgress
-                            ? t("header.progress.searchStats", {
-                                done: searchStatsProgress.done,
-                                total: searchStatsProgress.total,
-                              }) + etaSuffix("searchStats")
-                            : scanPhase
-                              ? t(`header.progress.phase.${scanPhase}`)
-                              : t("header.progress.working")}
-              </span>
-              {scanning && onCancelScan && (
-                <button
-                  onClick={onCancelScan}
-                  className="flex items-center text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+      <div className="flex min-h-16 flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between md:px-6">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {isMobile && onMobileSidebarOpen && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground md:hidden"
+              onClick={onMobileSidebarOpen}
+              aria-label={t("sidebar.title")}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
           )}
+          <div className="relative flex min-w-0 items-center gap-3">
+            <span className="truncate text-lg font-extrabold text-foreground select-none sm:text-xl">
+            Konomi
+            </span>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
+              <img
+                src={infoImageUrl}
+                alt="Konomi"
+                className="h-full w-full object-cover"
+                draggable={false}
+              />
+            </div>
+            {(scanning ||
+              checkingDuplicates ||
+              isAnalyzing ||
+              hasRescanProgress ||
+              hasSimilarityProgress ||
+              hasSearchStatsProgress) && (
+              <div className="hidden min-w-0 items-center gap-1.5 text-xs text-muted-foreground md:flex">
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                <span className="truncate tabular-nums select-none">
+                  {checkingDuplicates
+                    ? t("header.progress.checkingDuplicates")
+                    : scanProgress && scanProgress.total > 0
+                      ? (() => {
+                          const names =
+                            scanningFolderNames && scanningFolderNames.size > 0
+                              ? Array.from(scanningFolderNames.values()).join(
+                                  ", ",
+                                )
+                              : null;
+                          const eta = etaSuffix("scan");
+                          return names
+                            ? t("header.progress.scanFolders", {
+                                names,
+                                done: scanProgress.done,
+                                total: scanProgress.total,
+                              }) + eta
+                            : t("header.progress.scanImages", {
+                                done: scanProgress.done,
+                                total: scanProgress.total,
+                              }) + eta;
+                        })()
+                      : hasRescanProgress && rescanProgress
+                        ? t("header.progress.rescan", {
+                            done: rescanProgress.done,
+                            total: rescanProgress.total,
+                          }) + etaSuffix("rescan")
+                        : hashProgress && hashProgress.total > 0
+                          ? t("header.progress.hashes", {
+                              done: hashProgress.done,
+                              total: hashProgress.total,
+                            }) + etaSuffix("hash")
+                          : hasSimilarityProgress && similarityProgress
+                            ? t("header.progress.similarity") +
+                              etaSuffix("similarity")
+                            : hasSearchStatsProgress && searchStatsProgress
+                              ? t("header.progress.searchStats", {
+                                  done: searchStatsProgress.done,
+                                  total: searchStatsProgress.total,
+                                }) + etaSuffix("searchStats")
+                              : scanPhase
+                                ? t(`header.progress.phase.${scanPhase}`)
+                                : t("header.progress.working")}
+                </span>
+                {scanning && onCancelScan && (
+                  <button
+                    onClick={onCancelScan}
+                    className="flex items-center text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        <HeaderSearchSection
-          searchQuery={searchQuery}
-          onSearchChange={onSearchChange}
-          advancedFilters={advancedFilters}
-          onAdvancedFiltersChange={onAdvancedFiltersChange}
-          availableResolutions={availableResolutions}
-          availableModels={availableModels}
-        />
-        <HeaderPanelButtons
-          activePanel={activePanel}
-          onPanelChange={onPanelChange}
-          onStartTour={onStartTour}
-          devMode={devMode}
-          announcementDeferred={announcementDeferred}
-          onAnnouncementReopen={onAnnouncementReopen}
-        />
+        <div className="flex w-full justify-center md:flex-1">
+          <HeaderSearchSection
+            searchQuery={searchQuery}
+            onSearchChange={onSearchChange}
+            isMobile={isMobile}
+            advancedFilters={advancedFilters}
+            onAdvancedFiltersChange={onAdvancedFiltersChange}
+            availableResolutions={availableResolutions}
+            availableModels={availableModels}
+          />
+        </div>
+
+        <div className="hidden md:flex md:shrink-0">
+          <HeaderPanelButtons
+            activePanel={activePanel}
+            onPanelChange={onPanelChange}
+            onStartTour={onStartTour}
+            devMode={devMode}
+            announcementDeferred={announcementDeferred}
+            onAnnouncementReopen={onAnnouncementReopen}
+          />
+        </div>
       </div>
     </header>
   );

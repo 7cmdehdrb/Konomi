@@ -34,12 +34,7 @@ type Group = {
 const GROUPS: Group[] = [
   {
     labelKey: "settings.keybindings.groups.panel",
-    ids: [
-      "panel.generator",
-      "panel.gallery",
-      "panel.tagSearch",
-      "panel.settings",
-    ],
+    ids: ["panel.gallery", "panel.tagSearch", "panel.settings"],
   },
   {
     labelKey: "settings.keybindings.groups.browse",
@@ -69,10 +64,6 @@ const GROUPS: Group[] = [
       "detail.copyPrompt",
       "detail.delete",
     ],
-  },
-  {
-    labelKey: "settings.keybindings.groups.generator",
-    ids: ["generator.generate"],
   },
 ];
 

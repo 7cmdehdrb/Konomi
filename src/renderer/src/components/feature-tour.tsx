@@ -10,7 +10,6 @@ interface TourStep {
   title: string;
   description: string;
   placement: "top" | "bottom" | "left" | "right";
-  panel?: "gallery" | "generator";
   action?: string;
 }
 
@@ -27,9 +26,7 @@ type TourStepKey =
   | "tokenChipPopover"
   | "groupChip"
   | "promptGroups"
-  | "wildcard"
-  | "autoGenerate"
-  | "generate";
+  | "wildcard";
 
 type TourStepTemplate = Omit<TourStep, "title" | "description"> & {
   key: TourStepKey;
@@ -39,12 +36,6 @@ const TOUR_STEP_TEMPLATES: TourStepTemplate[] = [
   {
     key: "search",
     targetSelector: '[data-tour="search"]',
-    placement: "bottom",
-    panel: "gallery",
-  },
-  {
-    key: "panels",
-    targetSelector: '[data-tour="panel-buttons"]',
     placement: "bottom",
     panel: "gallery",
   },
@@ -76,59 +67,6 @@ const TOUR_STEP_TEMPLATES: TourStepTemplate[] = [
     key: "galleryKeyboard",
     targetSelector: '[data-tour="gallery-toolbar"]',
     placement: "bottom",
-    panel: "gallery",
-  },
-  {
-    key: "promptInput",
-    targetSelector: '[data-tour="gen-prompt-input"]',
-    placement: "bottom",
-    panel: "generator",
-  },
-  {
-    key: "promptCursor",
-    targetSelector: '[data-tour="gen-prompt-input"]',
-    placement: "bottom",
-    panel: "generator",
-    action: "switch-to-token-mode",
-  },
-  {
-    key: "tokenChipPopover",
-    targetSelector: '[data-tour="gen-prompt-input"]',
-    placement: "bottom",
-    panel: "generator",
-    action: "open-token-chip-popover",
-  },
-  {
-    key: "groupChip",
-    targetSelector: '[data-tour="gen-prompt-input"]',
-    placement: "bottom",
-    panel: "generator",
-  },
-  {
-    key: "promptGroups",
-    targetSelector: '[data-tour="gen-prompt-group-panel"]',
-    placement: "left",
-    panel: "generator",
-    action: "open-prompt-group-panel",
-  },
-  {
-    key: "wildcard",
-    targetSelector: '[data-tour="gen-prompt-input"]',
-    placement: "bottom",
-    panel: "generator",
-  },
-  {
-    key: "autoGenerate",
-    targetSelector: '[data-tour="gen-auto-gen"]',
-    placement: "top",
-    panel: "generator",
-  },
-  {
-    key: "generate",
-    targetSelector: '[data-tour="gen-generate-button"]',
-    placement: "top",
-    panel: "generator",
-    action: "open-settings-panel",
   },
 ];
 
@@ -143,7 +81,6 @@ function buildTourSteps(t: TFunction): TourStep[] {
 interface FeatureTourProps {
   open: boolean;
   onClose: () => void;
-  onPanelChange?: (panel: "gallery" | "generator") => void;
   onAction?: (action: string) => void;
 }
 
@@ -198,7 +135,6 @@ function computePopoverPosition(
 export function FeatureTour({
   open,
   onClose,
-  onPanelChange,
   onAction,
 }: FeatureTourProps) {
   const { t } = useTranslation();
@@ -232,9 +168,8 @@ export function FeatureTour({
   useEffect(() => {
     if (!open || !currentStep) return undefined;
     let cancelled = false;
-    if (currentStep.panel || currentStep.action) {
-      if (currentStep.panel) onPanelChange?.(currentStep.panel);
-      if (currentStep.action) onAction?.(currentStep.action);
+    if (currentStep.action) {
+      onAction?.(currentStep.action);
 
       const tryFind = (attempt: number) => {
         if (cancelled) return;
@@ -256,7 +191,7 @@ export function FeatureTour({
     return () => {
       cancelled = true;
     };
-  }, [open, currentStep, onPanelChange, onAction, updateRect]);
+  }, [open, currentStep, onAction, updateRect]);
 
   useEffect(() => {
     if (!open) return undefined;

@@ -127,6 +127,11 @@ export function useAppShellState({
 
   const handlePanelChange = useCallback(
     async (nextPanel: ActivePanel) => {
+      if (nextPanel === "generator") {
+        setActivePanel("gallery");
+        return;
+      }
+
       if (nextPanel === activePanel) return;
 
       const leavingSettings =

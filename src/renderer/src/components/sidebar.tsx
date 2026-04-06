@@ -1942,9 +1942,9 @@ export const Sidebar = memo(
 
     return (
       <>
-        <aside className="w-full h-full border-r border-border bg-sidebar flex flex-col">
+        <aside className="flex h-full w-full min-w-0 flex-col border-r border-border bg-sidebar">
           <ScrollArea className="flex-1 min-h-0">
-            <div className="p-4 space-y-6">
+            <div className="space-y-5 p-3 sm:p-4 md:space-y-6">
               {/* Views */}
               <div className="space-y-1" data-tour="sidebar-views">
                 {views.map((view) => {
@@ -1954,7 +1954,7 @@ export const Sidebar = memo(
                       key={view.id}
                       variant="ghost"
                       className={cn(
-                        "w-full justify-start gap-3 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent",
+                        "h-10 w-full justify-start gap-3 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent sm:h-9",
                         activeView === view.id &&
                           selectedCategoryId === null &&
                           "bg-sidebar-accent text-foreground",
@@ -1997,7 +1997,7 @@ export const Sidebar = memo(
                         <Button
                           variant="ghost"
                           className={cn(
-                            "w-full justify-start gap-3 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent",
+                              "h-10 w-full justify-start gap-3 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent sm:h-9",
                             isSelected && "bg-sidebar-accent text-foreground",
                             !isFavorites && isSelected && "pr-9",
                           )}

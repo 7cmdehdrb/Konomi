@@ -13,6 +13,8 @@ import {
   renameFolder,
   getSubfolderPaths,
 } from "./lib/folder";
+import { unlink } from "fs/promises";
+import { isManagedImagePath } from "./lib/path-guard";
 import {
   listImagesPage,
   listMatchingImageIds,
@@ -226,6 +228,61 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
     case "image:listByIds": {
       const { ids } = payload as { ids: number[] };
       return listImagesByIds(ids);
+    }
+    case "image:delete": {
+      const rawPath =
+        typeof payload === "string"
+          ? payload
+          : (payload as { path?: unknown } | null | undefined)?.path;
+      if (typeof rawPath !== "string" || !rawPath.trim()) {
+        throw new Error("삭제할 이미지 경로가 올바르지 않습니다.");
+      }
+
+      const normalized = rawPath.trim();
+      const isManagedPath = await isManagedImagePath(normalized);
+      if (!isManagedPath) {
+        let decoded = normalized;
+        try {
+          decoded = decodeURIComponent(normalized);
+        } catch {
+          decoded = normalized;
+        }
+        const withoutFileScheme = decoded.startsWith("file://")
+          ? decoded.replace(/^file:\/\//, "")
+          : decoded;
+        const slashForward = withoutFileScheme.replace(/\\/g, "/");
+        const slashBackward = withoutFileScheme.replace(/\//g, "\\");
+        const lower = withoutFileScheme.toLowerCase();
+        const forwardLower = slashForward.toLowerCase();
+        const backwardLower = slashBackward.toLowerCase();
+
+        const imageRow = await getDB().image.findFirst({
+          where: {
+            OR: [
+              { path: normalized },
+              { path: decoded },
+              { path: withoutFileScheme },
+              { path: slashForward },
+              { path: slashBackward },
+              { path: lower },
+              { path: forwardLower },
+              { path: backwardLower },
+            ],
+          },
+          select: { id: true },
+        });
+        if (!imageRow) {
+          throw new Error("허용되지 않은 이미지 경로입니다.");
+        }
+        log.warn("Path guard fallback used for image delete", {
+          path: normalized,
+        });
+      }
+      await unlink(normalized).catch((error: unknown) => {
+        const err = error as NodeJS.ErrnoException;
+        if (err.code !== "ENOENT") throw error;
+      });
+      return null;
     }
     case "image:quickVerify":
       return quickVerifyFolders();
