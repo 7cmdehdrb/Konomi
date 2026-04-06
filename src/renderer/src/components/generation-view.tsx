@@ -12,6 +12,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { localPathToUrl } from "@/lib/image-utils";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -4136,7 +4137,7 @@ export const GenerationView = memo(
       [],
     );
     const createPathDropItem = useCallback((path: string): DropItem => {
-      const previewUrl = `konomi://local/${encodeURIComponent(path.replace(/\\/g, "/"))}`;
+      const previewUrl = localPathToUrl(path);
       return {
         kind: "path",
         path,
@@ -4603,7 +4604,7 @@ export const GenerationView = memo(
             }),
           };
           const filePath = await window.nai.generate(params);
-          const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
+          const src = localPathToUrl(filePath);
           const shouldShowNewResult =
             pendingResultSelectedRef.current || !resultSrcRef.current;
           if (shouldShowNewResult) {
@@ -4744,7 +4745,7 @@ export const GenerationView = memo(
             }),
           };
           const filePath = await window.nai.generate(params);
-          const src = `konomi://local/${encodeURIComponent(filePath.replace(/\\/g, "/"))}`;
+          const src = localPathToUrl(filePath);
           const shouldShowNewResult =
             pendingResultSelectedRef.current || !resultSrcRef.current;
           if (shouldShowNewResult) {

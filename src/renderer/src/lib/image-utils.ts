@@ -17,9 +17,16 @@ export function parseTokens(json: string | undefined): PromptToken[] {
 /** Max width for gallery thumbnails (px). Covers 2x DPI on typical grid columns. */
 export const GALLERY_THUMB_WIDTH = 600;
 
+/**
+ * 로컬 파일 경로 → 이미지 서빙 URL 변환
+ * 항상 HTTP /api/images/serve 엔드포인트 사용 (Web 서버 + Electron 공용)
+ */
+export function localPathToUrl(filePath: string): string {
+  return `/api/images/serve?path=${encodeURIComponent(filePath)}`;
+}
+
 export function rowToImageData(row: ImageRow): ImageData {
-  // 항상 HTTP API 엔드포인트 사용 (Electron prebuild는 별도 처리)
-  const base = `/api/images/serve?path=${encodeURIComponent(row.path)}`;
+  const base = localPathToUrl(row.path);
   return {
     id: String(row.id),
     path: row.path,
