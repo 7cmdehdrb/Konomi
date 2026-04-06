@@ -1,3 +1,4 @@
+import "./lib/api-client";
 import "./assets/globals.css";
 import "@/lib/i18n";
 import React from "react";

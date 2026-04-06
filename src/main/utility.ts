@@ -83,6 +83,7 @@ import type { CancelToken } from "./lib/scanner";
 import { createLogger } from "./lib/logger";
 import { suggestPromptTags, searchPromptTags } from "./lib/prompts-db";
 import { getDB, runMigrations } from "./lib/db";
+import { parentPort } from "worker_threads";
 
 let scanCancelToken: CancelToken | null = null;
 let computeHashesInFlight: Promise<number> | null = null;
@@ -91,7 +92,11 @@ const log = createLogger("main/utility");
 // Abstract EventSender wrapping parentPort push messages
 const utilitySender: EventSender = {
   send(channel: string, data: unknown): void {
-    process.parentPort.postMessage({ event: channel, payload: data });
+    if (process.parentPort) {
+      process.parentPort.postMessage({ event: channel, payload: data });
+    } else if (parentPort) {
+      parentPort.postMessage({ event: channel, payload: data });
+    }
   },
   isDestroyed(): boolean {
     return false;
@@ -512,17 +517,22 @@ ensureIgnoredDuplicatePathsLoaded()
     log.errorWithStack("Failed to load ignored duplicate paths", error),
   );
 
-process.parentPort.on("message", async (e: Electron.MessageEvent) => {
-  const { id, type, payload } = e.data as {
+const messageHandler = async (e: any) => {
+  const data = e.data ?? e; // Electron utilityProcess uses e.data, worker_threads uses e directly
+  const { id, type, payload } = data as {
     id: number;
     type: string;
     payload: unknown;
   };
   const startedAt = Date.now();
   log.debug("Request start", { id, type });
-  // Acknowledge receipt so the bridge resets its timeout — queue-wait time
-  // no longer counts against the request timeout.
-  process.parentPort.postMessage({ id, ack: true });
+  
+  if (process.parentPort) {
+    process.parentPort.postMessage({ id, ack: true });
+  } else if (parentPort) {
+    parentPort.postMessage({ id, ack: true });
+  }
+
   try {
     const result = await handleRequest(type, payload);
     log.debug("Request success", {
@@ -530,13 +540,21 @@ process.parentPort.on("message", async (e: Electron.MessageEvent) => {
       type,
       elapsedMs: Date.now() - startedAt,
     });
-    process.parentPort.postMessage({ id, result });
+    if (process.parentPort) process.parentPort.postMessage({ id, result });
+    else if (parentPort) parentPort.postMessage({ id, result });
   } catch (error) {
     log.errorWithStack("Request failed", error, {
       id,
       type,
       elapsedMs: Date.now() - startedAt,
     });
-    process.parentPort.postMessage({ id, error: String(error) });
+    if (process.parentPort) process.parentPort.postMessage({ id, error: String(error) });
+    else if (parentPort) parentPort.postMessage({ id, error: String(error) });
   }
-});
+};
+
+if (process.parentPort) {
+  process.parentPort.on("message", messageHandler);
+} else if (parentPort) {
+  parentPort.on("message", messageHandler);
+}

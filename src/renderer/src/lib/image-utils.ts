@@ -18,7 +18,10 @@ export function parseTokens(json: string | undefined): PromptToken[] {
 export const GALLERY_THUMB_WIDTH = 600;
 
 export function rowToImageData(row: ImageRow): ImageData {
-  const base = `konomi://local/${encodeURIComponent(row.path.replace(/\\/g, "/"))}`;
+  const isWeb = !window.appInfo || !('isDevMode' in window.appInfo && window.appInfo.getLocale);
+  const base = isWeb
+    ? `/api/images/serve?path=${encodeURIComponent(row.path)}`
+    : `konomi://local/${encodeURIComponent(row.path.replace(/\\/g, "/"))}`;
   return {
     id: String(row.id),
     path: row.path,
