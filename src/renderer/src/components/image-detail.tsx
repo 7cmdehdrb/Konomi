@@ -629,6 +629,10 @@ const TheaterView = memo(function TheaterView({
   const isDraggingRef = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
+  const swipeStartRef = useRef<{ x: number; y: number; at: number } | null>(
+    null,
+  );
+  const swipeDeltaRef = useRef({ x: 0, y: 0 });
   const containerRef2 = useRef<HTMLDivElement>(null);
 
   // Reset on image change
@@ -735,6 +739,14 @@ const TheaterView = memo(function TheaterView({
   // Drag to pan
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (e.pointerType === "touch") {
+        swipeStartRef.current = {
+          x: e.clientX,
+          y: e.clientY,
+          at: Date.now(),
+        };
+        swipeDeltaRef.current = { x: 0, y: 0 };
+      }
       if (!isScrollable) return;
       isDraggingRef.current = true;
       setIsDragging(true);
@@ -747,6 +759,12 @@ const TheaterView = memo(function TheaterView({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      if (swipeStartRef.current) {
+        swipeDeltaRef.current = {
+          x: e.clientX - swipeStartRef.current.x,
+          y: e.clientY - swipeStartRef.current.y,
+        };
+      }
       if (!isDraggingRef.current) return;
       setPan({
         x: panStart.current.x + (e.clientX - dragStart.current.x),
@@ -757,9 +775,23 @@ const TheaterView = memo(function TheaterView({
   );
 
   const handlePointerUp = useCallback(() => {
+    if (swipeStartRef.current) {
+      const elapsed = Date.now() - swipeStartRef.current.at;
+      const absX = Math.abs(swipeDeltaRef.current.x);
+      const absY = Math.abs(swipeDeltaRef.current.y);
+      if (absX >= 48 && absY <= 36 && elapsed <= 800 && !isScrollable) {
+        if (swipeDeltaRef.current.x < 0 && hasNext) {
+          onNext();
+        } else if (swipeDeltaRef.current.x > 0 && hasPrev) {
+          onPrev();
+        }
+      }
+      swipeStartRef.current = null;
+      swipeDeltaRef.current = { x: 0, y: 0 };
+    }
     isDraggingRef.current = false;
     setIsDragging(false);
-  }, []);
+  }, [hasNext, hasPrev, isScrollable, onNext, onPrev]);
 
   // Bottom overlay
   const [overlayVisible, setOverlayVisible] = useState(false);

@@ -223,6 +223,7 @@ const GalleryToolbar = memo(function GalleryToolbar({
   const [mobileSizeControlsOpen, setMobileSizeControlsOpen] = useState(false);
   const [mobileSelectionActionsOpen, setMobileSelectionActionsOpen] =
     useState(false);
+  const [mobileToolbarExpanded, setMobileToolbarExpanded] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -237,12 +238,12 @@ const GalleryToolbar = memo(function GalleryToolbar({
       className="flex flex-col gap-2 border-b border-border bg-background p-2.5 sm:p-4"
       data-tour="gallery-toolbar"
     >
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex items-center justify-between gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           <span className="text-muted-foreground select-none">
             {t("gallery.totalImages", { count: totalCount })}
           </span>
-          {searchQuery && (
+          {searchQuery && (!isMobile || mobileToolbarExpanded) && (
             <button
               onClick={onClearSearch}
               className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
@@ -250,7 +251,7 @@ const GalleryToolbar = memo(function GalleryToolbar({
               {t("gallery.resetSearch")}
             </button>
           )}
-          {selectionMode && (
+          {selectionMode && (!isMobile || mobileToolbarExpanded) && (
             <span className="text-muted-foreground select-none">
               {t("gallery.selectedCount", { count: selectedCount })}
             </span>
@@ -328,10 +329,32 @@ const GalleryToolbar = memo(function GalleryToolbar({
               </Button>
             </div>
           )}
+
+          {isMobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => setMobileToolbarExpanded((prev) => !prev)}
+              title={mobileToolbarExpanded ? t("common.close") : "More"}
+            >
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  mobileToolbarExpanded && "rotate-180",
+                )}
+              />
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2",
+          isMobile && !mobileToolbarExpanded && !selectionMode && "hidden",
+        )}
+      >
         <Button
           variant={selectionMode ? "secondary" : "outline"}
           size="sm"
