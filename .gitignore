@@ -35,3 +35,5 @@ database/*.db-wal
 
 # Web server data (DB, cache - 각 PC마다 독립 생성)
 .data/
+*.png
+*.jpg
