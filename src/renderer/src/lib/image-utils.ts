@@ -25,7 +25,7 @@ export function rowToImageData(row: ImageRow): ImageData {
   return {
     id: String(row.id),
     path: row.path,
-    src: `${base}?w=${GALLERY_THUMB_WIDTH}`,
+    src: isWeb ? `${base}&w=${GALLERY_THUMB_WIDTH}` : `${base}?w=${GALLERY_THUMB_WIDTH}`,
     fullSrc: base,
     prompt: row.prompt,
     negativePrompt: row.negativePrompt,

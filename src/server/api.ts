@@ -3,9 +3,6 @@ import { Server } from "socket.io";
 import path from "path";
 import fs from "fs";
 import { workerRequest, setWorkerEventCallback } from "./worker-bridge";
-import crypto from "crypto";
-import { resizePng } from "../main/lib/konomi-image";
-import { resizeWebp } from "../main/lib/webp-alpha";
 import { getImageContentType } from "../main/lib/path-guard";
 
 let io: Server;
@@ -71,13 +68,8 @@ export function registerApiRoutes(app: express.Express) {
     }
   });
 
-  // Image serving (Porting konomi:// local protocol logic)
-  const thumbCacheDir = path.join(process.env.KONOMI_USER_DATA!, "thumb-cache");
-  fs.mkdirSync(thumbCacheDir, { recursive: true });
-
   app.get("/api/images/serve", async (req, res) => {
     const filePath = req.query.path as string;
-    const maxWidth = parseInt(req.query.w as string, 10);
 
     if (!filePath || !isPathAllowed(filePath)) {
       return res.status(403).send("Forbidden or invalid path");
@@ -85,53 +77,17 @@ export function registerApiRoutes(app: express.Express) {
 
     try {
       const ext = path.extname(filePath).toLowerCase();
-      if (![".png", ".webp", ".jpg", ".jpeg", ".gif"].includes(ext)) {
+      const supportedExts = [".png", ".webp", ".jpg", ".jpeg", ".gif"];
+      if (!supportedExts.includes(ext)) {
         return res.status(415).send("Unsupported media type");
       }
 
-      if (maxWidth > 0) {
-        // Thumbnail serving
-        const stat = await fs.promises.stat(filePath);
-        const hash = crypto
-          .createHash("md5")
-          .update(`${filePath}\0${maxWidth}\0${stat.mtimeMs}`)
-          .digest("hex");
-        const cachePath = path.join(thumbCacheDir, `${hash}.jpg`);
-
-        try {
-          const cacheStat = await fs.promises.stat(cachePath);
-          if (cacheStat.size > 0) {
-            res.set("Content-Type", "image/jpeg");
-            res.set("Cache-Control", "no-store");
-            return res.sendFile(cachePath);
-          }
-        } catch { /* cache miss */ }
-
-        // Generate via native addon (no Electron fallback available here)
-        try {
-          const buf = fs.readFileSync(filePath);
-          const result = ext === ".webp" ? resizeWebp(buf, maxWidth) : resizePng(buf, maxWidth);
-          
-          if (result && result.data) {
-            // Need to encode BGRA pixels back to a format like PNG/JPEG if we do it in node without Electron.
-            // Since we don't have nativeImage, and writing an encoder or pulling sharp is extra,
-            // for simplicity without adding new heavy image libraries beyond what's built-in the project,
-            // IF we are in Web mode, we can just send the original file if the addon output isn't readily encodeable,
-            // OR the native addon might actually be returning a raw buffer we'd normally pass to nativeImage.
-            // Actually, the result is raw BGRA. Without nativeImage we can't easily transform to JPEG here.
-            // So for Web Server mode, unless 'canvas' or 'sharp' is added, thumb optimization requires them.
-            // We'll just stream original for now if we can't encode.
-            console.log("Serving original due to lack of Electron nativeImage encoder in pure Node environment.");
-            // Send original string
-          }
-        } catch {} // ignore and serve original
-      }
-
-      // Serve original file
+      // Web 서버 모드에서는 항상 원본 파일 전송 (sharp/nativeImage 미사용)
       res.set("Content-Type", getImageContentType(filePath));
-      res.set("Cache-Control", "no-store");
-      res.sendFile(filePath);
+      res.set("Cache-Control", "public, max-age=3600");
+      return res.sendFile(filePath);
     } catch (e) {
+      console.error("[image serve error]", filePath, e);
       res.status(404).send("File not found");
     }
   });
