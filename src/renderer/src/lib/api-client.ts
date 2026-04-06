@@ -5,6 +5,9 @@ const isWebMode = !window.appInfo;
 let socket: ReturnType<typeof io> | null = null;
 
 if (isWebMode) {
+  // Web 모드 마커 설정 - 다른 모듈이 참조 가능
+  (window as any).__konomiWebMode = true;
+
   socket = io();
 
   const request = async (type: string, payload?: any) => {
@@ -42,7 +45,7 @@ if (isWebMode) {
     getLocale: () => Promise.resolve(navigator.language),
     getDbFileSize: () => Promise.resolve(0),
     getPromptsDbSchemaVersion: () => Promise.resolve(1),
-    checkForUpdates: () => Promise.resolve(null),
+    checkForUpdates: () => Promise.resolve(undefined as void),
     installUpdate: () => Promise.resolve(),
     onUpdateAvailable: () => () => {},
     onUpdateDownloaded: () => () => {},

@@ -72,23 +72,35 @@ export function registerApiRoutes(app: express.Express) {
     const filePath = req.query.path as string;
 
     if (!filePath || !isPathAllowed(filePath)) {
+      console.warn("[image serve] Blocked:", filePath);
       return res.status(403).send("Forbidden or invalid path");
     }
 
-    try {
-      const ext = path.extname(filePath).toLowerCase();
-      const supportedExts = [".png", ".webp", ".jpg", ".jpeg", ".gif"];
-      if (!supportedExts.includes(ext)) {
-        return res.status(415).send("Unsupported media type");
-      }
+    const absPath = path.resolve(filePath);
 
-      // Web 서버 모드에서는 항상 원본 파일 전송 (sharp/nativeImage 미사용)
-      res.set("Content-Type", getImageContentType(filePath));
-      res.set("Cache-Control", "public, max-age=3600");
-      return res.sendFile(filePath);
-    } catch (e) {
-      console.error("[image serve error]", filePath, e);
-      res.status(404).send("File not found");
+    try {
+      // 파일 존재 여부 선확인
+      await fs.promises.access(absPath, fs.constants.R_OK);
+    } catch {
+      console.warn("[image serve] Not found:", absPath);
+      return res.status(404).send("File not found");
     }
+
+    const ext = path.extname(absPath).toLowerCase();
+    const supportedExts = [".png", ".webp", ".jpg", ".jpeg", ".gif"];
+    if (!supportedExts.includes(ext)) {
+      return res.status(415).send("Unsupported media type");
+    }
+
+    res.set("Content-Type", getImageContentType(absPath));
+    res.set("Cache-Control", "public, max-age=3600");
+
+    // Windows 절대경로를 res.sendFile 대신 createReadStream으로 안전하게 전송
+    const stream = fs.createReadStream(absPath);
+    stream.on("error", (err) => {
+      console.error("[image serve] Stream error:", absPath, err);
+      if (!res.headersSent) res.status(500).send("Read error");
+    });
+    stream.pipe(res);
   });
 }
