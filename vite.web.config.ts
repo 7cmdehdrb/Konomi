@@ -48,6 +48,8 @@ export default defineConfig({
   plugins: [tailwindcss(), standaloneReactDevToolsPlugin(), react()],
   server: {
     port: 5173,
+    host: true,
+    allowedHosts: true, // 모든 외부 IP/도메인 접속 허용
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
