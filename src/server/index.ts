@@ -25,12 +25,20 @@ import { registerApiRoutes, setSocketIo } from "./api";
 import { startUtilityWorker } from "./worker-bridge";
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: "*" },
+  cors: {
+    origin: true,
+    credentials: true,
+  },
 });
 
 setSocketIo(io);

@@ -4,11 +4,21 @@ import path from "path";
 import fs from "fs";
 import { workerRequest, setWorkerEventCallback } from "./worker-bridge";
 import { getImageContentType } from "../main/lib/path-guard";
+import {
+  authenticateSocket,
+  createLoginSession,
+  destroyLoginSession,
+  isAuthConfigured,
+  isAuthenticatedRequest,
+  requireAuth,
+  verifyPassword,
+} from "./auth";
 
 let io: Server;
 
 export function setSocketIo(server: Server) {
   io = server;
+  io.use(authenticateSocket);
   setWorkerEventCallback((event, payload) => {
     io.emit(event, payload);
   });
@@ -35,8 +45,41 @@ function isPathAllowed(filePath: string): boolean {
 }
 
 export function registerApiRoutes(app: express.Express) {
+  app.get("/api/auth/status", (req, res) => {
+    if (!isAuthConfigured()) {
+      return res.status(503).json({
+        authenticated: false,
+        configured: false,
+        error: "Authentication is not configured on server.",
+      });
+    }
+    return res.json({
+      authenticated: isAuthenticatedRequest(req),
+      configured: true,
+    });
+  });
+
+  app.post("/api/auth/login", (req, res) => {
+    if (!isAuthConfigured()) {
+      return res
+        .status(503)
+        .json({ error: "Authentication is not configured on server." });
+    }
+    const password = String(req.body?.password ?? "");
+    if (!verifyPassword(password)) {
+      return res.status(401).json({ error: "Invalid password" });
+    }
+    createLoginSession(res);
+    return res.json({ ok: true });
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    destroyLoginSession(req, res);
+    return res.json({ ok: true });
+  });
+
   // RPC Endpoint mapping typical bridge.request traffic
-  app.post("/api/rpc", async (req, res) => {
+  app.post("/api/rpc", requireAuth, async (req, res) => {
     try {
       const { type, payload } = req.body;
 
@@ -68,7 +111,7 @@ export function registerApiRoutes(app: express.Express) {
     }
   });
 
-  app.get("/api/images/serve", async (req, res) => {
+  app.get("/api/images/serve", requireAuth, async (req, res) => {
     const filePath = req.query.path as string;
 
     console.log("[image serve] Request:", { filePath, url: req.url });

@@ -8,11 +8,12 @@ if (isWebMode) {
   // Web 모드 마커 설정 - 다른 모듈이 참조 가능
   (window as any).__konomiWebMode = true;
 
-  socket = io();
+  socket = io({ autoConnect: false });
 
   const request = async (type: string, payload?: any) => {
     const res = await fetch("/api/rpc", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, payload }),
     });
@@ -31,6 +32,50 @@ if (isWebMode) {
   };
 
   // Mock window objects
+  const authRequest = async <T>(url: string, options?: RequestInit): Promise<T> => {
+    const res = await fetch(url, {
+      credentials: "include",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options?.headers ?? {}),
+      },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || res.statusText || "Authentication failed");
+    }
+    return data as T;
+  };
+
+  window.auth = {
+    status: async () => {
+      const data = await authRequest<{ authenticated: boolean; configured: boolean }>(
+        "/api/auth/status",
+      );
+      if (data.authenticated && socket && !socket.connected) {
+        socket.connect();
+      }
+      return !!data.authenticated;
+    },
+    login: async (password: string) => {
+      await authRequest<{ ok: boolean }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      });
+      if (socket && !socket.connected) {
+        socket.connect();
+      }
+      return true;
+    },
+    logout: async () => {
+      await authRequest<{ ok: boolean }>("/api/auth/logout", {
+        method: "POST",
+      });
+      socket?.disconnect();
+    },
+  };
+
   window.appInfo = {
     isDevMode: () => Promise.resolve(import.meta.env.DEV),
     get: () => Promise.resolve({

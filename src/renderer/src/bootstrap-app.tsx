@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast, Toaster, useSonner } from "sonner";
 import { useTranslation } from "react-i18next";
+import { Loader2 } from "lucide-react";
 import App from "./App";
 import { AppSplash } from "@/components/app-splash";
 import { applyAppLanguagePreference } from "@/lib/i18n";
 import { createLogger } from "@/lib/logger";
 import type { ThemeId } from "@/lib/themes";
 import { readStoredSettings } from "@/hooks/useSettings";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { Folder } from "@preload/index.d";
 
 const log = createLogger("renderer/BootstrapApp");
@@ -14,6 +17,9 @@ const APP_SPLASH_MIN_VISIBLE_MS = 1900; // 사용자가 최소 1.9초는 Splash�
 const APP_SPLASH_COMPLETION_HOLD_MS = 180;
 const APP_SPLASH_FADE_OUT_MS = 240;
 const TOASTER_POSITION = "bottom-right";
+const isWebMode = Boolean((window as { __konomiWebMode?: boolean }).__konomiWebMode);
+
+type AuthState = "checking" | "locked" | "authed";
 
 interface BootstrapResult {
   folderCount: number | null;
@@ -166,6 +172,12 @@ function ClickableToaster() {
 export function BootstrapApp() {
   const { t } = useTranslation();
   const storedSettings = useMemo(() => readStoredSettings(), []);
+  const [authState, setAuthState] = useState<AuthState>(
+    isWebMode ? "checking" : "authed",
+  );
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
   const [folderCount, setFolderCount] = useState<number | null>(
     bootstrapResult.folderCount,
   );
@@ -205,6 +217,30 @@ export function BootstrapApp() {
   }, [renderSplash]);
 
   useEffect(() => {
+    if (!isWebMode) return;
+    let cancelled = false;
+    void window.auth
+      .status()
+      .then((ok) => {
+        if (!cancelled) setAuthState(ok ? "authed" : "locked");
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setAuthState("locked");
+          setAuthError(
+            error instanceof Error
+              ? error.message
+              : "인증 상태를 확인할 수 없습니다.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isWebMode && authState !== "authed") return;
     if (bootstrapCompleted) {
       setFolderCount(bootstrapResult.folderCount);
       setMountApp(true);
@@ -263,7 +299,7 @@ export function BootstrapApp() {
       clearSplashTimers();
       offMigrationProgress();
     };
-  }, [clearSplashTimers]);
+  }, [authState, clearSplashTimers]);
 
   const statusText = useMemo(() => {
     if (migrating) {
@@ -290,6 +326,82 @@ export function BootstrapApp() {
     }
     return t("app.splash.detail.loadingLibraryState");
   }, [folderCount, migrating, t]);
+
+  const submitLogin = useCallback(async () => {
+    const value = password.trim();
+    if (!value) {
+      setAuthError("비밀번호를 입력해 주세요.");
+      return;
+    }
+    setAuthSubmitting(true);
+    setAuthError(null);
+    try {
+      const ok = await window.auth.login(value);
+      if (!ok) {
+        setAuthError("비밀번호가 일치하지 않습니다.");
+        return;
+      }
+      setPassword("");
+      setAuthState("authed");
+      setRenderSplash(!bootstrapCompleted);
+    } catch (error) {
+      setAuthError(
+        error instanceof Error
+          ? error.message
+          : "로그인 처리 중 오류가 발생했습니다.",
+      );
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }, [password]);
+
+  if (isWebMode && authState !== "authed") {
+    return (
+      <>
+        <ClickableToaster />
+        <div className="flex min-h-screen items-center justify-center bg-background px-4">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-lg">
+            <h1 className="text-lg font-semibold text-foreground">Konomi 잠금 해제</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              비밀번호를 입력해야 라이브러리에 접근할 수 있습니다.
+            </p>
+            <div className="mt-4 space-y-3">
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void submitLogin();
+                  }
+                }}
+                placeholder="Password"
+                autoFocus
+              />
+              {authError && (
+                <p className="text-xs text-destructive">{authError}</p>
+              )}
+              <Button
+                className="w-full"
+                onClick={() => void submitLogin()}
+                disabled={authSubmitting || authState === "checking"}
+              >
+                {authSubmitting || authState === "checking" ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Checking...
+                  </>
+                ) : (
+                  "Unlock"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

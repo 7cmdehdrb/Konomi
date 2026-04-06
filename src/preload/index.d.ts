@@ -243,6 +243,11 @@ export type AppInfo = {
 
 declare global {
   interface Window {
+    auth: {
+      status: () => Promise<boolean>;
+      login: (password: string) => Promise<boolean>;
+      logout: () => Promise<void>;
+    };
     appInfo: {
       isDevMode: () => Promise<boolean>;
       get: () => Promise<AppInfo>;
