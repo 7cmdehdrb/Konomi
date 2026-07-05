@@ -19,11 +19,12 @@ RUN apt-get update \
   && ln -s /usr/include/png.h /opt/native/include/png.h \
   && ln -s /usr/include/pngconf.h /opt/native/include/pngconf.h \
   && ln -s /usr/include/pnglibconf.h /opt/native/include/pnglibconf.h \
-  && ln -s /usr/lib/$(gcc -print-multiarch)/libwebp.a /opt/native/lib/libwebp.a \
-  && ln -s /usr/lib/$(gcc -print-multiarch)/libpng.a /opt/native/lib/libpng.a
+  && ln -s /usr/lib/$(gcc -print-multiarch)/libwebp.so /opt/native/lib/libwebp.so \
+  && ln -s /usr/lib/$(gcc -print-multiarch)/libpng.so /opt/native/lib/libpng.so
 
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps --ignore-scripts \
+  && npm rebuild better-sqlite3
 
 COPY . .
 RUN DATABASE_URL=file:./database/konomi.db npx prisma generate \
@@ -41,7 +42,10 @@ ENV KONOMI_USER_DATA=/app/.data
 ENV KONOMI_MIGRATIONS_PATH=/app/prisma/migrations
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libpng16-16 \
+    libwebp7 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/package*.json ./

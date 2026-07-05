@@ -35,8 +35,15 @@ if (process.platform === "win32") {
   ]);
   // node-gyp <!@(...) splits on whitespace — two paths → two library entries
   process.stdout.write(`${pngLib} ${zlibLib}`);
+} else if (process.platform === "linux") {
+  // Linux distro static libpng is often not built with -fPIC, so link the shared lib.
+  const pngLib = findLib(libDir, [
+    "libpng.so",
+    "libpng16.so",
+    "libpng16.so.16",
+  ]);
+  process.stdout.write(pngLib);
 } else {
-  // macOS / Linux: static libpng; zlib is a system library (linked automatically)
-  const pngLib = findLib(libDir, ["libpng.a", "libpng16.a"]);
+  const pngLib = findLib(libDir, ["libpng.a", "libpng16.a", "libpng.dylib"]);
   process.stdout.write(pngLib);
 }

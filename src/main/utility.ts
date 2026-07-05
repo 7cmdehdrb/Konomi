@@ -86,7 +86,6 @@ import { createLogger } from "./lib/logger";
 import { suggestPromptTags, searchPromptTags } from "./lib/prompts-db";
 import { getDB, runMigrations } from "./lib/db";
 import { parentPort } from "worker_threads";
-import { shell } from "electron";
 
 let scanCancelToken: CancelToken | null = null;
 let computeHashesInFlight: Promise<number> | null = null;
@@ -105,6 +104,19 @@ const utilitySender: EventSender = {
     return false;
   },
 };
+
+async function trashOrDeleteFile(filePath: string): Promise<void> {
+  try {
+    const electron = await import("electron");
+    if (electron.shell?.trashItem) {
+      await electron.shell.trashItem(filePath);
+      return;
+    }
+  } catch {
+    // Electron is unavailable in the web server runtime.
+  }
+  await unlink(filePath);
+}
 
 async function handleRequest(type: string, payload: unknown): Promise<unknown> {
   const emitSearchStatsProgress = (done: number, total: number): void => {
@@ -244,11 +256,7 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
         const results = await Promise.allSettled(
           batch.map(async (row) => {
             await isManagedImagePath(row.path);
-            try {
-              await shell.trashItem(row.path);
-            } catch {
-              await unlink(row.path);
-            }
+            await trashOrDeleteFile(row.path);
           }),
         );
 
@@ -617,7 +625,7 @@ const messageHandler = async (e: any) => {
   };
   const startedAt = Date.now();
   log.debug("Request start", { id, type });
-  
+
   if (process.parentPort) {
     process.parentPort.postMessage({ id, ack: true });
   } else if (parentPort) {
@@ -639,7 +647,8 @@ const messageHandler = async (e: any) => {
       type,
       elapsedMs: Date.now() - startedAt,
     });
-    if (process.parentPort) process.parentPort.postMessage({ id, error: String(error) });
+    if (process.parentPort)
+      process.parentPort.postMessage({ id, error: String(error) });
     else if (parentPort) parentPort.postMessage({ id, error: String(error) });
   }
 };
