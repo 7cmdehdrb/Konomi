@@ -36,6 +36,7 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV KONOMI_WEB_MODE=1
 ENV PORT=3000
 ENV KONOMI_DATA_PATH=/app/.data
 ENV KONOMI_USER_DATA=/app/.data

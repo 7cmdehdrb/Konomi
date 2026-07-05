@@ -4,6 +4,7 @@ import type { Socket } from "socket.io";
 
 const AUTH_COOKIE_NAME = "konomi_auth";
 const SESSION_TTL_MS = Number(process.env.KONOMI_AUTH_SESSION_TTL_MS ?? 12 * 60 * 60 * 1000);
+const SECURE_COOKIE = process.env.KONOMI_AUTH_COOKIE_SECURE === "1";
 
 type SessionMap = Map<string, number>;
 type AuthConfig =
@@ -89,7 +90,7 @@ function setAuthCookie(res: Response, token: string): void {
   res.cookie(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: SECURE_COOKIE,
     path: "/",
     maxAge: SESSION_TTL_MS,
   });
@@ -99,7 +100,7 @@ function clearAuthCookie(res: Response): void {
   res.clearCookie(AUTH_COOKIE_NAME, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: SECURE_COOKIE,
     path: "/",
   });
 }

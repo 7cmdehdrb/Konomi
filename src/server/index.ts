@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 
 dotenv.config();
+process.env.KONOMI_WEB_MODE = "1";
 
 // 웹 구동 모드일 경우 Electron의 userData 대신 프로젝트 하위 .data 폴더를 기본값으로 사용
 if (!process.env.KONOMI_USER_DATA) {

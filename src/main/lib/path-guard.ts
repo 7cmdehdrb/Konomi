@@ -1,6 +1,5 @@
 import fs from "fs/promises";
 import path from "path";
-import { bridge } from "../bridge";
 import { createLogger } from "./logger";
 
 type FolderRow = {
@@ -64,7 +63,10 @@ function pruneExpiredTransientPaths(now = Date.now()): void {
 
 async function readRootsFromUtility(): Promise<string[]> {
   try {
-    const rows = await bridge.request<FolderRow[]>("folder:list");
+    const rows =
+      process.env.KONOMI_WEB_MODE === "1"
+        ? await readFolderRowsInProcess()
+        : await readFolderRowsViaBridge();
     const roots: string[] = [];
     for (const row of rows) {
       const resolved = await resolvePathForCompare(row.path);
@@ -77,6 +79,16 @@ async function readRootsFromUtility(): Promise<string[]> {
     });
     return cachedRoots;
   }
+}
+
+async function readFolderRowsViaBridge(): Promise<FolderRow[]> {
+  const { bridge } = await import("../bridge");
+  return bridge.request<FolderRow[]>("folder:list");
+}
+
+async function readFolderRowsInProcess(): Promise<FolderRow[]> {
+  const { getFolders } = await import("./folder");
+  return getFolders();
 }
 
 async function getAllowedRoots(forceRefresh = false): Promise<string[]> {
