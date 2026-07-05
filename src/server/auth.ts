@@ -6,14 +6,25 @@ const AUTH_COOKIE_NAME = "konomi_auth";
 const SESSION_TTL_MS = Number(process.env.KONOMI_AUTH_SESSION_TTL_MS ?? 12 * 60 * 60 * 1000);
 
 type SessionMap = Map<string, number>;
+type AuthConfig =
+  | { mode: "plain"; password: string }
+  | { mode: "hash"; salt: string; passwordHash: string };
 
 const sessions: SessionMap = new Map();
 
-function readAuthConfig(): { salt: string; passwordHash: string } | null {
+function readAuthConfig(): AuthConfig | null {
+  const password =
+    process.env.PASSWORD?.trim() ??
+    process.env.KONOMI_AUTH_PASSWORD?.trim() ??
+    "";
+  if (password) {
+    return { mode: "plain", password };
+  }
+
   const salt = process.env.KONOMI_AUTH_SALT?.trim() ?? "";
   const passwordHash = process.env.KONOMI_AUTH_PASSWORD_HASH?.trim().toLowerCase() ?? "";
   if (!salt || !passwordHash) return null;
-  return { salt, passwordHash };
+  return { mode: "hash", salt, passwordHash };
 }
 
 function hashPassword(password: string, salt: string): string {
@@ -100,6 +111,13 @@ export function isAuthConfigured(): boolean {
 export function verifyPassword(password: string): boolean {
   const cfg = readAuthConfig();
   if (!cfg) return false;
+  if (cfg.mode === "plain") {
+    const input = Buffer.from(password);
+    const expected = Buffer.from(cfg.password);
+    return (
+      input.length === expected.length && crypto.timingSafeEqual(input, expected)
+    );
+  }
   const computed = hashPassword(password, cfg.salt);
   if (!/^[a-f0-9]{64}$/.test(cfg.passwordHash)) return false;
   return safeEqualHex(computed, cfg.passwordHash);

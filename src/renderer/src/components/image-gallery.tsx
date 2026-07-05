@@ -34,7 +34,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ImageCard, type ImageData } from "./image-card";
-import { OnboardingView } from "./onboarding-view";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 
@@ -773,10 +772,6 @@ const GalleryResults = memo(function GalleryResults({
         </p>
       </div>
     );
-  }
-
-  if (!hasFolders && onAddFolder) {
-    return <OnboardingView onAddFolder={onAddFolder} />;
   }
 
   if (scanning) {

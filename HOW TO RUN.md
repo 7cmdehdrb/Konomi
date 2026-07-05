@@ -1,8 +1,9 @@
-# .env 파일 내용
-KONOMI_DATA_PATH=./.data
-# 다른 컴퓨터에 있는 실제 이미지 폴더 절대 경로 (콤마 구문)
-ALLOWED_ROOT_PATHS=D:/Photos,E:/Images
-PORT=3000
+# 1. 패키지 설치 (의존성 충돌 무시 옵션 포함)
+npm install --legacy-peer-deps
+
+# 2. SQLite 데이터베이스 클라이언트 생성 (매우 중요 ⭐)
+npx prisma generate
+
 
 
 # .env 파일 내용
@@ -21,8 +22,11 @@ cmd /c "set NODE_ENV=production && npm run dev:web"
 
 ---
 
+npm rebuild
+
+
 # 첫 번째 터미널 (백엔드)
 npm run dev:web
 
 # 두 번째 터미널 (프론트엔드)
-npx vite dev -c vite.web.config.ts --host
+npx vite dev -c vite.web.config.ts --host 0.0.0.0 --port 8080

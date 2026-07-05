@@ -86,6 +86,7 @@ import { createLogger } from "./lib/logger";
 import { suggestPromptTags, searchPromptTags } from "./lib/prompts-db";
 import { getDB, runMigrations } from "./lib/db";
 import { parentPort } from "worker_threads";
+import { shell } from "electron";
 
 let scanCancelToken: CancelToken | null = null;
 let computeHashesInFlight: Promise<number> | null = null;
@@ -228,6 +229,39 @@ async function handleRequest(type: string, payload: unknown): Promise<unknown> {
     case "image:listByIds": {
       const { ids } = payload as { ids: number[] };
       return listImagesByIds(ids);
+    }
+    case "image:bulkDelete": {
+      const ids = Array.isArray(payload)
+        ? payload
+        : ((payload as { ids?: number[] } | null | undefined)?.ids ?? []);
+      const rows = (await listImagesByIds(ids)) as Array<{ path: string }>;
+      let deleted = 0;
+      let failed = 0;
+      const BATCH = 20;
+
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const batch = rows.slice(i, i + BATCH);
+        const results = await Promise.allSettled(
+          batch.map(async (row) => {
+            await isManagedImagePath(row.path);
+            try {
+              await shell.trashItem(row.path);
+            } catch {
+              await unlink(row.path);
+            }
+          }),
+        );
+
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            deleted++;
+          } else {
+            failed++;
+          }
+        }
+      }
+
+      return { deleted, failed };
     }
     case "image:delete": {
       const rawPath =

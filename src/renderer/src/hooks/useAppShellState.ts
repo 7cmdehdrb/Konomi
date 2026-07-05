@@ -57,19 +57,27 @@ export function useAppShellState({
 }: UseAppShellStateOptions): UseAppShellStateResult {
   const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState<ActivePanel>("gallery");
-  const [tourOpen, setTourOpen] = useState(
-    () => localStorage.getItem(TOUR_COMPLETED_KEY) !== "true",
-  );
-  const [initialLanguageScreenOpen, setInitialLanguageScreenOpen] = useState(
-    () =>
-      localStorage.getItem(TOUR_COMPLETED_KEY) !== "true" &&
-      localStorage.getItem(INITIAL_LANGUAGE_SCREEN_COMPLETED_KEY) !== "true",
-  );
+  // Hard-disable feature tour to avoid startup deadlock in web/mobile mode.
+  const [tourOpen, setTourOpen] = useState(false);
+  const [initialLanguageScreenOpen, setInitialLanguageScreenOpen] =
+    useState(
+      () =>
+        localStorage.getItem(TOUR_COMPLETED_KEY) !== "true" &&
+        localStorage.getItem(INITIAL_LANGUAGE_SCREEN_COMPLETED_KEY) !== "true",
+    );
   const [sidebarWidth, setSidebarWidth] = useState(getStoredSidebarWidth);
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
   const currentSidebarWidth = useRef(sidebarWidth);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TOUR_COMPLETED_KEY, "true");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const handleResizeStart = useCallback(
     (event: ReactMouseEvent) => {
@@ -165,7 +173,7 @@ export function useAppShellState({
   );
 
   const handleStartTour = useCallback(() => {
-    setTourOpen(true);
+    setTourOpen(false);
   }, []);
 
   const handleTourClose = useCallback(() => {
@@ -195,7 +203,7 @@ export function useAppShellState({
     handleResizeStart,
     tourOpen,
     initialLanguageScreenOpen,
-    showFeatureTour: tourOpen && !initialLanguageScreenOpen,
+    showFeatureTour: false,
     handleStartTour,
     handleTourClose,
     handleInitialLanguageContinue,

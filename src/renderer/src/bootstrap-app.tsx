@@ -18,6 +18,11 @@ const APP_SPLASH_COMPLETION_HOLD_MS = 180;
 const APP_SPLASH_FADE_OUT_MS = 240;
 const TOASTER_POSITION = "bottom-right";
 const isWebMode = Boolean((window as { __konomiWebMode?: boolean }).__konomiWebMode);
+const WEB_SPLASH_MIN_VISIBLE_MS = 0;
+const WEB_SPLASH_COMPLETION_HOLD_MS = 0;
+const WEB_SPLASH_FADE_OUT_MS = 120;
+const WEB_RECENT_BOOT_STORAGE_KEY = "konomi-web-recent-bootstrap-at";
+const WEB_RECENT_BOOT_TTL_MS = 30 * 60 * 1000;
 
 type AuthState = "checking" | "locked" | "authed";
 
@@ -34,6 +39,43 @@ const bootstrapResult: BootstrapResult = {
   folders: null,
 };
 let bootstrapCompleted = false;
+
+function getSplashMinVisibleMs(): number {
+  return isWebMode ? WEB_SPLASH_MIN_VISIBLE_MS : APP_SPLASH_MIN_VISIBLE_MS;
+}
+
+function getSplashCompletionHoldMs(): number {
+  return isWebMode
+    ? WEB_SPLASH_COMPLETION_HOLD_MS
+    : APP_SPLASH_COMPLETION_HOLD_MS;
+}
+
+function getSplashFadeOutMs(): number {
+  return isWebMode ? WEB_SPLASH_FADE_OUT_MS : APP_SPLASH_FADE_OUT_MS;
+}
+
+function readRecentWebBoot(): boolean {
+  if (!isWebMode) return false;
+  try {
+    const raw = localStorage.getItem(WEB_RECENT_BOOT_STORAGE_KEY);
+    if (!raw) return false;
+    const bootedAt = Number(raw);
+    return (
+      Number.isFinite(bootedAt) && Date.now() - bootedAt < WEB_RECENT_BOOT_TTL_MS
+    );
+  } catch {
+    return false;
+  }
+}
+
+function markRecentWebBoot(): void {
+  if (!isWebMode) return;
+  try {
+    localStorage.setItem(WEB_RECENT_BOOT_STORAGE_KEY, String(Date.now()));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 function ensureMigrationsRun(): Promise<void> {
   if (!migrationPromise) {
@@ -172,6 +214,7 @@ function ClickableToaster() {
 export function BootstrapApp() {
   const { t } = useTranslation();
   const storedSettings = useMemo(() => readStoredSettings(), []);
+  const skipWebSplashRef = useRef(readRecentWebBoot());
   const [authState, setAuthState] = useState<AuthState>(
     isWebMode ? "checking" : "authed",
   );
@@ -183,7 +226,9 @@ export function BootstrapApp() {
   );
   const [migrating, setMigrating] = useState(false);
   const [mountApp, setMountApp] = useState(bootstrapCompleted);
-  const [renderSplash, setRenderSplash] = useState(!bootstrapCompleted);
+  const [renderSplash, setRenderSplash] = useState(
+    !bootstrapCompleted && !skipWebSplashRef.current,
+  );
   const [splashFadingOut, setSplashFadingOut] = useState(false);
   const [progressPercent, setProgressPercent] = useState<number | null>(null);
   const splashShownAtRef = useRef<number | null>(null);
@@ -241,6 +286,11 @@ export function BootstrapApp() {
 
   useEffect(() => {
     if (isWebMode && authState !== "authed") return;
+    if (isWebMode && skipWebSplashRef.current) {
+      setMountApp(true);
+      setRenderSplash(false);
+      setSplashFadingOut(false);
+    }
     if (bootstrapCompleted) {
       setFolderCount(bootstrapResult.folderCount);
       setMountApp(true);
@@ -278,11 +328,17 @@ export function BootstrapApp() {
       setFolderCount(result.folderCount);
 
       setProgressPercent(100);
+      markRecentWebBoot();
+      if (isWebMode && skipWebSplashRef.current) {
+        setRenderSplash(false);
+        setSplashFadingOut(false);
+        return;
+      }
       const shownAt = splashShownAtRef.current ?? Date.now();
       const elapsedMs = Date.now() - shownAt;
       const waitMs = Math.max(
-        APP_SPLASH_COMPLETION_HOLD_MS,
-        APP_SPLASH_MIN_VISIBLE_MS - elapsedMs,
+        getSplashCompletionHoldMs(),
+        getSplashMinVisibleMs() - elapsedMs,
       );
 
       splashMinTimerRef.current = setTimeout(() => {
@@ -290,7 +346,7 @@ export function BootstrapApp() {
         setSplashFadingOut(true);
         splashFadeTimerRef.current = setTimeout(() => {
           setRenderSplash(false);
-        }, APP_SPLASH_FADE_OUT_MS);
+        }, getSplashFadeOutMs());
       }, waitMs);
     });
 
@@ -343,7 +399,7 @@ export function BootstrapApp() {
       }
       setPassword("");
       setAuthState("authed");
-      setRenderSplash(!bootstrapCompleted);
+      setRenderSplash(!bootstrapCompleted && !skipWebSplashRef.current);
     } catch (error) {
       setAuthError(
         error instanceof Error

@@ -1,0 +1,16 @@
+.git
+.github
+.vscode
+.data
+database/*.db
+database/*.db-journal
+database/*.db-shm
+database/*.db-wal
+dist
+node_modules
+out
+src/native/*/build
+.env
+.env*.local
+*.log
+*.tsbuildinfo

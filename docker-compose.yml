@@ -1,0 +1,25 @@
+services:
+  konomi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: konomi:latest
+    container_name: konomi
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      KONOMI_DATA_PATH: /app/.data
+      KONOMI_USER_DATA: /app/.data
+      KONOMI_MIGRATIONS_PATH: /app/prisma/migrations
+      PASSWORD: ${PASSWORD:?Set PASSWORD in .env}
+      ALLOWED_ROOT_PATHS: ${DOCKER_ALLOWED_ROOT_PATHS:-/images}
+    ports:
+      - "8091:3000"
+    volumes:
+      - ./data:/app/.data
+      # OMV/NAS example: replace the left side with your real shared-folder path.
+      # - /srv/dev-disk-by-uuid-xxxx/photos:/images:ro
+      - ./images:/images:ro

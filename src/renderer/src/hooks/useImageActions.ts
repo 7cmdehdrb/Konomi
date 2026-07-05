@@ -9,6 +9,29 @@ import { createLogger } from "@/lib/logger";
 
 const log = createLogger("renderer/useImageActions");
 
+function copyTextWithFallback(text: string): boolean {
+  if (typeof document === "undefined") return false;
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+  document.body.appendChild(textarea);
+
+  textarea.focus();
+  textarea.select();
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 type SortBy = "recent" | "oldest" | "favorites" | "name";
 type BuiltinCategory = "favorites" | "random" | null;
 type ActivePanel = "gallery" | "generator" | "settings";
@@ -134,9 +157,20 @@ export function useImageActions({
 
   const handleCopyPrompt = useCallback(
     (prompt: string) => {
-      navigator.clipboard
-        .writeText(prompt)
-        .catch(() => toast.error(t("app.clipboardCopyFailed")));
+      const clipboard = globalThis.navigator?.clipboard;
+
+      if (clipboard?.writeText) {
+        clipboard.writeText(prompt).catch(() => {
+          if (!copyTextWithFallback(prompt)) {
+            toast.error(t("app.clipboardCopyFailed"));
+          }
+        });
+        return;
+      }
+
+      if (!copyTextWithFallback(prompt)) {
+        toast.error(t("app.clipboardCopyFailed"));
+      }
     },
     [t],
   );
